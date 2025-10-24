@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <!-- Gradiente de fondo azul -->
+    <linearGradient id="skyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1E3A8A;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#2563EB;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Gradiente para edificios -->
+    <linearGradient id="buildingGradient1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1E293B;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0F172A;stop-opacity:1" />
+    </linearGradient>
+    
+    <linearGradient id="buildingGradient2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#334155;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1E293B;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Gradiente para el capitolio -->
+    <linearGradient id="capitolGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#475569;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#334155;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Fondo del cielo -->
+  <rect width="1920" height="1080" fill="url(#skyGradient)"/>
+  
+  <!-- Edificios del fondo (más lejanos) -->
+  <rect x="1200" y="400" width="80" height="680" fill="url(#buildingGradient2)" opacity="0.6"/>
+  <rect x="1300" y="350" width="100" height="730" fill="url(#buildingGradient1)" opacity="0.6"/>
+  <rect x="1420" y="380" width="90" height="700" fill="url(#buildingGradient2)" opacity="0.6"/>
+  <rect x="1530" y="320" width="110" height="760" fill="url(#buildingGradient1)" opacity="0.6"/>
+  <rect x="1660" y="360" width="85" height="720" fill="url(#buildingGradient2)" opacity="0.6"/>
+  <rect x="1760" y="300" width="120" height="780" fill="url(#buildingGradient1)" opacity="0.6"/>
+  
+  <!-- Edificio del capitolio (izquierda) -->
+  <g transform="translate(50, 600)">
+    <!-- Base del capitolio -->
+    <rect x="0" y="200" width="400" height="100" fill="url(#capitolGradient)"/>
+    <!-- Columnas -->
+    <rect x="20" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    <rect x="45" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    <rect x="70" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    <rect x="95" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    <rect x="120" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    <rect x="145" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    <rect x="170" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    <rect x="195" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    <rect x="220" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    <rect x="245" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    <rect x="270" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    <rect x="295" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    <rect x="320" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    <rect x="345" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    <rect x="370" y="100" width="15" height="100" fill="url(#capitolGradient)"/>
+    
+    <!-- Techo del capitolio -->
+    <rect x="50" y="80" width="300" height="20" fill="url(#capitolGradient)"/>
+    
+    <!-- Cúpula -->
+    <rect x="175" y="20" width="50" height="60" fill="url(#capitolGradient)"/>
+    <ellipse cx="200" cy="20" rx="25" ry="15" fill="url(#capitolGradient)"/>
+    
+    <!-- Punta de la cúpula -->
+    <rect x="198" y="5" width="4" height="15" fill="url(#capitolGradient)"/>
+  </g>
+  
+  <!-- Edificios principales (primer plano) -->
+  <rect x="800" y="300" width="120" height="780" fill="url(#buildingGradient1)"/>
+  <rect x="940" y="250" width="100" height="830" fill="url(#buildingGradient2)"/>
+  <rect x="1060" y="280" width="130" height="800" fill="url(#buildingGradient1)"/>
+  <rect x="1210" y="200" width="110" height="880" fill="url(#buildingGradient2)"/>
+  <rect x="1340" y="240" width="95" height="840" fill="url(#buildingGradient1)"/>
+  <rect x="1455" y="180" width="140" height="900" fill="url(#buildingGradient2)"/>
+  <rect x="1615" y="220" width="105" height="860" fill="url(#buildingGradient1)"/>
+  <rect x="1740" y="160" width="120" height="920" fill="url(#buildingGradient2)"/>
+  
+  <!-- Ventanas en los edificios -->
+  <g fill="#3B82F6" opacity="0.3">
+    <!-- Edificio 1 -->
+    <rect x="810" y="320" width="8" height="12" />
+    <rect x="825" y="320" width="8" height="12" />
+    <rect x="840" y="320" width="8" height="12" />
+    <rect x="855" y="320" width="8" height="12" />
+    <rect x="870" y="320" width="8" height="12" />
+    <rect x="885" y="320" width="8" height="12" />
+    <rect x="900" y="320" width="8" height="12" />
+    
+    <rect x="810" y="350" width="8" height="12" />
+    <rect x="825" y="350" width="8" height="12" />
+    <rect x="840" y="350" width="8" height="12" />
+    <rect x="855" y="350" width="8" height="12" />
+    <rect x="870" y="350" width="8" height="12" />
+    <rect x="885" y="350" width="8" height="12" />
+    <rect x="900" y="350" width="8" height="12" />
+    
+    <!-- Edificio 2 -->
+    <rect x="950" y="280" width="8" height="12" />
+    <rect x="965" y="280" width="8" height="12" />
+    <rect x="980" y="280" width="8" height="12" />
+    <rect x="995" y="280" width="8" height="12" />
+    <rect x="1010" y="280" width="8" height="12" />
+    <rect x="1025" y="280" width="8" height="12" />
+    
+    <rect x="950" y="310" width="8" height="12" />
+    <rect x="965" y="310" width="8" height="12" />
+    <rect x="980" y="310" width="8" height="12" />
+    <rect x="995" y="310" width="8" height="12" />
+    <rect x="1010" y="310" width="8" height="12" />
+    <rect x="1025" y="310" width="8" height="12" />
+  </g>
+  
+  <!-- Efectos de luz y atmósfera -->
+  <rect width="1920" height="1080" fill="url(#skyGradient)" opacity="0.1"/>
+</svg>

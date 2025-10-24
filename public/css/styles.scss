@@ -1,0 +1,824 @@
+// Sistema ERP Municipal - SCSS Profesional
+// Paleta de colores: Azules institucionales, blancos y colores vivos para botones
+
+// ===== VARIABLES Y CONFIGURACIÓN =====
+$font-family-primary: 'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+$font-family-heading: 'Inter', 'Segoe UI', system-ui, sans-serif;
+$font-family-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+// Paleta de colores azules institucionales
+$blue-primary: #1E3A8A;        // Azul oscuro institucional
+$blue-dark: #1565C0;          // Azul marino profundo
+$blue-light: #42A5F5;         // Azul claro profesional
+$blue-accent: #2196F3;        // Celeste para destacados
+
+// Colores de contraste para botones
+$green-success: #2E7D32;      // Verde institucional
+$orange-warning: #FF9800;     // Naranja suave para acciones
+$red-danger: #e74c3c;         // Rojo corporativo
+$purple-action: #7C3AED;      // Púrpura para acciones especiales
+$teal-info: #2196F3;          // Celeste información
+
+// Colores neutros empresariales
+$white: #FFFFFF;
+$gray-50: #f8fafc;
+$gray-100: #f1f5f9;
+$gray-200: #e2e8f0;
+$gray-300: #cbd5e1;
+$gray-400: #94a3b8;
+$gray-500: #64748b;
+$gray-600: #475569;
+$gray-700: #334155;
+$gray-800: #1e293b;
+$gray-900: #0f172a;
+
+// Colores de acento vivos
+$vivid-blue: #2563EB;
+$vivid-green: #10B981;
+$vivid-orange: #F59E0B;
+$vivid-red: #EF4444;
+$vivid-purple: #8B5CF6;
+$vivid-pink: #EC4899;
+
+// Gradientes modernos
+$gradient-primary: linear-gradient(135deg, $blue-primary 0%, $green-success 50%, $blue-accent 100%);
+$gradient-blue: linear-gradient(135deg, $blue-primary 0%, $blue-accent 100%);
+$gradient-green: linear-gradient(135deg, $green-success 0%, #4CAF50 100%);
+$gradient-orange: linear-gradient(135deg, $orange-warning 0%, #F59E0B 100%);
+$gradient-purple: linear-gradient(135deg, $purple-action 0%, #8B5CF6 100%);
+
+// Tipografía
+$font-size-xs: 0.75rem;      // 12px
+$font-size-sm: 0.875rem;     // 14px
+$font-size-base: 1rem;       // 16px
+$font-size-lg: 1.125rem;     // 18px
+$font-size-xl: 1.25rem;      // 20px
+$font-size-2xl: 1.5rem;      // 24px
+$font-size-3xl: 1.875rem;    // 30px
+$font-size-4xl: 2.25rem;     // 36px
+
+$font-weight-light: 300;
+$font-weight-normal: 400;
+$font-weight-medium: 500;
+$font-weight-semibold: 600;
+$font-weight-bold: 700;
+$font-weight-extrabold: 800;
+
+// Espaciado
+$spacing-1: 0.25rem;
+$spacing-2: 0.5rem;
+$spacing-3: 0.75rem;
+$spacing-4: 1rem;
+$spacing-5: 1.25rem;
+$spacing-6: 1.5rem;
+$spacing-8: 2rem;
+$spacing-10: 2.5rem;
+$spacing-12: 3rem;
+
+// Bordes y sombras
+$border-radius: 0.5rem;
+$border-radius-lg: 0.75rem;
+$shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+$shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+$shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+$shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+// ===== MIXINS =====
+@mixin gradient-text($gradient) {
+  background: $gradient;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@mixin glass-effect($blur: 10px, $opacity: 0.1) {
+  backdrop-filter: blur($blur);
+  background: rgba(255, 255, 255, $opacity);
+}
+
+@mixin hover-lift {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: $shadow-lg;
+  }
+}
+
+@mixin button-variant($background, $border, $hover-background, $hover-border) {
+  background: $background;
+  border: 1px solid $border;
+  color: $white;
+  
+  &:hover {
+    background: $hover-background;
+    border-color: $hover-border;
+    transform: translateY(-1px);
+  }
+}
+
+@mixin button-gradient($gradient, $hover-gradient) {
+  background: $gradient;
+  border: none;
+  color: $white;
+  
+  &:hover {
+    background: $hover-gradient;
+    transform: translateY(-1px);
+  }
+}
+
+// ===== ESTILOS BASE =====
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: $font-family-primary;
+  font-size: $font-size-base;
+  font-weight: $font-weight-normal;
+  line-height: 1.5;
+  color: $gray-800;
+  background: linear-gradient(135deg, $gray-50 0%, $white 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+// ===== LAYOUT PRINCIPAL =====
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+#main-content {
+  flex: 1;
+  padding: $spacing-3 $spacing-4;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+// ===== HEADER INSTITUCIONAL =====
+.header {
+  background: $blue-primary;
+  color: $white;
+  padding: $spacing-3 $spacing-6;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba($blue-primary, 0.15);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  border-bottom: 3px solid $green-success;
+  @include glass-effect(15px, 0.1);
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, $blue-accent 0%, $blue-light 50%, $blue-accent 100%);
+    opacity: 1;
+    box-shadow: 0 0 20px $blue-accent;
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba($blue-accent, 0.1) 0%, transparent 70%);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  
+  h1 {
+    font-family: $font-family-heading;
+    font-size: $font-size-4xl;
+    font-weight: $font-weight-extrabold;
+    margin: 0 0 $spacing-3 0;
+    letter-spacing: -0.03em;
+    text-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 2px 8px rgba($blue-accent, 0.3);
+    position: relative;
+    z-index: 2;
+  }
+  
+  .subtitle {
+    font-size: $font-size-base;
+    font-weight: $font-weight-semibold;
+    opacity: 0.95;
+    margin-top: $spacing-1;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    position: relative;
+    z-index: 2;
+  }
+}
+
+// ===== NAVEGACIÓN EMPRESARIAL =====
+.nav {
+  background: linear-gradient(180deg, $white 0%, $gray-50 100%);
+  border-bottom: 1px solid $gray-200;
+  padding: 0;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
+  position: relative;
+  @include glass-effect(8px, 0.8);
+  
+  .nav-container {
+    padding: 0 $spacing-6;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  .nav-list {
+    display: flex;
+    list-style: none;
+    gap: $spacing-1;
+    margin: 0;
+    padding: 0;
+    align-items: center;
+  }
+  
+  .nav-item {
+    position: relative;
+  }
+  
+  .nav-link {
+    display: flex;
+    align-items: center;
+    padding: $spacing-4 $spacing-5;
+    color: $gray-700;
+    text-decoration: none;
+    font-weight: $font-weight-medium;
+    font-size: $font-size-sm;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: $border-radius;
+    margin: $spacing-2 0;
+    position: relative;
+    letter-spacing: 0.01em;
+    
+    &::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      width: 0;
+      height: 2px;
+      background: linear-gradient(90deg, $blue-primary, $blue-accent);
+      transition: all 0.3s ease;
+      transform: translateX(-50%);
+    }
+    
+    &:hover {
+      color: $blue-primary;
+      background: linear-gradient(135deg, rgba($blue-primary, 0.05) 0%, rgba($blue-accent, 0.05) 100%);
+      transform: translateY(-1px);
+      
+      &::before {
+        width: 80%;
+      }
+    }
+    
+    &.active {
+      color: $blue-primary;
+      background: linear-gradient(135deg, rgba($blue-primary, 0.1) 0%, rgba($blue-accent, 0.1) 100%);
+      font-weight: $font-weight-semibold;
+      
+      &::before {
+        width: 100%;
+      }
+    }
+  }
+}
+
+// ===== BOTONES PROFESIONALES =====
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-2;
+  padding: $spacing-3 $spacing-6;
+  font-family: $font-family-primary;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-medium;
+  line-height: 1;
+  border: none;
+  border-radius: $border-radius;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  min-height: 44px;
+  @include hover-lift;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba($white, 0.2), transparent);
+    transition: left 0.5s ease;
+  }
+  
+  &:hover::before {
+    left: 100%;
+  }
+  
+  &:focus {
+    outline: 2px solid transparent;
+    box-shadow: 0 0 0 3px rgba($blue-primary, 0.3);
+  }
+  
+  // Variantes de botones con colores vivos
+  
+  &-primary {
+    @include button-gradient(
+      linear-gradient(135deg, $vivid-blue 0%, $blue-accent 100%),
+      linear-gradient(135deg, $blue-accent 0%, $blue-light 100%)
+    );
+    box-shadow: 0 4px 15px rgba($vivid-blue, 0.3);
+  }
+  
+  &-success {
+    @include button-gradient(
+      linear-gradient(135deg, $vivid-green 0%, #34D399 100%),
+      linear-gradient(135deg, #34D399 0%, #6EE7B7 100%)
+    );
+    box-shadow: 0 4px 15px rgba($vivid-green, 0.3);
+  }
+  
+  &-warning {
+    @include button-gradient(
+      linear-gradient(135deg, $vivid-orange 0%, #FBBF24 100%),
+      linear-gradient(135deg, #FBBF24 0%, #FCD34D 100%)
+    );
+    box-shadow: 0 4px 15px rgba($vivid-orange, 0.3);
+  }
+  
+  &-danger {
+    @include button-gradient(
+      linear-gradient(135deg, $vivid-red 0%, #F87171 100%),
+      linear-gradient(135deg, #F87171 0%, #FCA5A5 100%)
+    );
+    box-shadow: 0 4px 15px rgba($vivid-red, 0.3);
+  }
+  
+  &-info {
+    @include button-gradient(
+      linear-gradient(135deg, $vivid-purple 0%, #A78BFA 100%),
+      linear-gradient(135deg, #A78BFA 0%, #C4B5FD 100%)
+    );
+    box-shadow: 0 4px 15px rgba($vivid-purple, 0.3);
+  }
+  
+  &-secondary {
+    background: linear-gradient(135deg, $white 0%, $gray-100 100%);
+    color: $gray-700;
+    border: 1px solid $gray-300;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    
+    &:hover {
+      background: linear-gradient(135deg, $gray-100 0%, $gray-200 100%);
+      border-color: $gray-400;
+      color: $gray-800;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+  }
+  
+  // Botones especiales para acciones específicas
+  &-view {
+    @include button-gradient(
+      linear-gradient(135deg, $vivid-purple 0%, #8B5CF6 100%),
+      linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%)
+    );
+    box-shadow: 0 4px 15px rgba($vivid-purple, 0.3);
+  }
+  
+  &-edit {
+    @include button-gradient(
+      linear-gradient(135deg, $vivid-green 0%, #10B981 100%),
+      linear-gradient(135deg, #10B981 0%, #34D399 100%)
+    );
+    box-shadow: 0 4px 15px rgba($vivid-green, 0.3);
+  }
+  
+  &-new {
+    @include button-gradient(
+      linear-gradient(135deg, $vivid-blue 0%, #2563EB 100%),
+      linear-gradient(135deg, #2563EB 0%, #3B82F6 100%)
+    );
+    box-shadow: 0 4px 15px rgba($vivid-blue, 0.3);
+  }
+  
+  // Tamaños
+  &-sm {
+    padding: $spacing-2 $spacing-4;
+    font-size: $font-size-xs;
+    min-height: 36px;
+  }
+  
+  &-lg {
+    padding: $spacing-4 $spacing-8;
+    font-size: $font-size-lg;
+    min-height: 52px;
+  }
+  
+  // Outline variants
+  &-outline {
+    background: transparent;
+    border: 2px solid currentColor;
+    
+    &-primary {
+      color: $blue-primary;
+      
+      &:hover {
+        background: $blue-primary;
+        color: $white;
+      }
+    }
+    
+    &-success {
+      color: $vivid-green;
+      
+      &:hover {
+        background: $vivid-green;
+        color: $white;
+      }
+    }
+    
+    &-warning {
+      color: $vivid-orange;
+      
+      &:hover {
+        background: $vivid-orange;
+        color: $white;
+      }
+    }
+  }
+}
+
+// Espaciado entre botones
+.btn + .btn {
+  margin-left: $spacing-3;
+}
+
+// ===== TARJETAS EMPRESARIALES =====
+.card {
+  background: linear-gradient(145deg, $white 0%, $gray-50 100%);
+  border-radius: $border-radius-lg;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid $gray-200;
+  margin-bottom: $spacing-3;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  @include hover-lift;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, $blue-primary 0%, $blue-accent 50%, $blue-light 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  &:hover::before {
+    opacity: 1;
+  }
+  
+  .card-header {
+    background: linear-gradient(135deg, $gray-50 0%, $white 50%, $gray-50 100%);
+    padding: $spacing-4;
+    border-bottom: 1px solid $gray-200;
+    position: relative;
+  }
+  
+  .card-title {
+    font-family: $font-family-heading;
+    font-size: $font-size-xl;
+    font-weight: $font-weight-semibold;
+    color: $gray-800;
+    margin: 0;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+  }
+  
+  .card-body {
+    padding: $spacing-4;
+    background: rgba($white, 0.8);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+// ===== FORMULARIOS =====
+.form-group {
+  margin-bottom: $spacing-4;
+  
+  label {
+    display: block;
+    font-weight: $font-weight-medium;
+    color: $gray-700;
+    margin-bottom: $spacing-2;
+    font-size: $font-size-sm;
+  }
+  
+  input, select, textarea {
+    width: 100%;
+    padding: $spacing-3;
+    border: 1px solid $gray-300;
+    border-radius: $border-radius;
+    font-family: $font-family-primary;
+    font-size: $font-size-base;
+    transition: all 0.2s ease;
+    
+    &:focus {
+      outline: none;
+      border-color: $blue-accent;
+      box-shadow: 0 0 0 3px rgba($blue-accent, 0.1);
+    }
+    
+    &:disabled {
+      background-color: $gray-100;
+      color: $gray-500;
+      cursor: not-allowed;
+    }
+  }
+  
+  .form-error {
+    color: $vivid-red;
+    font-size: $font-size-xs;
+    margin-top: $spacing-1;
+  }
+}
+
+// ===== LOGIN INDEPENDIENTE =====
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, $gray-100 0%, $white 100%);
+  padding: $spacing-6;
+}
+
+.login-card {
+  background: $white;
+  border-radius: $border-radius-lg;
+  box-shadow: $shadow-xl;
+  width: 100%;
+  max-width: 400px;
+  padding: $spacing-8;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid $gray-200;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: $gradient-blue;
+  }
+  
+  .login-title {
+    font-family: $font-family-heading;
+    font-size: $font-size-2xl;
+    font-weight: $font-weight-bold;
+    color: $blue-primary;
+    margin-bottom: $spacing-6;
+    text-align: center;
+  }
+  
+  .btn-block {
+    width: 100%;
+    padding: $spacing-3;
+    margin-top: $spacing-4;
+    background: $gradient-blue;
+    color: $white;
+    font-weight: $font-weight-semibold;
+    border: none;
+    border-radius: $border-radius;
+    transition: all 0.3s ease;
+    
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: $shadow-md;
+    }
+  }
+  
+  .login-error {
+    color: $red-danger;
+    font-size: $font-size-sm;
+    margin-top: $spacing-4;
+    text-align: center;
+    font-weight: $font-weight-medium;
+  }
+}
+
+// ===== TABLAS =====
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: $white;
+  border-radius: $border-radius;
+  overflow: hidden;
+  box-shadow: $shadow-md;
+  
+  th, td {
+    padding: $spacing-3 $spacing-4;
+    text-align: left;
+    border-bottom: 1px solid $gray-200;
+  }
+  
+  th {
+    background: linear-gradient(135deg, $gray-50 0%, $gray-100 100%);
+    font-weight: $font-weight-semibold;
+    color: $gray-700;
+    font-size: $font-size-sm;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  
+  tbody tr {
+    transition: background-color 0.2s ease;
+    
+    &:hover {
+      background-color: $gray-50;
+    }
+    
+    &:last-child td {
+      border-bottom: none;
+    }
+  }
+  
+  .badge {
+    padding: $spacing-1 $spacing-2;
+    border-radius: $border-radius;
+    font-size: $font-size-xs;
+    font-weight: $font-weight-medium;
+    
+    &-success {
+      background: rgba($vivid-green, 0.1);
+      color: $vivid-green;
+      border: 1px solid rgba($vivid-green, 0.2);
+    }
+    
+    &-warning {
+      background: rgba($vivid-orange, 0.1);
+      color: $vivid-orange;
+      border: 1px solid rgba($vivid-orange, 0.2);
+    }
+    
+    &-danger {
+      background: rgba($vivid-red, 0.1);
+      color: $vivid-red;
+      border: 1px solid rgba($vivid-red, 0.2);
+    }
+  }
+}
+
+// ===== UTILIDADES =====
+.text-gradient {
+  @include gradient-text($gradient-blue);
+}
+
+.bg-gradient-blue {
+  background: $gradient-blue;
+}
+
+.bg-gradient-green {
+  background: $gradient-green;
+}
+
+.bg-gradient-orange {
+  background: linear-gradient(135deg, $vivid-orange 0%, #F59E0B 100%);
+}
+
+// ===== RESPONSIVIDAD =====
+@media (max-width: 768px) {
+  .header h1 {
+    font-size: $font-size-3xl;
+  }
+  
+  .nav .nav-link {
+    padding: $spacing-3 $spacing-4;
+    font-size: $font-size-xs;
+  }
+  
+  .btn {
+    padding: $spacing-2 $spacing-4;
+    font-size: $font-size-xs;
+  }
+  
+  .card {
+    margin-bottom: $spacing-4;
+  }
+}
+
+@media (max-width: 480px) {
+  #main-content {
+    padding: $spacing-2;
+  }
+  
+  .header {
+    padding: $spacing-2 $spacing-4;
+    
+    h1 {
+      font-size: $font-size-2xl;
+      margin-bottom: $spacing-2;
+    }
+  }
+  
+  .table {
+    font-size: $font-size-xs;
+    
+    th, td {
+      padding: $spacing-2 $spacing-3;
+    }
+  }
+}
+
+// ===== ANIMACIONES =====
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.6s ease-out;
+}
+
+.slide-in {
+  animation: slideIn 0.4s ease-out;
+}
+
+// ===== ESTADOS DE CARGA =====
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid $gray-300;
+    border-top: 2px solid $blue-accent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

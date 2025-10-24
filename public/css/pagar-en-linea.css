@@ -1,0 +1,152 @@
+/* PayPal-like card layout for pagarEnLinea */
+
+.payment-wrapper {
+  padding: 24px;
+  background: #f8f9ff;
+}
+
+.payment-card {
+  max-width: 860px;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+  overflow: hidden;
+}
+
+.payment-header {
+  padding: 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.payment-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.payment-subtitle {
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.payment-body {
+  padding: 0 24px 24px 24px;
+}
+
+.payment-section-title {
+  margin: 18px 0 10px 0;
+  color: #374151;
+  font-size: 14px;
+}
+
+.payment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.payment-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 18px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.payment-item-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.payment-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.payment-item-name {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 16px;
+}
+
+.payment-item-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.qty-label {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.payment-item-right {
+  display: flex;
+  align-items: center;
+}
+
+.payment-item-price {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.payment-method {
+  margin-top: 16px;
+}
+
+.payment-method-label {
+  font-size: 13px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+.payment-total-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 2px solid #e5e7eb;
+}
+
+.payment-total-label {
+  color: #374151;
+  font-size: 14px;
+}
+
+.payment-total-value {
+  font-weight: 600;
+  color: #111827;
+}
+
+.payment-actions {
+  margin-top: 8px;
+  border-top: 1px solid #e5e7eb;
+  padding: 16px 24px;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-start;
+}
+
+/* Button overrides to match reference tone */
+.payment-actions .btn-primary {
+  background-color: #22c55e;
+  border-color: #22c55e;
+}
+.payment-actions .btn-primary:hover {
+  background-color: #16a34a;
+  border-color: #16a34a;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .payment-card { border-radius: 0; box-shadow: none; }
+  .payment-item { flex-direction: column; gap: 12px; }
+  .payment-item-right { align-self: flex-end; }
+}

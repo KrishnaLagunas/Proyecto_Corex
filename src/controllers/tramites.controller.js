@@ -1,0 +1,941 @@
+const { Tramite, Usuario, Departamento, Documento, Pago, ConfiguracionPago } = require('../models');
+const { ApiError } = require('../middlewares/errorHandler');
+const logger = require('../utils/logger');
+const { Op, QueryTypes } = require('sequelize');
+const sequelize = require('sequelize');
+const PDFDocument = require('pdfkit');
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Controlador para el manejo de trámites municipales
+ */
+const tramitesController = {
+  /**
+   * Obtiene todos los trámites con paginación y filtros
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   * @param {Function} next - Función next de Express
+   */
+  getAllTramites: async (req, res, next) => {
+    try {
+      const { 
+        page = 1, 
+        limit = 10, 
+        estado, 
+        tipo, 
+        departamento_id,
+        search,
+        desde,
+        hasta,
+        sort = 'fecha_solicitud',
+        order = 'DESC'
+      } = req.query;
+
+      // Construir condiciones de búsqueda
+      const where = {};
+      
+      // Filtro por estado
+      if (estado) {
+        where.estado = estado;
+      }
+      
+      // Filtro por tipo
+      if (tipo) {
+        where.tipo = tipo;
+      }
+      
+      // Filtro por departamento
+      if (departamento_id) {
+        where.departamento_id = departamento_id;
+      }
+      
+      // Filtro por rango de fechas
+      if (desde || hasta) {
+        where.fecha_solicitud = {};
+        if (desde) {
+          where.fecha_solicitud[Op.gte] = new Date(desde);
+        }
+        if (hasta) {
+          where.fecha_solicitud[Op.lte] = new Date(hasta);
+        }
+      }
+      
+      // Búsqueda por texto en título o descripción
+      if (search) {
+        where[Op.or] = [
+          { titulo: { [Op.like]: `%${search}%` } },
+          { descripcion: { [Op.like]: `%${search}%` } },
+          { codigo: { [Op.like]: `%${search}%` } }
+        ];
+      }
+      
+      // Restricción por rol de usuario
+      if (req.user.role === 'ciudadano') {
+        // Los ciudadanos solo pueden ver sus propios trámites
+        where.ciudadano_id = req.user.id;
+      } else if (req.user.role === 'funcionario') {
+        // Los funcionarios ven los trámites asignados a ellos, de su departamento (si tiene) y sin asignar
+        const funcionario = await Usuario.findByPk(req.user.id, {
+          include: [{ model: Departamento }],
+          attributes: ['id', 'departamento_id']
+        });
+
+        const deptId = funcionario?.departamento_id || funcionario?.Departamento?.id || null;
+
+        if (deptId) {
+          where[Op.or] = [
+            { funcionario_id: req.user.id },
+            { departamento_id: deptId },
+            { funcionario_id: null }
+          ];
+        } else {
+          // Si el funcionario no está asociado a un departamento, incluir también los no asignados
+          where[Op.or] = [
+            { funcionario_id: req.user.id },
+            { funcionario_id: null }
+          ];
+        }
+      }
+      // Filtro opcional por ciudadano cuando lo solicita admin/funcionario
+      const ciudadanoIdParam = req.query.ciudadanoId || req.query.ciudadano_id;
+      if (ciudadanoIdParam && req.user.role !== 'ciudadano') {
+        where.ciudadano_id = ciudadanoIdParam;
+      }
+      // Los administradores pueden ver todos los trámites (no se aplica filtro adicional)
+      
+      // Calcular offset para paginación
+      const offset = (page - 1) * limit;
+      
+      // Validar campo de ordenamiento
+      const validSortFields = ['fecha_solicitud', 'titulo', 'estado', 'prioridad', 'codigo'];
+      const sortField = validSortFields.includes(sort) ? sort : 'fecha_solicitud';
+      
+      // Validar dirección de ordenamiento
+      const sortOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+      
+      // Ejecutar consulta de conteo sin includes para evitar problemas de asociaciones múltiples
+      const count = await Tramite.count({ where });
+      
+      // Ejecutar consulta de datos con includes
+      const rows = await Tramite.findAll({
+        where,
+        include: [
+          { 
+            model: Usuario, 
+            as: 'ciudadano',
+            attributes: ['id', 'nombre', 'apellido', 'email', 'rut'] 
+          },
+          { 
+            model: Usuario, 
+            as: 'funcionario',
+            attributes: ['id', 'nombre', 'apellido', 'email'] 
+          },
+          { 
+            model: Departamento,
+            attributes: ['id', 'nombre'] 
+          }
+        ],
+        order: [[sortField, sortOrder]],
+        limit: parseInt(limit),
+        offset: offset
+      });
+      
+      // Calcular total de páginas
+      const totalPages = Math.ceil(count / limit);
+      
+      res.json({
+        tramites: rows,
+        pagination: {
+          total: count,
+          totalPages,
+          currentPage: parseInt(page),
+          limit: parseInt(limit)
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Obtiene un trámite por su ID
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   * @param {Function} next - Función next de Express
+   */
+  getTramiteById: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      
+      const tramite = await Tramite.findByPk(id, {
+        include: [
+          { 
+            model: Usuario, 
+            as: 'ciudadano',
+            attributes: ['id', 'nombre', 'apellido', 'email', 'rut', 'telefono'] 
+          },
+          { 
+            model: Usuario, 
+            as: 'funcionario',
+            attributes: ['id', 'nombre', 'apellido', 'email'] 
+          },
+          { 
+            model: Departamento,
+            attributes: ['id', 'nombre'] 
+          },
+          {
+            model: Documento,
+            attributes: ['id', 'nombre', 'descripcion', 'tipo', 'ruta_archivo', 'es_publico', 'createdAt']
+          }
+        ]
+      });
+      
+      if (!tramite) {
+        throw new ApiError('Trámite no encontrado', 404);
+      }
+      
+      // Verificar permisos de acceso
+      if (req.user.role === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
+        throw new ApiError('No tienes permiso para ver este trámite', 403);
+      }
+      
+      res.json(tramite);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Crea un nuevo trámite
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   * @param {Function} next - Función next de Express
+   */
+  createTramite: async (req, res, next) => {
+    try {
+      const { 
+        titulo, 
+        descripcion, 
+        tipo, 
+        prioridad = 'media',
+        requiere_pago = false,
+        monto = 0,
+        departamento_id 
+      } = req.body;
+      
+      // Verificar que el departamento existe
+      const departamento = await Departamento.findByPk(departamento_id);
+      if (!departamento) {
+        throw new ApiError('El departamento seleccionado no existe', 400);
+      }
+      
+      // Si es ciudadano, asignar automáticamente su ID
+      let ciudadano_id = null;
+      if (req.user.role === 'ciudadano') {
+        ciudadano_id = req.user.id;
+      } else if (req.body.ciudadano_id) {
+        // Si es funcionario o admin, puede especificar el ciudadano
+        const ciudadano = await Usuario.findOne({
+          where: { id: req.body.ciudadano_id, role: 'ciudadano' }
+        });
+        if (!ciudadano) {
+          throw new ApiError('El ciudadano seleccionado no existe', 400);
+        }
+        ciudadano_id = ciudadano.id;
+      } else {
+        throw new ApiError('Debe especificar el ciudadano para el trámite', 400);
+      }
+      
+      // Generar código para el trámite
+      logger.info(`Generando código para trámite de tipo: ${tipo}`);
+      let codigo;
+      try {
+        codigo = await Tramite.generateCodigo(tipo);
+        logger.info(`Código generado: ${codigo}`);
+      } catch (error) {
+        logger.error(`Error generando código: ${error.message}`);
+        throw new ApiError('Error al generar código del trámite', 500);
+      }
+      
+      // Crear el trámite
+      logger.info(`Creando trámite con código: ${codigo}`);
+      const nuevoTramite = await Tramite.create({
+        codigo,
+        titulo,
+        descripcion,
+        tipo,
+        estado: 'pendiente',
+        fecha_solicitud: new Date(),
+        prioridad,
+        requiere_pago,
+        monto,
+        ciudadano_id,
+        departamento_id
+      });
+      
+      logger.info(`Nuevo trámite creado: ${nuevoTramite.codigo} - ${titulo}`);
+      
+      res.status(201).json({
+        success: true,
+        message: 'Trámite creado exitosamente',
+        tramite: {
+          id: nuevoTramite.id,
+          codigo: nuevoTramite.codigo,
+          titulo: nuevoTramite.titulo,
+          descripcion: nuevoTramite.descripcion,
+          tipo: nuevoTramite.tipo,
+          estado: nuevoTramite.estado,
+          prioridad: nuevoTramite.prioridad,
+          requiere_pago: nuevoTramite.requiere_pago,
+          monto: nuevoTramite.monto,
+          fecha_solicitud: nuevoTramite.fecha_solicitud,
+          ciudadano_id: nuevoTramite.ciudadano_id,
+          departamento_id: nuevoTramite.departamento_id
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Actualiza un trámite existente
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   * @param {Function} next - Función next de Express
+   */
+  updateTramite: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { 
+        titulo, 
+        descripcion, 
+        estado, 
+        prioridad,
+        funcionario_id,
+        departamento_id,
+        requiere_pago,
+        monto,
+        observaciones
+      } = req.body;
+      
+      // Buscar el trámite
+      const tramite = await Tramite.findByPk(id);
+      if (!tramite) {
+        throw new ApiError('Trámite no encontrado', 404);
+      }
+      
+      // Verificar permisos
+      if (req.user.role === 'ciudadano') {
+        // Los ciudadanos solo pueden modificar sus propios trámites y solo ciertos campos
+        if (tramite.ciudadano_id !== req.user.id) {
+          throw new ApiError('No tienes permiso para modificar este trámite', 403);
+        }
+        
+        // Los ciudadanos solo pueden modificar título y descripción, y solo si está pendiente
+        if (tramite.estado !== 'pendiente') {
+          throw new ApiError('No puedes modificar un trámite que ya está en proceso', 403);
+        }
+        
+        // Actualizar solo los campos permitidos
+        if (titulo) tramite.titulo = titulo;
+        if (descripcion) tramite.descripcion = descripcion;
+      } else {
+        // Funcionarios y administradores pueden actualizar más campos
+        if (titulo) tramite.titulo = titulo;
+        if (descripcion) tramite.descripcion = descripcion;
+        if (estado) tramite.estado = estado;
+        if (prioridad) tramite.prioridad = prioridad;
+        if (requiere_pago !== undefined) tramite.requiere_pago = requiere_pago;
+        if (monto !== undefined) tramite.monto = monto;
+        if (observaciones) tramite.observaciones = observaciones;
+        
+        // Actualizar funcionario asignado
+        if (funcionario_id) {
+          const funcionario = await Usuario.findOne({
+            where: { id: funcionario_id, role: 'funcionario' }
+          });
+          if (!funcionario) {
+            throw new ApiError('El funcionario seleccionado no existe', 400);
+          }
+          tramite.funcionario_id = funcionario_id;
+        }
+        
+        // Actualizar departamento
+        if (departamento_id) {
+          const departamento = await Departamento.findByPk(departamento_id);
+          if (!departamento) {
+            throw new ApiError('El departamento seleccionado no existe', 400);
+          }
+          tramite.departamento_id = departamento_id;
+        }
+        
+        // Si se cambia el estado a 'finalizado', registrar la fecha
+        if (estado === 'finalizado' && tramite.estado !== 'finalizado') {
+          tramite.fecha_finalizacion = new Date();
+        }
+      }
+      
+      // Guardar los cambios
+      await tramite.save();
+      
+      logger.info(`Trámite actualizado: ${tramite.codigo}`);
+      
+      // Obtener el trámite actualizado con sus relaciones
+      const tramiteActualizado = await Tramite.findByPk(id, {
+        include: [
+          { model: Usuario, as: 'ciudadano', attributes: ['id', 'nombre', 'apellido', 'email'] },
+          { model: Usuario, as: 'funcionario', attributes: ['id', 'nombre', 'apellido', 'email'] },
+          { model: Departamento, attributes: ['id', 'nombre', 'codigo'] }
+        ]
+      });
+      
+      res.json({
+        message: 'Trámite actualizado exitosamente',
+        tramite: tramiteActualizado
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Elimina un trámite (solo administradores)
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   * @param {Function} next - Función next de Express
+   */
+  deleteTramite: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      
+      // Solo los administradores pueden eliminar trámites
+      if (req.user.role !== 'admin') {
+        throw new ApiError('No tienes permiso para eliminar trámites', 403);
+      }
+      
+      const tramite = await Tramite.findByPk(id);
+      if (!tramite) {
+        throw new ApiError('Trámite no encontrado', 404);
+      }
+      
+      // Guardar información para el log
+      const codigoTramite = tramite.codigo;
+      
+      // Eliminar el trámite
+      await tramite.destroy();
+      
+      logger.info(`Trámite eliminado: ${codigoTramite}`);
+      
+      res.json({
+        message: 'Trámite eliminado exitosamente'
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Obtiene estadísticas de trámites
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   * @param {Function} next - Función next de Express
+   */
+  getTramitesStats: async (req, res, next) => {
+    try {
+      // Solo administradores y funcionarios pueden ver estadísticas
+      if (req.user.role === 'ciudadano') {
+        throw new ApiError('No tienes permiso para ver estadísticas', 403);
+      }
+      
+      // Estadísticas por estado
+      const estadoStats = await Tramite.findAll({
+        attributes: [
+          'estado',
+          [sequelize.fn('COUNT', sequelize.col('id')), 'total']
+        ],
+        group: ['estado']
+      });
+      
+      // Estadísticas por tipo
+      const tipoStats = await Tramite.findAll({
+        attributes: [
+          'tipo',
+          [sequelize.fn('COUNT', sequelize.col('id')), 'total']
+        ],
+        group: ['tipo']
+      });
+      
+      // Estadísticas por departamento
+      const departamentoStats = await Tramite.findAll({
+        attributes: [
+          'departamento_id',
+          [sequelize.fn('COUNT', sequelize.col('id')), 'total']
+        ],
+        include: [{
+          model: Departamento,
+          attributes: ['nombre']
+        }],
+        group: ['departamento_id', 'Departamento.id', 'Departamento.nombre']
+      });
+      
+      // Trámites creados por mes (últimos 12 meses)
+      const tramitesPorMes = await Tramite.findAll({
+        attributes: [
+          [sequelize.fn('DATE_FORMAT', sequelize.col('fecha_solicitud'), '%Y-%m'), 'mes'],
+          [sequelize.fn('COUNT', sequelize.col('id')), 'total']
+        ],
+        where: {
+          fecha_solicitud: {
+            [Op.gte]: sequelize.literal('DATE_SUB(NOW(), INTERVAL 12 MONTH)')
+          }
+        },
+        group: [sequelize.fn('DATE_FORMAT', sequelize.col('fecha_solicitud'), '%Y-%m')],
+        order: [[sequelize.fn('DATE_FORMAT', sequelize.col('fecha_solicitud'), '%Y-%m'), 'ASC']]
+      });
+      
+      res.json({
+        estadoPorTramite: estadoStats,
+        tipoPorTramite: tipoStats,
+        departamentoPorTramite: departamentoStats,
+        tramitesPorMes
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+};
+
+/**
+ * Obtiene todos los tipos de trámites
+ * @param {Object} req - Objeto de solicitud
+ * @param {Object} res - Objeto de respuesta
+ * @param {Function} next - Función next
+ */
+tramitesController.getTiposTramites = async (req, res, next) => {
+  try {
+    // Simulamos una lista de tipos de trámites
+    const tiposTramites = [
+      { id: 1, nombre: 'Licencia de Construcción', descripcion: 'Permiso para realizar obras de construcción', costo: 500, tiempoEstimado: '15 días', estado: 'activo' },
+      { id: 2, nombre: 'Permiso Comercial', descripcion: 'Autorización para operar un negocio', costo: 300, tiempoEstimado: '10 días', estado: 'activo' },
+      { id: 3, nombre: 'Certificado de Residencia', descripcion: 'Documento que certifica la residencia en el municipio', costo: 100, tiempoEstimado: '3 días', estado: 'activo' },
+      { id: 4, nombre: 'Registro de Propiedad', descripcion: 'Inscripción de bienes inmuebles', costo: 800, tiempoEstimado: '20 días', estado: 'activo' },
+      { id: 5, nombre: 'Solicitud de Información Pública', descripcion: 'Acceso a información pública municipal', costo: 0, tiempoEstimado: '5 días', estado: 'activo' }
+    ];
+    
+    return res.status(200).json(tiposTramites);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Crea un nuevo tipo de trámite
+ * @param {Object} req - Objeto de solicitud
+ * @param {Object} res - Objeto de respuesta
+ * @param {Function} next - Función next
+ */
+tramitesController.createTipoTramite = async (req, res, next) => {
+  try {
+    // En una implementación real, aquí se guardaría en la base de datos
+    // Por ahora, simplemente devolvemos el objeto con un ID simulado
+    const nuevoTipoTramite = {
+      id: Date.now(), // Simulamos un ID único
+      ...req.body,
+      estado: 'activo'
+    };
+    
+    return res.status(201).json(nuevoTipoTramite);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Documentos por trámite
+ */
+tramitesController.getDocumentosByTramiteId = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const tramite = await Tramite.findByPk(id, { attributes: ['id', 'ciudadano_id'] });
+    if (!tramite) throw new ApiError('Trámite no encontrado', 404);
+    if (req.user.role === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
+      throw new ApiError('No tienes permiso para ver documentos de este trámite', 403);
+    }
+    const documentos = await Documento.findAll({
+      where: { tramite_id: id },
+      attributes: ['id', 'nombre', 'descripcion', 'tipo', 'ruta_archivo', 'mime_type', 'tamaño', 'es_publico', 'createdAt'],
+      order: [['createdAt', 'DESC']]
+    });
+    res.json(documentos);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Subir documento para un trámite
+ */
+tramitesController.subirDocumentoTramite = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const tramite = await Tramite.findByPk(id, { attributes: ['id', 'ciudadano_id'] });
+    if (!tramite) throw new ApiError('Trámite no encontrado', 404);
+    // Solo el propio ciudadano, funcionario o admin pueden subir
+    if (req.user.role === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
+      throw new ApiError('No tienes permiso para subir documentos a este trámite', 403);
+    }
+
+    const file = (req.files && (req.files.archivo?.[0] || req.files.documento?.[0])) || req.file;
+    if (!file) throw new ApiError('No se recibió archivo', 400);
+
+    const tipoEntrada = (req.body.tipo || '').toLowerCase();
+    const tiposValidos = ['solicitud', 'certificado', 'comprobante', 'informe', 'anexo', 'otro'];
+    const tipo = tiposValidos.includes(tipoEntrada) ? tipoEntrada : 'otro';
+
+    const nombre = req.body.nombre || file.originalname;
+    const descripcion = req.body.descripcion || '';
+    const rutaRelativa = `documentos/${file.filename}`;
+
+    const doc = await Documento.create({
+      nombre,
+      descripcion,
+      tipo,
+      ruta_archivo: rutaRelativa,
+      mime_type: file.mimetype,
+      tamaño: file.size,
+      es_publico: false,
+      tramite_id: id,
+      usuario_id: req.user.id
+    });
+
+    logger.info(`Documento subido para trámite ${id}: ${file.filename}`);
+    res.status(201).json({ id: doc.id, nombre: doc.nombre, tipo: doc.tipo, ruta_archivo: doc.ruta_archivo });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Pagos por trámite
+ */
+tramitesController.getPagosByTramiteId = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const tramite = await Tramite.findByPk(id, { attributes: ['id', 'ciudadano_id'] });
+    if (!tramite) throw new ApiError('Trámite no encontrado', 404);
+    if (req.user.role === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
+      throw new ApiError('No tienes permiso para ver pagos de este trámite', 403);
+    }
+
+    const pagos = await Pago.findAll({
+      where: { tramite_id: id },
+      attributes: ['id', 'codigo', 'monto', 'fecha_pago', 'metodo_pago', 'estado', 'notas'],
+      order: [['fecha_pago', 'DESC']]
+    });
+    res.json(pagos);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Historial por trámite (sintetizado)
+ */
+tramitesController.getHistorialByTramiteId = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const tramite = await Tramite.findByPk(id, {
+      attributes: ['id', 'fecha_solicitud', 'fecha_actualizacion', 'ciudadano_id', 'funcionario_id'],
+      include: [
+        { model: Usuario, as: 'ciudadano', attributes: ['id', 'nombre', 'apellido'] },
+        { model: Usuario, as: 'funcionario', attributes: ['id', 'nombre', 'apellido'] }
+      ]
+    });
+    if (!tramite) throw new ApiError('Trámite no encontrado', 404);
+    if (req.user.role === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
+      throw new ApiError('No tienes permiso para ver el historial de este trámite', 403);
+    }
+
+    const eventos = [];
+    eventos.push({
+      fecha: tramite.fecha_solicitud,
+      accion: 'Trámite creado',
+      descripcion: 'Solicitud registrada',
+      usuario: tramite.ciudadano ? { nombre: tramite.ciudadano.nombre, apellido: tramite.ciudadano.apellido } : null
+    });
+
+    // Documentos
+    const documentos = await Documento.findAll({ where: { tramite_id: id }, attributes: ['id', 'nombre', 'createdAt', 'usuario_id'] });
+    for (const d of documentos) {
+      eventos.push({
+        fecha: d.createdAt,
+        accion: 'Documento subido',
+        descripcion: d.nombre,
+        usuario: null
+      });
+    }
+
+    // Pagos
+    const pagos = await Pago.findAll({ where: { tramite_id: id }, attributes: ['id', 'codigo', 'monto', 'fecha_pago'] });
+    for (const p of pagos) {
+      eventos.push({
+        fecha: p.fecha_pago,
+        accion: 'Pago registrado',
+        descripcion: `Pago ${p.codigo} por ${p.monto}`,
+        usuario: null
+      });
+    }
+
+    // Ordenar por fecha asc
+    eventos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+    res.json(eventos);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Actualizar solo el estado del trámite
+ */
+tramitesController.updateTramiteEstado = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { estado, observaciones } = req.body || {};
+
+    // Solo funcionarios y administradores pueden cambiar estado
+    if (!['funcionario', 'admin'].includes(req.user.role)) {
+      throw new ApiError('No tienes permiso para actualizar el estado del trámite', 403);
+    }
+
+    const estadosValidos = ['pendiente', 'en_proceso', 'en_revision', 'aprobado', 'rechazado', 'finalizado'];
+    if (!estado || !estadosValidos.includes(estado)) {
+      throw new ApiError('Estado inválido', 400);
+    }
+
+    const tramite = await Tramite.findByPk(id);
+    if (!tramite) throw new ApiError('Trámite no encontrado', 404);
+
+    tramite.estado = estado;
+    if (observaciones !== undefined) {
+      tramite.observaciones = observaciones;
+    }
+    await tramite.save();
+
+    // Responder con el trámite actualizado (como espera el frontend/tests)
+    res.json({ id: tramite.id, estado: tramite.estado, observaciones: tramite.observaciones });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = tramitesController;
+
+tramitesController.getConfiguracionPago = async (req, res, next) => {
+  try {
+    const {
+      tramite_nombre,
+      anio,
+      modalidad,
+      categoria,
+      estado = 'activo',
+      limit = 50,
+      sort = 'anio',
+      order = 'DESC'
+    } = req.query || {};
+
+    const where = {};
+    if (tramite_nombre) {
+      where.tramite_nombre = { [Op.like]: `%${tramite_nombre}%` };
+    }
+    if (anio) where.anio = anio;
+    if (modalidad) where.modalidad = modalidad;
+    if (categoria) where.categoria = categoria;
+    if (estado) where.estado = estado;
+
+    const validSortFields = ['anio', 'categoria', 'modalidad'];
+    const sortField = validSortFields.includes(sort) ? sort : 'anio';
+    const sortOrder = (order || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    const configuraciones = await ConfiguracionPago.findAll({
+      where,
+      order: [[sortField, sortOrder]],
+      limit: parseInt(limit)
+    });
+
+    res.json({ configuraciones });
+  } catch (error) {
+    next(error);
+  }
+};
+
+tramitesController.generateConstancia = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const tramite = await Tramite.findByPk(id, {
+      include: [
+        { model: Usuario, as: 'ciudadano', attributes: ['id','nombre','apellido','rut','direccion','email'] },
+        // Incluir dirección del departamento para imprimir en la constancia
+        { model: Departamento, attributes: ['id','nombre','rut','email','telefono','direccion','region','comuna'] }
+      ]
+    });
+
+    if (!tramite) {
+      throw new ApiError('Trámite no encontrado', 404);
+    }
+
+    // Permisos: el ciudadano sólo su propio trámite; funcionarios y admin permitidos
+    if (req.user.role === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
+      throw new ApiError('No tienes permiso para descargar la constancia de este trámite', 403);
+    }
+
+    const requierePago = !!tramite.requiere_pago;
+    const monto = tramite.monto || 0;
+    const pagoCompletado = !!tramite.pago_completado;
+
+    // Validación: aplicar a gratuitos o pagados completados
+    if (requierePago && !pagoCompletado) {
+      throw new ApiError('Este trámite aún no tiene el pago completado', 400);
+    }
+
+    // Directorio de salida
+    const comprobanteDir = path.join(__dirname, '../../public/comprobantes');
+    if (!fs.existsSync(comprobanteDir)) {
+      fs.mkdirSync(comprobanteDir, { recursive: true });
+    }
+
+    const fileName = `constancia_${tramite.codigo}.pdf`;
+    const filePath = path.join(comprobanteDir, fileName);
+
+    // Crear PDF
+    const doc = new PDFDocument({ margin: 50 });
+    const stream = fs.createWriteStream(filePath);
+    doc.pipe(stream);
+
+    // Encabezado
+    doc.fontSize(20).text('MUNICIPALIDAD', { align: 'center' });
+    doc.fontSize(16).text('CONSTANCIA / BOLETA DE TRÁMITE', { align: 'center' });
+    doc.moveDown();
+
+    // Información general
+    doc.fontSize(12).text(`Código de Trámite: ${tramite.codigo}`);
+    doc.text(`Fecha de emisión: ${new Date().toLocaleDateString('es-CL')}`);
+    doc.text(`Estado: ${(tramite.estado || '').toUpperCase()}`);
+    doc.moveDown();
+
+    // Detalle del trámite
+    doc.fontSize(14).text('Detalle del Trámite', { underline: true });
+    doc.moveDown();
+    doc.fontSize(12).text(`Título: ${tramite.titulo}`);
+    doc.text(`Tipo: ${tramite.tipo}`);
+    doc.text(`Departamento: ${tramite.Departamento ? tramite.Departamento.nombre : 'N/A'}`);
+    const deptRegion = (tramite.Departamento && tramite.Departamento.region) ? tramite.Departamento.region : null;
+    const deptComuna = (tramite.Departamento && tramite.Departamento.comuna) ? tramite.Departamento.comuna : null;
+    // Formateadores cortos para mostrar de forma formal (ej.: "Región de Coquimbo - Ovalle")
+    const formatRegion = (r) => {
+      if (!r) return null;
+      return /región/i.test(r) ? r : `Región de ${r.charAt(0).toUpperCase() + r.slice(1)}`;
+    };
+    const capitalize = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
+    let deptAddress = null;
+    if (tramite.Departamento && tramite.Departamento.direccion) {
+      deptAddress = tramite.Departamento.direccion;
+    } else if (deptRegion && deptComuna) {
+      deptAddress = `${formatRegion(deptRegion)} - ${capitalize(deptComuna)}`;
+    } else if (deptRegion) {
+      deptAddress = formatRegion(deptRegion);
+    } else if (deptComuna) {
+      deptAddress = capitalize(deptComuna);
+    } else {
+      deptAddress = 'N/A';
+    }
+    doc.text(`Dirección departamento: ${deptAddress}`);
+    doc.moveDown();
+
+    // Datos del ciudadano
+    doc.fontSize(14).text('Datos del Ciudadano', { underline: true });
+    doc.moveDown();
+    const ciudadano = tramite.ciudadano;
+
+    // Intentar obtener 'region' y 'comuna' adicionales desde la tabla 'usuarios' si existen
+    let ciudadanoRegion = null;
+    let ciudadanoComuna = null;
+    try {
+      const qi = Usuario.sequelize.getQueryInterface();
+      const userCols = await qi.describeTable('usuarios');
+      const colsToSelect = [];
+      if (userCols && userCols.region) colsToSelect.push('region');
+      if (userCols && userCols.comuna) colsToSelect.push('comuna');
+      if (colsToSelect.length && ciudadano && ciudadano.id) {
+        const selectQuery = `SELECT ${colsToSelect.join(', ')} FROM usuarios WHERE id = :id LIMIT 1`;
+        const rows = await Usuario.sequelize.query(selectQuery, { replacements: { id: ciudadano.id }, type: QueryTypes.SELECT });
+        const extra = Array.isArray(rows) ? rows[0] : rows;
+        if (extra) {
+          ciudadanoRegion = extra.region || null;
+          ciudadanoComuna = extra.comuna || null;
+        }
+      }
+    } catch (err) {
+      logger.debug('No se pudo obtener region/comuna del usuario:', err.message || err);
+    }
+
+    const ciudadanoRegionVal = ciudadanoRegion || (ciudadano && ciudadano.region ? ciudadano.region : null);
+    const ciudadanoComunaVal = ciudadanoComuna || (ciudadano && ciudadano.comuna ? ciudadano.comuna : null);
+
+    let ciudadanoAddress = null;
+    if (ciudadano && ciudadano.direccion) {
+      ciudadanoAddress = ciudadano.direccion;
+    } else if (ciudadanoRegionVal && ciudadanoComunaVal) {
+      ciudadanoAddress = `${formatRegion(ciudadanoRegionVal)} - ${capitalize(ciudadanoComunaVal)}`;
+    } else if (ciudadanoRegionVal) {
+      ciudadanoAddress = formatRegion(ciudadanoRegionVal);
+    } else if (ciudadanoComunaVal) {
+      ciudadanoAddress = capitalize(ciudadanoComunaVal);
+    } else {
+      ciudadanoAddress = 'N/A';
+    }
+
+    doc.fontSize(12).text(`Nombre: ${ciudadano ? `${ciudadano.nombre} ${ciudadano.apellido}` : 'N/A'}`);
+    doc.text(`RUT: ${ciudadano && ciudadano.rut ? ciudadano.rut : 'N/A'}`);
+    doc.text(`Dirección: ${ciudadanoAddress}`);
+    doc.text(`Email: ${ciudadano && ciudadano.email ? ciudadano.email : 'N/A'}`);
+    doc.moveDown();
+
+    // Pago / Monto
+    doc.fontSize(14).text('Información de Pago', { underline: true });
+    doc.moveDown();
+    doc.fontSize(12).text(`Requiere pago: ${requierePago ? 'Sí' : 'No'}`);
+    doc.text(`Monto: ${monto > 0 ? `$${monto.toLocaleString('es-CL')}` : 'Gratis'}`);
+    doc.text(`Pago completado: ${pagoCompletado ? 'Sí' : 'No'}`);
+    doc.moveDown();
+
+    // Autorización
+    doc.fontSize(12).text(`Emitido y autorizado por: Municipalidad - Departamento ${tramite.Departamento ? tramite.Departamento.nombre : ''}`);
+    doc.moveDown(2);
+    doc.fontSize(10).text('Este documento es una constancia oficial del trámite realizado por el ciudadano.', { align: 'left' });
+
+    doc.end();
+
+    stream.on('finish', () => {
+      logger.info(`Constancia generada: ${fileName} para el trámite ${tramite.codigo}`);
+      // Asegurar content-type para clientes que no infieren correctamente
+      res.setHeader('Content-Type', 'application/pdf');
+      res.download(filePath, fileName, (err) => {
+        if (err) {
+          logger.error('Error al descargar constancia:', err);
+          next(new ApiError('Error al descargar la constancia', 500));
+        }
+      });
+    });
+    stream.on('error', (err) => {
+      logger.error('Error generando constancia PDF:', err);
+      next(new ApiError('Error al generar el PDF de constancia', 500));
+    });
+  } catch (error) {
+    next(error);
+  }
+};

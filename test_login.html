@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 10px 20px; margin: 10px; }
+        #result { margin-top: 20px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Test Dashboard ERP Municipal</h1>
+    <button onclick="testLogin()">1. Hacer Login</button>
+    <button onclick="testAPIs()">2. Probar APIs</button>
+    <button onclick="clearStorage()">3. Limpiar Storage</button>
+    <div id="result"></div>
+    
+    <script>
+        const CONFIG = {
+            API_URL: 'http://localhost:3000/api',
+            TOKEN_NAME: 'token',
+            USER_DATA: 'userData'
+        };
+        
+        async function testLogin() {
+            try {
+                const response = await fetch(`${CONFIG.API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'admin@municipalidad.cl',
+                        password: 'admin123'
+                    })
+                });
+                
+                const data = await response.json();
+                console.log('Respuesta del login:', data);
+                
+                if (data.success) {
+                    localStorage.setItem(CONFIG.TOKEN_NAME, data.token);
+                    localStorage.setItem(CONFIG.USER_DATA, JSON.stringify(data.user));
+                    
+                    document.getElementById('result').textContent = `Login exitoso!\nUsuario: ${data.user.nombre} ${data.user.apellido}\nRole: ${data.user.role}`;
+                } else {
+                    document.getElementById('result').textContent = `Error en login: ${data.message}`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('result').textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        async function testAPIs() {
+            const token = localStorage.getItem(CONFIG.TOKEN_NAME);
+            if (!token) {
+                document.getElementById('result').textContent = 'Primero debes hacer login';
+                return;
+            }
+            
+            try {
+                // Probar API de trámites
+                const tramitesResponse = await fetch(`${CONFIG.API_URL}/tramites?limit=5`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const tramitesData = await tramitesResponse.json();
+                console.log('Datos de trámites:', tramitesData);
+                
+                // Probar API de pagos
+                const pagosResponse = await fetch(`${CONFIG.API_URL}/pagos?limit=5`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const pagosData = await pagosResponse.json();
+                console.log('Datos de pagos:', pagosData);
+                
+                // Probar API de dashboard
+                const dashboardResponse = await fetch(`${CONFIG.API_URL}/dashboard/resumen`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const dashboardData = await dashboardResponse.json();
+                console.log('Datos del dashboard:', dashboardData);
+                
+                document.getElementById('result').textContent = `APIs probadas exitosamente!\n\nTrámites: ${JSON.stringify(tramitesData, null, 2)}\n\nPagos: ${JSON.stringify(pagosData, null, 2)}\n\nDashboard: ${JSON.stringify(dashboardData, null, 2)}`;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('result').textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        function clearStorage() {
+            localStorage.clear();
+            document.getElementById('result').textContent = 'Storage limpiado';
+        }
+    </script>
+</body>
+</html>

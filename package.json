@@ -1,0 +1,47 @@
+{
+  "name": "erp-municipal",
+  "version": "1.0.0",
+  "description": "Sistema ERP para gestión municipal",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "db:init": "node scripts/db_init.js",
+    "db:seed": "node scripts/seed_data.js",
+    "db:seed:regiones": "node scripts/seed_regiones_comunas.js",
+    "db:seed:all": "npm run db:seed:regiones && npm run db:seed",
+    "db:departamentos:clear": "node scripts/clear_departamentos.js",
+    "db:usuarios:clear-non-admin": "node scripts/clear_non_admin_users.js",
+    "db:clear": "node scripts/clear_db.js",
+    "db:patch:usuarios": "node scripts/patch_usuarios_nombres_separados.js",
+    "setup": "node scripts/setup.js",
+    "test": "node scripts/run_tests.js",
+    "test:integration": "node scripts/run_integration_tests.js"
+  },
+  "keywords": [
+    "erp",
+    "municipal",
+    "gestion"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "express-validator": "^7.0.1",
+    "joi": "^18.0.1",
+    "jsonwebtoken": "^9.0.0",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.2.0",
+    "pdfkit": "^0.13.0",
+    "sequelize": "^6.30.0",
+    "winston": "^3.8.2"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22",
+    "sequelize-cli": "^6.6.0"
+  }
+}

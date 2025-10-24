@@ -1,0 +1,375 @@
+const { Usuario } = require('../models');
+const { generateToken, verifyToken } = require('../config/jwt');
+const bcrypt = require('bcryptjs');
+const logger = require('../utils/logger');
+const { ApiError } = require('../middlewares/errorHandler');
+const { cleanName } = require('../utils/text.utils');
+
+/**
+ * Controlador para el manejo de autenticación de usuarios
+ */
+const authController = {
+  /**
+   * Registra un nuevo usuario ciudadano en el sistema
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   * @param {Function} next - Función next de Express
+   */
+  register: async (req, res, next) => {
+    try {
+      const { nombre, apellido, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, email, password, rut, fechaNacimiento, fecha_nacimiento, celular, telefono, direccion } = req.body;
+
+      // Verificar si el usuario ya existe
+      const existingUser = await Usuario.findOne({ where: { email } });
+      if (existingUser) {
+        throw new ApiError('El correo electrónico ya está registrado', 400);
+      }
+
+      // Verificar si el RUT ya existe
+      const existingRut = await Usuario.findOne({ where: { rut } });
+      if (existingRut) {
+        throw new ApiError('El RUT ya está registrado', 400);
+      }
+
+      // Crear el nuevo usuario (por defecto como ciudadano)
+      const nombreConcatenado = (nombre && nombre.trim()) || [primer_nombre, segundo_nombre].filter(Boolean).join(' ').trim();
+      const apellidoConcatenado = (apellido && apellido.trim()) || [primer_apellido, segundo_apellido].filter(Boolean).join(' ').trim();
+
+      const newUser = await Usuario.create({
+        nombre: cleanName(nombreConcatenado),
+        apellido: cleanName(apellidoConcatenado),
+        primer_nombre,
+        segundo_nombre,
+        primer_apellido,
+        segundo_apellido,
+        email,
+        password, // El hash se genera automáticamente en el hook beforeCreate del modelo
+        role: 'ciudadano', // Rol por defecto para registro público
+        rut,
+        fecha_nacimiento: fecha_nacimiento ?? fechaNacimiento ?? null,
+        celular,
+        telefono,
+        direccion,
+        estado: 'activo'
+      });
+
+      // Generar token JWT
+      const token = generateToken({
+        id: newUser.id,
+        email: newUser.email,
+        role: newUser.role
+      });
+
+      logger.info(`Usuario registrado: ${email}`);
+
+      // Responder con los datos del usuario (sin la contraseña) y el token
+      res.status(201).json({
+        message: 'Usuario registrado exitosamente',
+        user: {
+          id: newUser.id,
+          nombre: newUser.nombre,
+          apellido: newUser.apellido,
+          email: newUser.email,
+          role: newUser.role,
+          rut: newUser.rut
+        },
+        token
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Inicia sesión de un usuario existente
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   * @param {Function} next - Función next de Express
+   */
+  login: async (req, res, next) => {
+    try {
+      const { email, password } = req.body;
+
+      // Buscar el usuario por email
+      const user = await Usuario.findOne({ where: { email } });
+      if (!user) {
+        throw new ApiError('Credenciales inválidas', 401);
+      }
+
+      // Verificar si el usuario está activo
+      if (user.estado !== 'activo') {
+        throw new ApiError('Usuario inactivo o bloqueado', 403);
+      }
+
+      // Verificar la contraseña
+      const isPasswordValid = await user.comparePassword(password);
+      if (!isPasswordValid) {
+        // Credenciales inválidas, no persistimos intentos si la columna no existe
+        throw new ApiError('Credenciales inválidas', 401);
+      }
+
+      // Resetear contador (si existiera) y actualizar último login
+      user.ultimo_login = new Date();
+      await user.save();
+
+      // Generar token JWT
+      const token = generateToken({
+        id: user.id,
+        email: user.email,
+        role: user.role
+      });
+
+      logger.info(`Inicio de sesión exitoso: ${email}`);
+
+      // Responder con los datos del usuario (sin la contraseña) y el token
+      res.json({
+        message: 'Inicio de sesión exitoso',
+        user: {
+          id: user.id,
+          nombre: user.nombre,
+          apellido: user.apellido,
+          email: user.email,
+          role: user.role,
+          rut: user.rut
+        },
+        token
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Verifica si un token JWT es válido
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   * @param {Function} next - Función next de Express
+   */
+  verifyToken: async (req, res, next) => {
+    try {
+      const { token } = req.body;
+
+      if (!token) {
+        throw new ApiError('Token no proporcionado', 400);
+      }
+
+      // Verificar el token
+      const decoded = verifyToken(token);
+
+      // Buscar el usuario para asegurar que existe y está activo
+      const user = await Usuario.findByPk(decoded.id);
+      if (!user || user.estado !== 'activo') {
+        throw new ApiError('Token inválido o usuario inactivo', 401);
+      }
+
+      res.json({
+        valid: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role
+        }
+      });
+    } catch (error) {
+      // No usar next() aquí para evitar el manejo de errores global
+      // Simplemente responder que el token no es válido
+      res.status(401).json({
+        valid: false,
+        message: error.message || 'Token inválido'
+      });
+    }
+  },
+
+  /**
+   * Obtiene el perfil del usuario autenticado
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   * @param {Function} next - Función next de Express
+   */
+  getProfile: async (req, res, next) => {
+    try {
+      // El middleware de autenticación ya ha verificado el token y añadido el usuario a req
+      const userId = req.user.id;
+
+      const user = await Usuario.findByPk(userId, {
+        attributes: { exclude: ['password', 'token_recuperacion'] }
+      });
+
+      if (!user) {
+        throw new ApiError('Usuario no encontrado', 404);
+      }
+
+      res.json({
+        user
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Actualiza la contraseña del usuario autenticado
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   * @param {Function} next - Función next de Express
+   */
+  changePassword: async (req, res, next) => {
+    try {
+      const userId = req.user.id;
+      const { currentPassword, newPassword } = req.body;
+
+      const user = await Usuario.findByPk(userId);
+      if (!user) {
+        throw new ApiError('Usuario no encontrado', 404);
+      }
+
+      // Verificar la contraseña actual
+      const isPasswordValid = await user.comparePassword(currentPassword);
+      if (!isPasswordValid) {
+        throw new ApiError('Contraseña actual incorrecta', 401);
+      }
+
+      // Actualizar la contraseña
+      user.password = newPassword; // El hash se genera automáticamente en el hook beforeUpdate del modelo
+      await user.save();
+
+      logger.info(`Contraseña actualizada para el usuario: ${user.email}`);
+
+      res.json({
+        message: 'Contraseña actualizada exitosamente'
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Solicita un token para recuperación de contraseña
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   * @param {Function} next - Función next de Express
+   */
+  requestPasswordReset: async (req, res, next) => {
+    try {
+      const { email } = req.body;
+
+      const user = await Usuario.findOne({ where: { email } });
+      if (!user) {
+        // Por seguridad, no revelar si el email existe o no
+        return res.json({
+          message: 'Si el correo existe, recibirás instrucciones para restablecer tu contraseña'
+        });
+      }
+
+      // Generar token de recuperación
+      const recoveryToken = await user.generateRecoveryToken();
+      await user.save();
+
+      // Aquí se enviaría el email con el token (implementación pendiente)
+      // En un entorno real, se usaría un servicio de email como Nodemailer
+      logger.info(`Token de recuperación generado para: ${email}`);
+
+      // Por ahora, solo devolvemos el token en la respuesta (solo para desarrollo)
+      res.json({
+        message: 'Si el correo existe, recibirás instrucciones para restablecer tu contraseña',
+        // Solo incluir el token en ambiente de desarrollo
+        ...(process.env.NODE_ENV === 'development' && { recoveryToken })
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Restablece la contraseña usando un token de recuperación
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   * @param {Function} next - Función next de Express
+   */
+  resetPassword: async (req, res, next) => {
+    try {
+      const { token, newPassword } = req.body;
+
+      // Buscar usuario con ese token de recuperación
+      const user = await Usuario.findOne({ where: { token_recuperacion: token } });
+      if (!user) {
+        throw new ApiError('Token inválido o expirado', 400);
+      }
+
+      // Verificar que el token no haya expirado (usando expiracion_token)
+      const expDate = user.expiracion_token ? new Date(user.expiracion_token) : null;
+      const now = new Date();
+
+      if (!expDate || now > expDate) {
+        // Limpiar el token expirado
+        user.token_recuperacion = null;
+        user.expiracion_token = null;
+        await user.save();
+        throw new ApiError('Token expirado', 400);
+      }
+
+      // Actualizar contraseña y limpiar token
+      user.password = newPassword; // El hash se genera automáticamente
+      user.token_recuperacion = null;
+      user.expiracion_token = null;
+      await user.save();
+
+      logger.info(`Contraseña restablecida para: ${user.email}`);
+
+      res.json({
+        message: 'Contraseña restablecida exitosamente'
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Restablecimiento directo por email (sin token)
+   * @param {Object} req
+   * @param {Object} res
+   * @param {Function} next
+   */
+  resetPasswordDirect: async (req, res, next) => {
+    try {
+      const { email, newPassword } = req.body;
+
+      // Buscar usuario por email
+      const user = await Usuario.findOne({ where: { email } });
+
+      // Por seguridad, respondemos éxito aun si no existe
+      if (!user) {
+        logger.info(`Solicitud de reset directa para email no registrado: ${email}`);
+        return res.json({ message: 'Si el correo existe, la contraseña fue actualizada' });
+      }
+
+      // Actualizar contraseña y limpiar tokens de recuperación
+      user.password = newPassword; // hash por hook beforeUpdate
+      user.token_recuperacion = null;
+      user.expiracion_token = null;
+      await user.save();
+
+      logger.info(`Contraseña actualizada directamente para: ${email}`);
+      res.json({ message: 'Contraseña actualizada exitosamente' });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Cierra la sesión del usuario (solo en el cliente)
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   */
+  logout: (req, res) => {
+    // JWT es stateless, por lo que el cierre de sesión se maneja en el cliente
+    // eliminando el token. Este endpoint es principalmente para fines de registro.
+    logger.info(`Cierre de sesión: ${req.user?.email || 'Usuario desconocido'}`);
+    
+    res.json({
+      message: 'Sesión cerrada exitosamente'
+    });
+  }
+};
+
+module.exports = authController;

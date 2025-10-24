@@ -1,0 +1,2365 @@
+/**
+ * Módulo de autenticación y gestión de usuarios
+ * Maneja el login, registro y redirección según el rol del usuario
+ */
+
+// Usuarios de prueba para demostración
+const usuariosPrueba = [
+    {
+        id: 1,
+        nombre: 'Admin',
+        apellido: 'Sistema',
+        email: 'admin@municipalidad.cl',
+        password: 'admin123',
+        role: 'admin',
+        estado: 'activo'
+    },
+    {
+        id: 2,
+        nombre: 'Juan',
+        apellido: 'Pérez',
+        email: 'funcionario@municipalidad.cl',
+        password: 'func123',
+        role: 'funcionario',
+        estado: 'activo'
+    },
+    {
+        id: 3,
+        nombre: 'María',
+        apellido: 'González',
+        email: 'ciudadano@ejemplo.com',
+        password: 'ciud123',
+        role: 'ciudadano',
+        estado: 'activo'
+    }
+];
+
+// Inicializar el módulo de autenticación
+document.addEventListener('DOMContentLoaded', () => {
+    // Verificar sesión válida: requiere usuario y token
+    const usuarioActual = obtenerUsuario();
+    const token = localStorage.getItem('token');
+    
+    if (usuarioActual && token) {
+        // Si hay sesión válida, redirigir según su rol
+        redirigirSegunRol(usuarioActual);
+    } else {
+        // Si no hay sesión válida, mostrar el formulario de login
+        mostrarFormularioLogin();
+    }
+    
+    // Configurar el evento de submit del formulario de login
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', manejarLogin);
+    }
+    
+    // Configurar el evento de submit del formulario de registro
+    const registerForm = document.getElementById('register-form');
+    if (registerForm) {
+        registerForm.addEventListener('submit', manejarRegistro);
+    }
+
+    // Normalización y validación en tiempo real para campo RUT del registro
+    const rutInput = document.getElementById('rut');
+    if (rutInput) {
+        // Limpiar formato mientras escribe: solo dígitos y K/k
+        rutInput.addEventListener('input', (e) => {
+            const raw = (e.target.value || '').replace(/\./g, '');
+            // Permitir solo dígitos y K/k, remover guiones intermedios
+            const limpio = raw.replace(/[^0-9kK]/g, '');
+            // No formateamos aún para no interferir con la escritura del DV
+            e.target.value = limpio.slice(0, 9); // 8 dígitos + 1 DV máx
+            // Quitar estado inválido si está corrigiendo
+            limpiarCampoInvalido(e.target);
+        });
+        // Al salir del campo: normalizar a 8 dígitos + guión + DV y validar
+        rutInput.addEventListener('blur', (e) => {
+            const normalizado = normalizarRUT(e.target.value || '');
+            e.target.value = normalizado;
+            if (normalizado && !validarRUT(normalizado)) {
+                marcarCampoInvalido(e.target, 'RUT inválido. Formato 12345678-9 y DV correcto');
+            } else {
+                limpiarCampoInvalido(e.target);
+            }
+        });
+    }
+    
+    // Configurar eventos para mostrar/ocultar formularios
+    const showRegisterLink = document.getElementById('show-register');
+    const showLoginLink = document.getElementById('show-login');
+    const registerLink = document.getElementById('register-link');
+    const backToLoginLink = document.getElementById('back-to-login');
+    
+    if (showRegisterLink) {
+        showRegisterLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            mostrarFormularioRegistro();
+        });
+    }
+    
+    if (showLoginLink) {
+        showLoginLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            mostrarFormularioLogin();
+        });
+    }
+
+    // Event listener para el enlace "Registrarse al Portal Ciudadano"
+    if (registerLink) {
+        registerLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            mostrarFormularioRegistro();
+        });
+    }
+
+    // Event listener para el enlace "Volver al Login"
+    if (backToLoginLink) {
+        backToLoginLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            mostrarFormularioLogin();
+        });
+    }
+    
+    // Configurar el evento de click del enlace de olvidar contraseña
+    const forgotPasswordLink = document.getElementById('forgot-password-link');
+    if (forgotPasswordLink) {
+        forgotPasswordLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            mostrarFormularioRecuperarPassword();
+        });
+    }
+});
+
+/**
+ * Maneja el evento de submit del formulario de login
+ * @param {Event} e - Evento de submit
+ */
+async function manejarLogin(e) {
+    e.preventDefault();
+    
+    // Obtener los valores del formulario
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const loginError = document.getElementById('login-error');
+    const passwordInput = document.getElementById('password');
+    const passwordError = document.getElementById('password-error');
+
+    // Limpiar estados de error previos
+    if (loginError) {
+        loginError.classList.add('d-none');
+        loginError.textContent = '';
+    }
+    if (passwordInput) {
+        passwordInput.classList.remove('is-invalid');
+    }
+    if (passwordError) {
+        passwordError.classList.add('d-none');
+        passwordError.textContent = '';
+    }
+    
+    // Mostrar indicador de carga
+    mostrarCargando(true);
+    
+    try {
+        // Intentar primero login como usuario del sistema (/api/auth/login)
+        let response = null;
+        let errAuth = null;
+        let errCiudadano = null;
+
+        try {
+            response = await fetchAPI('/auth/login', {
+                method: 'POST',
+                body: { email, password },
+                suppressErrorLog: true
+            });
+        } catch (e1) {
+            errAuth = e1;
+        }
+
+        // Si el primer intento falla, intentar login de ciudadano
+        if (!response) {
+            try {
+                response = await fetchAPI('/ciudadanos/login', {
+                method: 'POST',
+                body: { email, password },
+                suppressErrorLog: true
+            });
+            } catch (e2) {
+                errCiudadano = e2;
+            }
+        }
+
+        // Si no hubo respuesta válida, decidir qué error mostrar
+        if (!response) {
+            const isUnauthorized = (err) => !!err && (err.status === 401 || (err.message && err.message.toLowerCase().includes('unauthorized')));
+            const auth401 = isUnauthorized(errAuth);
+            const ciudadano401 = isUnauthorized(errCiudadano);
+
+            if (auth401 || ciudadano401) {
+                // Contraseña incorrecta: marcar el campo y mostrar error específico
+                if (passwordInput) {
+                    passwordInput.classList.add('is-invalid');
+                }
+                if (passwordError) {
+                    passwordError.textContent = 'Contraseña incorrecta';
+                    passwordError.classList.remove('d-none');
+                }
+                // Mostrar alerta de error clara
+                if (loginError) {
+                    loginError.textContent = 'Contraseña incorrecta';
+                    loginError.classList.remove('d-none');
+                }
+                return; // No mostrar alerta genérica
+            }
+
+            // Error genérico de login
+            if (loginError) {
+                const msg = (errAuth && errAuth.message) || (errCiudadano && errCiudadano.message) || 'Error al iniciar sesión. Verifica tus credenciales.';
+                loginError.textContent = msg;
+                loginError.classList.remove('d-none');
+            }
+            return;
+        }
+
+        // Validar respuesta: /auth/login no incluye "success", /ciudadanos/login sí
+        const token = response.token;
+        if (!token) {
+            throw new Error(response.message || 'Error en el inicio de sesión');
+        }
+
+        // Normalizar datos de usuario para ambos tipos de respuesta
+        const user = response.user || response.data || {};
+        const usuarioInfo = {
+            id: user.id,
+            nombre: user.nombre || user.primer_nombre || '',
+            apellido: user.apellido || user.apellido_paterno || '',
+            email: user.email,
+            role: user.role || 'ciudadano',
+            nombre_completo: user.nombre_completo || `${user.nombre || user.primer_nombre || ''} ${user.apellido || user.apellido_paterno || ''}`.trim()
+        };
+
+        // Guardar el token y usuario
+        localStorage.setItem('token', token);
+        localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
+
+        // Redirigir según el rol del usuario
+        redirigirSegunRol(usuarioInfo);
+        
+    } catch (error) {
+        if (loginError) {
+            loginError.textContent = error.message || 'Error al iniciar sesión. Verifica tus credenciales.';
+            loginError.classList.remove('d-none');
+        }
+    } finally {
+        // Ocultar indicador de carga
+        mostrarCargando(false);
+    }
+}
+
+// Limpiar error de contraseña al escribir
+document.addEventListener('input', (e) => {
+    if (e.target && e.target.id === 'password') {
+        const passwordInput = document.getElementById('password');
+        const passwordError = document.getElementById('password-error');
+        if (passwordInput) {
+            passwordInput.classList.remove('is-invalid');
+        }
+        if (passwordError) {
+            passwordError.classList.add('d-none');
+            passwordError.textContent = '';
+        }
+    }
+});
+
+/**
+ * Redirige al usuario a la sección correspondiente según su rol
+ * @param {Object} usuario - Información del usuario
+ */
+function redirigirSegunRol(usuario) {
+    // Ocultar el formulario de login
+    const loginContainer = document.getElementById('login-container');
+    if (loginContainer) {
+        loginContainer.classList.add('d-none');
+    }
+    
+    // Mostrar elementos comunes de la interfaz
+    const header = document.querySelector('.header');
+    const footer = document.querySelector('footer');
+    
+    if (header) header.classList.remove('d-none');
+    if (footer) footer.classList.remove('d-none');
+    
+    // Configurar información del usuario en la barra de navegación
+    const userInfo = document.getElementById('user-info');
+    if (userInfo) {
+        userInfo.innerHTML = `
+            <div class="d-flex align-center gap-2 gap-md-4">
+                <div class="user-info-text">
+                    <div class="user-name">${usuario.nombre} ${usuario.apellido}</div>
+                    <div class="user-role">${obtenerNombreRol(usuario.role)}</div>
+                    <div class="user-email d-none d-md-block">${usuario.email}</div>
+                </div>
+                <button id="btn-logout" class="btn btn-outline-light">
+                    <i class="bi bi-box-arrow-right"></i> Salir
+                </button>
+            </div>
+        `;
+        
+        // Agregar evento al botón de logout
+        const btnLogout = document.getElementById('btn-logout');
+        if (btnLogout) {
+            btnLogout.addEventListener('click', cerrarSesion);
+        }
+    }
+    
+    // Redirigir según el rol
+    switch (usuario.role) {
+        case 'admin':
+            cargarInterfazAdmin(usuario);
+            break;
+        case 'funcionario':
+            cargarInterfazFuncionario(usuario);
+            break;
+        case 'ciudadano':
+            cargarPortalCiudadano(usuario);
+            break;
+        default:
+            console.error('Rol no reconocido:', usuario.role);
+            cerrarSesion();
+    }
+}
+
+/**
+ * Carga la interfaz para administradores
+ * @param {Object} usuario - Información del usuario
+ */
+async function cargarInterfazAdmin(usuario) {
+    console.log('Cargando interfaz de administrador para:', usuario.nombre);
+    
+    // Mostrar el menú de navegación
+    const navbar = document.getElementById('main-navbar');
+    if (navbar) navbar.classList.remove('d-none');
+    
+    // Generar menú para administradores
+    generarMenu('admin');
+    
+    // Mostrar el contenido principal
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+        mainContent.classList.remove('d-none');
+        if (typeof cargarDashboard === 'function') {
+            cargarDashboard();
+        } else {
+            mainContent.innerHTML = `
+                <div class="container-fluid py-4">
+                    <div class="row">
+                        <div class="col-12">
+                            <h2 class="mb-4">Dashboard Administrativo</h2>
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle-fill me-2"></i>
+                                Cargando módulo de dashboard...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+}
+
+/**
+ * Carga la interfaz para funcionarios
+ * @param {Object} usuario - Información del usuario
+ */
+function cargarInterfazFuncionario(usuario) {
+    console.log('Cargando interfaz de funcionario para:', usuario.nombre);
+    
+    // Mostrar el menú de navegación
+    const navbar = document.getElementById('main-navbar');
+    if (navbar) navbar.classList.remove('d-none');
+    
+    // Generar menú para funcionarios
+    generarMenu('funcionario');
+    
+    // Mostrar el contenido principal
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+        mainContent.classList.remove('d-none');
+        
+        // Cargar Dashboard desde menú dedicado
+        if (typeof cargarDashboard === 'function') {
+            cargarDashboard();
+        } else {
+            mainContent.innerHTML = '<div class="alert alert-info">Dashboard no disponible.</div>';
+        }
+    }
+}
+
+/**
+ * Carga el portal ciudadano
+ * @param {Object} usuario - Información del usuario
+ */
+async function cargarPortalCiudadano(usuario) {
+    // Asegurar usuario cuando no se pasa como argumento (compatibilidad con app.js)
+    if (!usuario || !usuario.id) {
+        try {
+            const localUser = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+            if (localUser && localUser.id) {
+                usuario = localUser;
+            } else {
+                // Intentar obtener el perfil desde la API
+                const perfil = await fetchAPI('/usuarios/perfil');
+                if (perfil && perfil.id) usuario = perfil;
+            }
+        } catch (e) {
+            console.warn('No se pudo obtener el usuario actual', e);
+        }
+    }
+
+    console.log('Cargando portal ciudadano para:', usuario?.nombre || usuario?.email || usuario?.id || 'usuario');
+    
+    // No mostrar el menú de navegación para ciudadanos
+    // En su lugar, usamos una interfaz específica para el portal ciudadano
+    
+    // Obtener trámites del usuario desde la API
+    const tramitesUsuario = await obtenerTramitesUsuarioAPI(usuario.id);
+    
+    // Ordenar trámites por fecha (más recientes primero)
+    tramitesUsuario.sort((a, b) => new Date(b.fecha_solicitud) - new Date(a.fecha_solicitud));
+    
+    // Tomar los 3 más recientes
+    const tramitesRecientes = tramitesUsuario.slice(0, 3);
+    
+    // Mostrar el contenido principal
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+        mainContent.classList.remove('d-none');
+        
+        // Preparar contenido de trámites recientes
+        let contenidoTramitesRecientes = '';
+        
+        if (tramitesRecientes.length === 0) {
+            contenidoTramitesRecientes = `<p>No tienes trámites recientes.</p>`;
+        } else {
+            contenidoTramitesRecientes = `
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Tipo</th>
+                                <th>Título</th>
+                                <th>Fecha</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tramitesRecientes.map(tramite => `
+                                <tr>
+                                    <td>${tramite.codigo}</td>
+                                    <td>${obtenerNombreTipoTramite(tramite.tipo)}</td>
+                                    <td>${tramite.titulo}</td>
+                                    <td>${formatearFecha(tramite.fecha_solicitud)}</td>
+                                    <td>
+                                        <span class="badge ${obtenerColorEstadoTramite(tramite.estado)}">
+                                            ${obtenerNombreEstadoTramite(tramite.estado)}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary ver-detalle-tramite" data-id="${tramite.id}">
+                                            <i class="bi bi-eye"></i> Ver
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        // Cargar portal ciudadano
+        mainContent.innerHTML = `
+            <div class="container py-4">
+                <div class="row">
+                    <div class="col-12">
+                        <h2 class="mb-4">Portal Ciudadano</h2>
+                        <div class="alert alert-success">
+                            <i class="bi bi-person-check-fill me-2"></i>
+                            Bienvenido/a, ${usuario.nombre} ${usuario.apellido}. Accede a tus trámites y servicios municipales.
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-body text-center">
+                                <i class="bi bi-file-earmark-text fs-1 text-primary mb-3"></i>
+                                <h5 class="card-title">Mis Trámites</h5>
+                                <p class="card-text">Consulta y realiza seguimiento de tus trámites municipales.</p>
+                                <a href="#" class="btn btn-primary" id="btn-mis-tramites">Ver Mis Trámites</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-body text-center">
+                                <i class="bi bi-plus-circle fs-1 text-success mb-3"></i>
+                                <h5 class="card-title">Nuevo Trámite</h5>
+                                <p class="card-text">Inicia un nuevo trámite municipal desde aquí.</p>
+                                <a href="#" class="btn btn-success" id="btn-nuevo-tramite">Iniciar Trámite</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-4">
+                        <div class="card shadow-sm">
+                            <div class="card-body text-center">
+                                <i class="bi bi-cash-coin fs-1 text-warning mb-3"></i>
+                                <h5 class="card-title">Mis Pagos</h5>
+                                <p class="card-text">Consulta y realiza pagos de tus trámites.</p>
+                                <a href="#" class="btn btn-warning text-white" id="btn-mis-pagos">Ver Mis Pagos</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card shadow-sm">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Trámites Recientes</h5>
+                                ${tramitesRecientes.length > 0 ? `
+                                    <a href="#" class="btn btn-sm btn-outline-primary" id="btn-ver-todos-tramites">
+                                        Ver todos
+                                    </a>
+                                ` : ''}
+                            </div>
+                            <div class="card-body">
+                                ${contenidoTramitesRecientes}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Agregar eventos a los botones
+        const btnMisTramites = document.getElementById('btn-mis-tramites');
+        const btnNuevoTramite = document.getElementById('btn-nuevo-tramite');
+        const btnMisPagos = document.getElementById('btn-mis-pagos');
+        const btnVerTodosTramites = document.getElementById('btn-ver-todos-tramites');
+        const botonesVerDetalle = document.querySelectorAll('.ver-detalle-tramite');
+        
+        if (btnMisTramites) {
+            btnMisTramites.addEventListener('click', (e) => {
+                e.preventDefault();
+                cargarMisTramites(usuario);
+            });
+        }
+        
+        if (btnNuevoTramite) {
+            btnNuevoTramite.addEventListener('click', (e) => {
+                e.preventDefault();
+                cargarFormularioNuevoTramite(usuario);
+            });
+        }
+        
+        if (btnMisPagos) {
+            btnMisPagos.addEventListener('click', (e) => {
+                e.preventDefault();
+                cargarMisPagos(usuario);
+            });
+        }
+        
+        if (btnVerTodosTramites) {
+            btnVerTodosTramites.addEventListener('click', (e) => {
+                e.preventDefault();
+                cargarMisTramites(usuario);
+            });
+        }
+        
+        if (botonesVerDetalle && botonesVerDetalle.length > 0) {
+            botonesVerDetalle.forEach(boton => {
+                boton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const tramiteId = e.currentTarget.getAttribute('data-id');
+                    // Abrir modal con diseño y detalle del trámite
+                    mostrarDetalleTramiteModal(parseInt(tramiteId));
+                });
+            });
+        }
+    }
+}
+
+/**
+ * Muestra el formulario de login
+ */
+function mostrarFormularioLogin() {
+    // Mostrar el contenedor de login
+    const loginContainer = document.getElementById('login-container');
+    const registerContainer = document.getElementById('register-container');
+    
+    if (loginContainer) {
+        loginContainer.classList.remove('d-none');
+    }
+    
+    if (registerContainer) {
+        registerContainer.classList.add('d-none');
+    }
+    
+    // Ocultar elementos de la interfaz
+    const header = document.querySelector('.header');
+    const navbar = document.getElementById('main-navbar');
+    const mainContent = document.getElementById('main-content');
+    
+    if (header) header.classList.add('d-none');
+    if (navbar) navbar.classList.add('d-none');
+    if (mainContent) mainContent.classList.add('d-none');
+}
+
+/**
+ * Muestra el formulario de recuperación de contraseña
+ */
+function mostrarFormularioRecuperarPassword() {
+    const loginContainer = document.getElementById('login-container');
+    if (loginContainer) {
+        // Guardar el HTML original del formulario de login para restaurarlo luego
+        if (!loginContainer.dataset.originalHtml) {
+            loginContainer.dataset.originalHtml = loginContainer.innerHTML;
+        }
+
+        loginContainer.innerHTML = `
+            <div class="row justify-content-center">
+                <div class="col-md-6 col-lg-5">
+                    <div class="card shadow">
+                        <div class="card-header bg-primary text-white text-center py-3">
+                            <h3 class="mb-0"><i class="bi bi-building me-2"></i>Sistema ERP Municipal</h3>
+                            <p class="mb-0">Gestión Municipal Inteligente</p>
+                        </div>
+                        <div class="card-body p-4">
+                            <h4 class="text-center mb-4">Recuperar Contraseña</h4>
+                            <form id="direct-reset-form">
+                                <div class="mb-3">
+                                    <label for="recovery-email" class="form-label">Correo Electrónico</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                                        <input type="email" class="form-control" id="recovery-email" name="email" required>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="direct-password" class="form-label">Nueva Contraseña</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="bi bi-key"></i></span>
+                                        <input type="password" class="form-control" id="direct-password" required>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="direct-confirm-password" class="form-label">Confirmar Contraseña</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="bi bi-shield-lock"></i></span>
+                                        <input type="password" class="form-control" id="direct-confirm-password" required>
+                                    </div>
+                                </div>
+                                <div class="d-grid gap-2 mt-2">
+                                    <button type="submit" id="btn-direct-reset" class="btn btn-success">Cambiar Contraseña</button>
+                                </div>
+                                <div id="direct-message" class="alert mt-3 d-none"></div>
+                            </form>
+                        </div>
+                        <div class="card-footer text-center py-3">
+                            <div class="small">
+                                <a href="#" id="back-to-login-recovery">Volver al inicio de sesión</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Configurar eventos
+        const backToLogin = document.getElementById('back-to-login-recovery');
+        const directForm = document.getElementById('direct-reset-form');
+        const directMessage = document.getElementById('direct-message');
+        
+        if (directForm) {
+            directForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('recovery-email').value;
+                const password = document.getElementById('direct-password').value;
+                const confirm = document.getElementById('direct-confirm-password').value;
+
+                if (!email) {
+                    if (directMessage) {
+                        directMessage.textContent = 'Debe ingresar su correo electrónico.';
+                        directMessage.className = 'alert alert-warning mt-3';
+                        directMessage.classList.remove('d-none');
+                    }
+                    return;
+                }
+
+                if (password !== confirm) {
+                    if (directMessage) {
+                        directMessage.textContent = 'Las contraseñas no coinciden.';
+                        directMessage.className = 'alert alert-danger mt-3';
+                        directMessage.classList.remove('d-none');
+                    }
+                    return;
+                }
+
+                mostrarCargando(true);
+                try {
+                    let resp;
+                    // Intentar reset para usuarios del sistema
+                    try {
+                        resp = await fetchAPI('/auth/reset-password-direct', {
+                            method: 'POST',
+                            body: { email, newPassword: password, confirmPassword: confirm },
+                            suppressErrorLog: true
+                        });
+                    } catch (err1) {
+                        // Ignorar y continuar con ciudadanos
+                    }
+                    // Intentar reset para ciudadanos
+                    try {
+                        resp = await fetchAPI('/ciudadanos/reset-password-direct', {
+                            method: 'POST',
+                            body: { email, newPassword: password, confirmPassword: confirm },
+                            suppressErrorLog: true
+                        });
+                    } catch (err2) {
+                        // Ignorar
+                    }
+
+                    if (directMessage) {
+                        directMessage.textContent = (resp?.message || resp?.msg || 'Si el correo existe, la contraseña fue actualizada.');
+                        directMessage.className = 'alert alert-success mt-3';
+                        directMessage.classList.remove('d-none');
+                    }
+                    // Redirigir al login si el backend confirma actualización exitosa
+                    const okMsg = (resp?.message || resp?.msg || '').toLowerCase();
+                    if (okMsg.includes('actualizada exitosamente')) {
+                        setTimeout(() => {
+                            mostrarFormularioLogin();
+                        }, 1200);
+                    }
+                } catch (error) {
+                    if (directMessage) {
+                        directMessage.textContent = 'No se pudo actualizar la contraseña.';
+                        directMessage.className = 'alert alert-danger mt-3';
+                        directMessage.classList.remove('d-none');
+                    }
+                } finally {
+                    mostrarCargando(false);
+                }
+            });
+        }
+        
+        if (backToLogin) {
+            backToLogin.addEventListener('click', (e) => {
+                e.preventDefault();
+                // Restaurar el formulario de login original sin recargar la página
+                const original = loginContainer.dataset.originalHtml;
+                if (original) {
+                    loginContainer.innerHTML = original;
+                    mostrarFormularioLogin();
+
+                    // Reatachar eventos claves del login/registro
+                    const loginForm2 = document.getElementById('login-form');
+                    if (loginForm2) loginForm2.addEventListener('submit', manejarLogin);
+
+                    const forgotPasswordLink2 = document.getElementById('forgot-password-link');
+                    if (forgotPasswordLink2) {
+                        forgotPasswordLink2.addEventListener('click', (ev) => {
+                            ev.preventDefault();
+                            mostrarFormularioRecuperarPassword();
+                        });
+                    }
+
+                    const registerForm2 = document.getElementById('register-form');
+                    if (registerForm2) registerForm2.addEventListener('submit', manejarRegistro);
+
+                    const rutInput2 = document.getElementById('rut');
+                    if (rutInput2) {
+                        rutInput2.addEventListener('input', (ev) => {
+                            const raw = (ev.target.value || '').replace(/\./g, '');
+                            const limpio = raw.replace(/[^0-9kK]/g, '');
+                            ev.target.value = limpio.slice(0, 9);
+                            limpiarCampoInvalido(ev.target);
+                        });
+                        rutInput2.addEventListener('blur', (ev) => {
+                            const normalizado = normalizarRUT(ev.target.value || '');
+                            ev.target.value = normalizado;
+                            if (normalizado && !validarRUT(normalizado)) {
+                                marcarCampoInvalido(ev.target, 'RUT inválido. Formato 12345678-9 y DV correcto');
+                            } else {
+                                limpiarCampoInvalido(ev.target);
+                            }
+                        });
+                    }
+
+                    const showRegisterLink2 = document.getElementById('show-register');
+                    if (showRegisterLink2) {
+                        showRegisterLink2.addEventListener('click', (ev) => {
+                            ev.preventDefault();
+                            mostrarFormularioRegistro();
+                        });
+                    }
+                    const showLoginLink2 = document.getElementById('show-login');
+                    if (showLoginLink2) {
+                        showLoginLink2.addEventListener('click', (ev) => {
+                            ev.preventDefault();
+                            mostrarFormularioLogin();
+                        });
+                    }
+                    const registerLink2 = document.getElementById('register-link');
+                    if (registerLink2) {
+                        registerLink2.addEventListener('click', (ev) => {
+                            ev.preventDefault();
+                            mostrarFormularioRegistro();
+                        });
+                    }
+                    const backToLoginLink2 = document.getElementById('back-to-login');
+                    if (backToLoginLink2) {
+                        backToLoginLink2.addEventListener('click', (ev) => {
+                            ev.preventDefault();
+                            mostrarFormularioLogin();
+                        });
+                    }
+                } else {
+                    // Fallback
+                    mostrarFormularioLogin();
+                }
+            });
+        }
+    }
+}
+
+/**
+ * Genera el menú según el rol del usuario
+ * @param {string} rol - Rol del usuario
+ */
+function generarMenu(rol) {
+    const menuItems = document.getElementById('menu-items');
+    if (!menuItems) return;
+    
+    let menuHTML = '';
+    
+    // Menú para administradores
+    if (rol === 'admin') {
+        menuHTML = `
+            <li class="nav-item">
+                <a href="#" class="nav-link active" data-page="dashboard">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" data-page="usuarios">
+                    <i class="bi bi-people"></i> Usuarios
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" data-page="departamentos">
+                    <i class="bi bi-building"></i> Departamentos
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" data-page="tramites">
+                    <i class="bi bi-file-earmark-text"></i> Trámites
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" data-page="pagos">
+                    <i class="bi bi-cash-coin"></i> Pagos
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" data-page="reportes">
+                    <i class="bi bi-bar-chart"></i> Reportes
+                </a>
+            </li>
+        `;
+    } else if (rol === 'funcionario') {
+        // Menú para funcionarios con Dashboard propio
+        menuHTML = `
+            <li class="nav-item">
+                <a href="#" class="nav-link active" data-page="dashboard">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" data-page="tramites">
+                    <i class="bi bi-file-earmark-text"></i> Trámites
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" data-page="pagos">
+                    <i class="bi bi-cash-coin"></i> Pagos
+                </a>
+            </li>
+        `;
+    }
+    
+    menuItems.innerHTML = menuHTML;
+    
+    // Agregar eventos a los enlaces del menú
+    const enlaces = menuItems.querySelectorAll('.nav-link');
+    enlaces.forEach(enlace => {
+        enlace.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            // Quitar la clase active de todos los enlaces
+            enlaces.forEach(e => e.classList.remove('active'));
+            
+            // Agregar la clase active al enlace clickeado
+            enlace.classList.add('active');
+            
+            // Cargar la página correspondiente
+            const pagina = enlace.getAttribute('data-page');
+            if (pagina && typeof window[`cargar${pagina.charAt(0).toUpperCase() + pagina.slice(1)}`] === 'function') {
+                window[`cargar${pagina.charAt(0).toUpperCase() + pagina.slice(1)}`]();
+            } else {
+                console.log(`Función para cargar ${pagina} no encontrada`);
+            }
+        });
+    });
+}
+
+/**
+ * Obtiene el nombre del rol para mostrar en la interfaz
+ * @param {string} role - Código del rol
+ * @returns {string} Nombre del rol
+ */
+function obtenerNombreRol(role) {
+    switch (role) {
+        case 'admin':
+            return 'Administrador';
+        case 'funcionario':
+            return 'Funcionario Municipal';
+        case 'ciudadano':
+            return 'Ciudadano';
+        default:
+            return role;
+    }
+}
+
+/**
+ * Obtiene el usuario actual desde localStorage
+ * @returns {Object|null} Información del usuario o null si no hay usuario
+ */
+function obtenerUsuario() {
+    const usuarioJSON = localStorage.getItem('usuario');
+    return usuarioJSON ? JSON.parse(usuarioJSON) : null;
+}
+
+/**
+ * Cierra la sesión del usuario
+ */
+function cerrarSesion() {
+    // Eliminar información de sesión
+    localStorage.removeItem('token');
+    localStorage.removeItem('usuario');
+    
+    // Recargar la página para mostrar el login
+    window.location.reload();
+}
+
+/**
+ * Muestra u oculta el indicador de carga
+ * @param {boolean} mostrar - Indica si se debe mostrar el indicador
+ */
+function mostrarCargando(mostrar) {
+    const loading = document.getElementById('loading');
+    if (loading) {
+        if (mostrar) {
+            loading.classList.remove('d-none');
+        } else {
+            loading.classList.add('d-none');
+        }
+    }
+}
+
+// Funciones para gestionar trámites en localStorage y en la API
+async function guardarTramite(tramite) {
+    try {
+        // Guardar en localStorage (mantener funcionalidad actual)
+        const tramites = obtenerTramites();
+        tramites.push(tramite);
+        localStorage.setItem('tramites', JSON.stringify(tramites));
+        
+        // Intentar guardar en la base de datos
+        try {
+            const response = await fetchAPI('/tramites', {
+                method: 'POST',
+                body: tramite
+            });
+            console.log('Trámite guardado en la base de datos:', response);
+            return true;
+        } catch (error) {
+            console.warn('No se pudo guardar el trámite en la base de datos, pero se guardó en localStorage:', error);
+            return true; // Seguimos considerando exitoso el guardado porque está en localStorage
+        }
+    } catch (error) {
+        console.error('Error al guardar el trámite:', error);
+        throw error;
+    }
+}
+
+function obtenerTramites() {
+    const tramitesJSON = localStorage.getItem('tramites');
+    return tramitesJSON ? JSON.parse(tramitesJSON) : [];
+}
+
+async function obtenerTramitesAPI() {
+    try {
+        const response = await fetchAPI('/tramites');
+        return response.data || [];
+    } catch (error) {
+        console.warn('No se pudieron obtener los trámites de la API, usando localStorage:', error);
+        return obtenerTramites();
+    }
+}
+
+function obtenerTramitesUsuario(usuarioId) {
+    // Primero intentamos obtener de localStorage
+    const tramites = obtenerTramites();
+    return tramites.filter(t => t.ciudadano_id === usuarioId);
+}
+
+async function obtenerTramitesUsuarioAPI(usuarioId) {
+    try {
+        const res = await fetchAPI(`/tramites?ciudadanoId=${usuarioId}`);
+        const lista = Array.isArray(res?.tramites) ? res.tramites : (Array.isArray(res) ? res : []);
+        return lista;
+    } catch (error) {
+        console.warn('No se pudieron obtener los trámites del usuario de la API, usando localStorage:', error);
+        return obtenerTramitesUsuario(usuarioId);
+    }
+}
+
+// Funciones para las secciones del portal ciudadano
+async function cargarMisTramites(usuario) {
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+        // Obtener trámites del usuario desde la API
+        const tramitesUsuario = await obtenerTramitesUsuarioAPI(usuario.id);
+        
+        let contenidoTramites = '';
+        
+        if (tramitesUsuario.length === 0) {
+            contenidoTramites = `
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    No tienes trámites activos en este momento.
+                </div>
+            `;
+        } else {
+            contenidoTramites = `
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Tipo</th>
+                                <th>Título</th>
+                                <th>Fecha</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tramitesUsuario.map(tramite => `
+                                <tr>
+                                    <td>${tramite.codigo}</td>
+                                    <td>${obtenerNombreTipoTramite(tramite.tipo)}</td>
+                                    <td>${tramite.titulo}</td>
+                                    <td>${formatearFecha(tramite.fecha_solicitud)}</td>
+                                    <td>
+                                        <span class="badge ${obtenerColorEstadoTramite(tramite.estado)}">
+                                            ${obtenerNombreEstadoTramite(tramite.estado)}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary ver-detalle-tramite" data-id="${tramite.id}">
+                                            <i class="bi bi-eye"></i> Ver
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        mainContent.innerHTML = `
+            <div class="container py-4">
+                <div class="row">
+                    <div class="col-12">
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="#" id="volver-portal">Portal Ciudadano</a></li>
+                                <li class="breadcrumb-item active">Mis Trámites</li>
+                            </ol>
+                        </nav>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h2 class="mb-0">Mis Trámites</h2>
+                            <button class="btn btn-success" id="btn-nuevo-tramite-desde-lista">
+                                <i class="bi bi-plus-circle"></i> Nuevo Trámite
+                            </button>
+                        </div>
+                        ${contenidoTramites}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Configurar eventos
+        const volverPortal = document.getElementById('volver-portal');
+        const btnNuevoTramiteDesdeList = document.getElementById('btn-nuevo-tramite-desde-lista');
+        const botonesVerDetalle = document.querySelectorAll('.ver-detalle-tramite');
+        
+        if (volverPortal) {
+            volverPortal.addEventListener('click', (e) => {
+                e.preventDefault();
+                cargarPortalCiudadano(usuario);
+            });
+        }
+        
+        if (btnNuevoTramiteDesdeList) {
+            btnNuevoTramiteDesdeList.addEventListener('click', (e) => {
+                e.preventDefault();
+                cargarFormularioNuevoTramite(usuario);
+            });
+        }
+        
+        if (botonesVerDetalle && botonesVerDetalle.length > 0) {
+            botonesVerDetalle.forEach(boton => {
+                boton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const tramiteId = e.currentTarget.getAttribute('data-id');
+                    // Abrir modal con diseño y detalle del trámite
+                    mostrarDetalleTramiteModal(parseInt(tramiteId));
+                });
+            });
+        }
+    }
+}
+
+function cargarFormularioNuevoTramite(usuario) {
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+        // Crear el contenido HTML
+        mainContent.innerHTML = `
+            <div class="container py-4">
+                <div class="row">
+                    <div class="col-12">
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="#" id="volver-portal">Portal Ciudadano</a></li>
+                                <li class="breadcrumb-item active">Nuevo Trámite</li>
+                            </ol>
+                        </nav>
+                        <h2 class="mb-4">Iniciar Nuevo Trámite</h2>
+                        <div class="card shadow-sm">
+                            <div class="card-body">
+                                <div id="form-container">
+                                    <div class="mb-3">
+                                        <label for="tipo-tramite" class="form-label">Tipo de Trámite</label>
+                                        <select class="form-select" id="tipo-tramite">
+                                            <option value="">Seleccione un tipo de trámite</option>
+                                            <option value="certificado">Certificado de Residencia</option>
+                                            <option value="permiso">Permiso de Construcción</option>
+                                            <option value="licencia">Licencia de Conducir</option>
+                                            <option value="reclamo">Reclamo Municipal</option>
+                                            <option value="solicitud">Solicitud de Información</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="titulo-tramite" class="form-label">Título</label>
+                                        <input type="text" class="form-control" id="titulo-tramite">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="descripcion-tramite" class="form-label">Descripción</label>
+                                        <textarea class="form-control" id="descripcion-tramite" rows="4"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="departamento-tramite" class="form-label">Departamento</label>
+                                        <select class="form-select" id="departamento-tramite">
+                                            <option value="">Seleccione un departamento</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="documentos-tramite" class="form-label">Documentos Adjuntos</label>
+                                        <input type="file" class="form-control" id="documentos-tramite" multiple>
+                                    </div>
+                                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                        <button type="button" class="btn btn-secondary" id="btn-cancelar-tramite">Cancelar</button>
+                                        <button type="button" class="btn btn-primary" id="btn-enviar-tramite">Enviar Solicitud</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Configurar eventos después de que el DOM esté listo
+        setTimeout(() => {
+            // Botón para volver al portal
+            document.getElementById('volver-portal').onclick = function() {
+                cargarPortalCiudadano(usuario);
+                return false;
+            };
+            
+            // Botón para cancelar el trámite
+            document.getElementById('btn-cancelar-tramite').onclick = function() {
+                cargarPortalCiudadano(usuario);
+                return false;
+            };
+            
+            // Botón para enviar el trámite
+            document.getElementById('btn-enviar-tramite').onclick = function() {
+                enviarNuevoTramite(usuario);
+                return false;
+            };
+
+            // Cargar departamentos dinámicamente desde la API
+            (async () => {
+                try {
+                    const selectDepartamento = document.getElementById('departamento-tramite');
+                    const resp = await fetchAPI('/departamentos?limit=100');
+                    const departamentos = Array.isArray(resp)
+                        ? resp
+                        : (resp?.departamentos || resp?.data || []);
+
+                    // Reiniciar opciones dejando sólo el placeholder
+                    selectDepartamento.innerHTML = '<option value="">Seleccione un departamento</option>';
+
+                    departamentos.forEach(dep => {
+                        const opt = document.createElement('option');
+                        opt.value = dep.id;
+                        opt.textContent = dep.nombre;
+                        selectDepartamento.appendChild(opt);
+                    });
+
+                    if (!departamentos.length) {
+                        console.warn('No hay departamentos disponibles. Verifique en el admin.');
+                    }
+                } catch (error) {
+                    console.error('Error al cargar departamentos:', error);
+                }
+            })();
+        }, 100);
+    }
+}
+
+// Función separada para enviar el nuevo trámite
+async function enviarNuevoTramite(usuario) {
+    // Mostrar indicador de carga
+    mostrarCargando(true);
+    
+    // Obtener valores del formulario
+    const tipo = document.getElementById('tipo-tramite').value;
+    const titulo = document.getElementById('titulo-tramite').value;
+    const descripcion = document.getElementById('descripcion-tramite').value;
+    const departamentoId = document.getElementById('departamento-tramite').value;
+    
+    // Validar que todos los campos requeridos estén completos
+    if (!tipo || !titulo || !descripcion || !departamentoId) {
+        mostrarCargando(false);
+        mostrarNotificacion('Por favor, complete todos los campos requeridos.', 'warning');
+        return;
+    }
+    
+    try {
+        // Crear objeto de trámite
+        const nuevoTramite = {
+            id: Date.now().toString(), // Usar timestamp como ID único
+            codigo: generarCodigoTramite(tipo),
+            titulo: titulo,
+            descripcion: descripcion,
+            tipo: tipo,
+            estado: 'pendiente',
+            fecha_inicio: new Date().toISOString(), // Cambiar de fecha_solicitud a fecha_inicio
+            fecha_solicitud: new Date().toISOString(), // Mantener para compatibilidad con localStorage
+            departamento_id: departamentoId,
+            ciudadano_id: usuario.id,
+            funcionario_id: null,
+            requiere_pago: tipo === 'licencia' || tipo === 'permiso',
+            monto: tipo === 'licencia' ? 15000 : (tipo === 'permiso' ? 25000 : 0),
+            pago_completado: false,
+            prioridad: 'media' // Agregar prioridad por defecto
+        };
+        
+        // Intentar guardar el trámite (primero en la API, luego en localStorage como respaldo)
+        let guardadoExitoso = false;
+        
+        try {
+            // Intentar guardar en la API
+            await guardarTramite(nuevoTramite);
+            guardadoExitoso = true;
+        } catch (apiError) {
+            console.warn('Error al guardar en la API, intentando guardar solo en localStorage:', apiError);
+            
+            try {
+                // Si falla la API, guardar solo en localStorage
+                const tramites = obtenerTramites();
+                tramites.push(nuevoTramite);
+                localStorage.setItem('tramites', JSON.stringify(tramites));
+                guardadoExitoso = true;
+                
+                // Programar un reintento en segundo plano
+                setTimeout(() => {
+                    try {
+                        fetchAPI('/tramites', {
+                            method: 'POST',
+                            body: nuevoTramite
+                        }).then(response => {
+                            console.log('Reintento exitoso de guardar en la API:', response);
+                        }).catch(error => {
+                            console.warn('Reintento fallido de guardar en la API:', error);
+                        });
+                    } catch (e) {
+                        console.warn('Error en reintento programado:', e);
+                    }
+                }, 5000); // Reintento después de 5 segundos
+            } catch (localError) {
+                console.error('Error al guardar en localStorage:', localError);
+                throw new Error('No se pudo guardar el trámite en ningún almacenamiento');
+            }
+        }
+        
+        if (guardadoExitoso) {
+            // Mostrar mensaje de éxito
+            mostrarNotificacion('Trámite enviado correctamente', 'success');
+            
+            // Ocultar indicador de carga
+            mostrarCargando(false);
+            
+            // Volver al portal ciudadano
+            cargarPortalCiudadano(usuario);
+        } else {
+            throw new Error('No se pudo guardar el trámite');
+        }
+    } catch (error) {
+        console.error('Error al guardar el trámite:', error);
+        mostrarCargando(false);
+        mostrarNotificacion('Ocurrió un error al guardar el trámite. Por favor, intente nuevamente.', 'danger');
+    }
+}
+
+// Función para generar un código de trámite
+function generarCodigoTramite(tipo) {
+    const prefijos = {
+        'certificado': 'CERT',
+        'permiso': 'PERM',
+        'licencia': 'LIC',
+        'reclamo': 'REC',
+        'solicitud': 'SOL'
+    };
+    
+    const prefijo = prefijos[tipo] || 'TRAM';
+    const fecha = new Date();
+    const año = fecha.getFullYear().toString().substr(-2);
+    const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
+    const numero = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    
+    return `${prefijo}-${año}${mes}-${numero}`;
+}
+
+// Funciones auxiliares para formatear datos
+function formatearFecha(fechaISO) {
+    const fecha = new Date(fechaISO);
+    return fecha.toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function obtenerNombreTipoTramite(tipo) {
+    const tipos = {
+        'certificado': 'Certificado',
+        'permiso': 'Permiso',
+        'licencia': 'Licencia',
+        'reclamo': 'Reclamo',
+        'solicitud': 'Solicitud'
+    };
+    
+    return tipos[tipo] || tipo;
+}
+
+function obtenerNombreEstadoTramite(estado) {
+    const estados = {
+        'pendiente': 'Pendiente',
+        'en_proceso': 'En Proceso',
+        'en_revision': 'En Revisión',
+        'aprobado': 'Aprobado',
+        'rechazado': 'Rechazado',
+        'finalizado': 'Finalizado'
+    };
+    
+    return estados[estado] || estado;
+}
+
+function obtenerColorEstadoTramite(estado) {
+    const colores = {
+        'pendiente': 'bg-warning text-dark',
+        'en_proceso': 'bg-info text-dark',
+        'en_revision': 'bg-primary',
+        'aprobado': 'bg-success',
+        'rechazado': 'bg-danger',
+        'finalizado': 'bg-secondary'
+    };
+    
+    return colores[estado] || 'bg-secondary';
+}
+
+async function cargarMisPagos(usuario) {
+    try {
+        mostrarCargando(true);
+        const mainContent = document.getElementById('main-content');
+        if (!mainContent) return;
+
+        // Asegurar perfil de usuario
+        if (!usuario || !usuario.id) {
+            try {
+                const perfil = await fetchAPI('/usuarios/perfil');
+                if (perfil && perfil.id) usuario = perfil;
+            } catch (e) {
+                console.warn('No se pudo obtener el perfil del usuario', e);
+            }
+        }
+        const ciudadanoId = usuario?.id;
+
+        // Helper: obtener configuración de pago por nombre de trámite
+        const obtenerConfiguracionPagoPorNombreLocal = async (nombre) => {
+            try {
+                const norm = (nombre || '').toLowerCase();
+                let clave = 'otro';
+                if (norm.includes('licencia')) clave = 'licencia';
+                else if (norm.includes('permiso') || norm.includes('construcción') || norm.includes('construccion')) clave = 'permiso';
+                else if (norm.includes('certificado')) clave = 'certificado';
+
+                const resp = await fetchAPI(`/tramites/configuracion-pago?tramite_nombre=${encodeURIComponent(clave)}&estado=activo&order=DESC`);
+                const data = Array.isArray(resp?.configuraciones)
+                    ? resp.configuraciones
+                    : (Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : []));
+                if (!data.length) return { requiere: false, tipo: 'gratis' };
+
+                const fijo = data.find(c => c.modalidad === 'fijo' && c.estado === 'activo');
+                if (fijo) {
+                    return { requiere: true, tipo: 'fijo', montoFijo: parseFloat(fijo.monto_fijo || 0), anio: fijo.anio };
+                }
+
+                const porcentajeConfs = data.filter(c => c.modalidad === 'porcentaje' && c.estado === 'activo');
+                if (porcentajeConfs.length) {
+                    const categoriasMap = {};
+                    porcentajeConfs.forEach(c => {
+                        const cat = c.categoria || 'General';
+                        if (!categoriasMap[cat]) categoriasMap[cat] = [];
+                        const p = parseFloat(c.porcentaje || 0);
+                        if (!categoriasMap[cat].includes(p)) categoriasMap[cat].push(p);
+                    });
+                    Object.keys(categoriasMap).forEach(cat => categoriasMap[cat].sort((a,b)=>a-b));
+                    return { requiere: true, tipo: 'porcentaje', categorias: categoriasMap };
+                }
+
+                return { requiere: false, tipo: 'gratis' };
+            } catch (error) {
+                console.error('Error al obtener configuración de pago:', error);
+                return { requiere: false, tipo: 'gratis' };
+            }
+        };
+
+        // Helper: construir módulo de pago por trámite y config
+        const construirModuloPagoHtml = (t, config, estadoPago) => {
+            // Ajuste: respetar el backend. Solo permitir pago si el trámite requiere pago y tiene monto establecido.
+            const requiere = !!t.requiere_pago;
+            const montoTramite = parseFloat(t.monto || 0);
+
+            if (estadoPago === 'completado') {
+                return `<div class="alert alert-success mb-0"><i class="bi bi-check-circle-fill"></i> Pago completado</div>`;
+            }
+
+            if (!requiere || montoTramite <= 0) {
+                return `<div class="alert alert-secondary mb-0"><i class="bi bi-info-circle me-2"></i>Este trámite es gratuito <span class="badge bg-info ms-2">Gratis</span>.</div>`;
+            }
+
+            if (montoTramite > 0) {
+                return `
+                    <div class="border rounded p-3">
+                        <div class="alert alert-info mb-3">Monto a pagar: <strong>${formatearMoneda(montoTramite)}</strong></div>
+
+                        <div class="mt-3 form-check">
+                            <input class="form-check-input seleccionar-tramite" type="checkbox" id="seleccionar-${t.id}" data-id="${t.id}" data-monto="${montoTramite}" ${estadoPago === 'completado' || montoTramite <= 0 ? 'disabled' : ''}>
+                            <label class="form-check-label" for="seleccionar-${t.id}">Seleccionar este trámite</label>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Si requiere pago pero el monto aún no está establecido, informar y deshabilitar
+            return `
+                <div class="border rounded p-3">
+                    <div class="alert alert-warning mb-3">
+                        Este trámite requiere pago, pero el monto aún no ha sido definido por la municipalidad.
+                    </div>
+                    <button type="button" class="btn btn-secondary" disabled>
+                        <i class="bi bi-lock"></i> Pago no disponible
+                    </button>
+                </div>
+            `;
+        };
+
+        // Obtener trámites del ciudadano
+        const tramites = await obtenerTramitesUsuarioAPI(ciudadanoId);
+
+        // Obtener pagos existentes para marcar estado
+        const pagosPorTramite = new Map();
+        try {
+            const respPagos = await fetchAPI(`/pagos?ciudadanoId=${ciudadanoId}`);
+            const pagos = Array.isArray(respPagos) ? respPagos : (respPagos.pagos || []);
+            pagos.forEach(p => {
+                const tid = p.tramite_id ?? p.tramiteId;
+                if (tid) pagosPorTramite.set(tid, p);
+            });
+        } catch (e) {
+            console.warn('No se pudieron obtener pagos del ciudadano', e);
+        }
+
+        // Render layout base
+        mainContent.innerHTML = `
+            <div class="container py-4">
+                <div class="row">
+                    <div class="col-12">
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="#" id="volver-portal">Portal Ciudadano</a></li>
+                                <li class="breadcrumb-item active">Mis Pagos</li>
+                            </ol>
+                        </nav>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h2 class="mb-0">Mis Pagos</h2>
+                            <button id="btn-ver-pagos-realizados" class="btn btn-outline-success">
+                                <i class="bi bi-check2-circle"></i> Pagos realizados
+                            </button>
+                        </div>
+                        <div id="contenedor-pagos"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const contenedor = document.getElementById('contenedor-pagos');
+        if (!tramites || tramites.length === 0) {
+            contenedor.innerHTML = `<div class="alert alert-info"><i class="bi bi-info-circle-fill me-2"></i>No tienes trámites registrados.</div>`;
+        } else {
+            const configPorTramite = new Map();
+            const pendientes = [];
+            const realizadosYGratuitos = [];
+
+            await Promise.all(tramites.map(async (t) => {
+                const tipoNombre = obtenerNombreTipoTramite(t.tipo);
+                const config = await obtenerConfiguracionPagoPorNombreLocal(tipoNombre);
+                configPorTramite.set(t.id, config);
+                const pagoExistente = pagosPorTramite.get(t.id);
+                const estadoPago = pagoExistente?.estado || 'sin_pago';
+
+                const requiere = !!t.requiere_pago;
+                const montoTramite = parseFloat(t.monto || 0);
+                const esGratis = !requiere || montoTramite <= 0 || (config && config.tipo === 'gratis');
+
+                const estadoBadge = estadoPago === 'completado'
+                    ? '<span class="badge bg-success">Pago completado</span>'
+                    : (estadoPago === 'pendiente' ? '<span class="badge bg-warning text-dark">Pendiente</span>' : (estadoPago === 'rechazado' ? '<span class="badge bg-danger">Rechazado</span>' : '<span class="badge bg-secondary">Sin pago</span>'));
+                const gratisBadge = esGratis ? '<span class="badge bg-info ms-2">Gratis</span>' : '';
+
+                const cardHtml = `
+                    <div class="card shadow-sm mb-3" id="card-tramite-${t.id}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h5 class="mb-1">${obtenerNombreTipoTramite(t.tipo)} - ${t.titulo || 'Trámite'}</h5>
+                                    <div class="text-muted small">Código: ${t.codigo} • Estado: ${obtenerNombreEstadoTramite(t.estado)} • ${estadoBadge} ${gratisBadge}</div>
+                                </div>
+                            </div>
+                            ${construirModuloPagoHtml(t, config, estadoPago)}
+                        </div>
+                    </div>
+                `;
+
+                if (estadoPago === 'completado' || esGratis) {
+                    realizadosYGratuitos.push(cardHtml);
+                } else {
+                    pendientes.push(cardHtml);
+                }
+            }));
+
+            const toolbar = pendientes.length ? `
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex gap-2">
+                        <button id="seleccionar-todos" class="btn btn-sm btn-outline-primary">Seleccionar todos</button>
+                        <button id="deseleccionar-todos" class="btn btn-sm btn-outline-secondary">Deseleccionar</button>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <span id="resumen-seleccion" class="text-muted">Seleccionados: 0 • Total: ${formatearMoneda(0)}</span>
+                        <button id="btn-pagar-seleccion" class="btn btn-success"><i class="bi bi-credit-card"></i> Pagar seleccionados</button>
+                    </div>
+                </div>
+            ` : '';
+
+            contenedor.innerHTML = `
+                <div class="mb-4">
+                    <h4 class="mb-2">Pendientes de pago</h4>
+                    ${pendientes.length ? toolbar + pendientes.join('') : '<div class="alert alert-info"><i class="bi bi-info-circle-fill me-2"></i>No tienes pagos pendientes.</div>'}
+                </div>
+            `;
+
+            // Selección y resumen (solo sobre pendientes)
+            const checkboxes = Array.from(document.querySelectorAll('.seleccionar-tramite'));
+            const resumen = document.getElementById('resumen-seleccion');
+
+            function actualizarResumen() {
+                let total = 0;
+                let count = 0;
+                checkboxes.forEach(chk => {
+                    if (chk.checked && !chk.disabled) {
+                        count++;
+                        total += parseFloat(chk.dataset.monto || 0);
+                    }
+                });
+                if (resumen) resumen.textContent = `Seleccionados: ${count} • Total: ${formatearMoneda(total)}`;
+            }
+
+            checkboxes.forEach(chk => {
+                chk.addEventListener('change', () => {
+                    actualizarResumen();
+                });
+            });
+
+            const btnSelTodos = document.getElementById('seleccionar-todos');
+            const btnDesTodos = document.getElementById('deseleccionar-todos');
+            const btnPagarSel = document.getElementById('btn-pagar-seleccion');
+
+            if (btnSelTodos) {
+                btnSelTodos.addEventListener('click', () => {
+                    checkboxes.forEach(chk => { if (!chk.disabled) chk.checked = true; });
+                    actualizarResumen();
+                });
+            }
+
+            if (btnDesTodos) {
+                btnDesTodos.addEventListener('click', () => {
+                    checkboxes.forEach(chk => { chk.checked = false; });
+                    actualizarResumen();
+                });
+            }
+
+            if (btnPagarSel) {
+                btnPagarSel.addEventListener('click', () => {
+                    const seleccionados = checkboxes.filter(chk => chk.checked && !chk.disabled).map(chk => parseInt(chk.dataset.id));
+                    if (seleccionados.length === 0) {
+                        mostrarNotificacion('Seleccione al menos un trámite para pagar', 'warning');
+                        return;
+                    }
+                    const total = checkboxes.filter(chk => chk.checked && !chk.disabled)
+                        .reduce((acc, chk) => acc + parseFloat(chk.dataset.monto || 0), 0);
+                    const qs = new URLSearchParams({ ids: seleccionados.join(','), total: String(total) });
+                    window.location.href = `/pago.html?${qs.toString()}`;
+                });
+            }
+        }
+
+        // Volver al portal
+        const volverPortal = document.getElementById('volver-portal');
+        if (volverPortal) {
+            volverPortal.addEventListener('click', (e) => {
+                e.preventDefault();
+                cargarPortalCiudadano(usuario);
+            });
+        }
+
+        // Ir a vista de pagos realizados
+        const btnVerRealizados = document.getElementById('btn-ver-pagos-realizados');
+        if (btnVerRealizados) {
+            btnVerRealizados.addEventListener('click', (e) => {
+                e.preventDefault();
+                cargarPagosRealizados(usuario);
+            });
+        }
+    } catch (error) {
+        console.error('Error al cargar Mis Pagos:', error);
+        const mainContent = document.getElementById('main-content');
+        if (mainContent) {
+            mainContent.innerHTML = `
+                <div class="container py-4">
+                    <div class="row">
+                        <div class="col-12">
+                            <nav aria-label="breadcrumb">
+                                <ol class="breadcrumb">
+                                    <li class="breadcrumb-item"><a href="#" id="volver-portal">Portal Ciudadano</a></li>
+                                    <li class="breadcrumb-item active">Mis Pagos</li>
+                                </ol>
+                            </nav>
+                            <h2 class="mb-4">Mis Pagos</h2>
+                            <div class="alert alert-danger">Error al cargar pagos: ${error.message}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    } finally {
+        mostrarCargando(false);
+    }
+}
+
+// Nueva vista: Pagos realizados y trámites gratuitos
+async function cargarPagosRealizados(usuario) {
+    try {
+        mostrarCargando(true);
+        const mainContent = document.getElementById('main-content');
+        if (!mainContent) return;
+
+        // Asegurar perfil de usuario
+        if (!usuario || !usuario.id) {
+            try {
+                const perfil = await fetchAPI('/usuarios/perfil');
+                if (perfil && perfil.id) usuario = perfil;
+            } catch (e) {
+                console.warn('No se pudo obtener el perfil del usuario', e);
+            }
+        }
+        const ciudadanoId = usuario?.id;
+
+        // Helper local: configuración de pago
+        const obtenerConfiguracionPagoPorNombreLocal = async (nombre) => {
+            try {
+                const norm = (nombre || '').toLowerCase();
+                let clave = 'otro';
+                if (norm.includes('licencia')) clave = 'licencia';
+                else if (norm.includes('permiso') || norm.includes('construcción') || norm.includes('construccion')) clave = 'permiso';
+                else if (norm.includes('certificado')) clave = 'certificado';
+
+                const resp = await fetchAPI(`/tramites/configuracion-pago?tramite_nombre=${encodeURIComponent(clave)}&estado=activo&order=DESC`);
+                const data = Array.isArray(resp?.configuraciones)
+                    ? resp.configuraciones
+                    : (Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : []));
+                if (!data.length) return { requiere: false, tipo: 'gratis' };
+
+                const fijo = data.find(c => c.modalidad === 'fijo' && c.estado === 'activo');
+                if (fijo) return { requiere: true, tipo: 'fijo', montoFijo: parseFloat(fijo.monto_fijo || 0), anio: fijo.anio };
+
+                const porcentajeConfs = data.filter(c => c.modalidad === 'porcentaje' && c.estado === 'activo');
+                if (porcentajeConfs.length) {
+                    const categoriasMap = {};
+                    porcentajeConfs.forEach(c => {
+                        const cat = c.categoria || 'General';
+                        if (!categoriasMap[cat]) categoriasMap[cat] = [];
+                        const p = parseFloat(c.porcentaje || 0);
+                        if (!categoriasMap[cat].includes(p)) categoriasMap[cat].push(p);
+                    });
+                    Object.keys(categoriasMap).forEach(cat => categoriasMap[cat].sort((a,b)=>a-b));
+                    return { requiere: true, tipo: 'porcentaje', categorias: categoriasMap };
+                }
+
+                return { requiere: false, tipo: 'gratis' };
+            } catch (error) {
+                console.error('Error al obtener configuración de pago:', error);
+                return { requiere: false, tipo: 'gratis' };
+            }
+        };
+
+        // Obtener trámites y pagos
+        const tramites = await obtenerTramitesUsuarioAPI(ciudadanoId);
+
+        const pagosPorTramite = new Map();
+        try {
+            const respPagos = await fetchAPI(`/pagos?ciudadanoId=${ciudadanoId}`);
+            const pagos = Array.isArray(respPagos) ? respPagos : (respPagos.pagos || []);
+            pagos.forEach(p => {
+                const tid = p.tramite_id ?? p.tramiteId;
+                if (tid) pagosPorTramite.set(tid, p);
+            });
+        } catch (e) {
+            console.warn('No se pudieron obtener pagos del ciudadano', e);
+        }
+
+        // Render layout base
+        mainContent.innerHTML = `
+            <div class="container py-4">
+                <div class="row">
+                    <div class="col-12">
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="#" id="volver-mis-pagos">Mis Pagos</a></li>
+                                <li class="breadcrumb-item active">Pagos realizados</li>
+                            </ol>
+                        </nav>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h2 class="mb-0">Pagos realizados</h2>
+                            <button id="btn-volver-mis-pagos" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Volver a Mis Pagos
+                            </button>
+                        </div>
+                        <div id="contenedor-realizados"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const contenedor = document.getElementById('contenedor-realizados');
+        if (!tramites || tramites.length === 0) {
+            contenedor.innerHTML = `<div class="alert alert-secondary"><i class="bi bi-check2-circle me-2"></i>No hay pagos realizados ni trámites gratuitos.</div>`;
+        } else {
+            const tarjetas = [];
+            await Promise.all(tramites.map(async (t) => {
+                const tipoNombre = obtenerNombreTipoTramite(t.tipo);
+                const config = await obtenerConfiguracionPagoPorNombreLocal(tipoNombre);
+                const pagoExistente = pagosPorTramite.get(t.id);
+                const estadoPago = pagoExistente?.estado || 'sin_pago';
+                const requiere = !!t.requiere_pago;
+                const montoTramite = parseFloat(t.monto || 0);
+                const esGratis = !requiere || montoTramite <= 0 || (config && config.tipo === 'gratis');
+
+                if (estadoPago === 'completado' || esGratis) {
+                    const estadoBadge = estadoPago === 'completado'
+                        ? '<span class="badge bg-success">Pago completado</span>'
+                        : '<span class="badge bg-info">Gratis</span>';
+
+                    const moduloHtml = estadoPago === 'completado'
+                        ? `<div class="d-flex flex-column gap-2">
+                               <div class="alert alert-success mb-0"><i class="bi bi-check-circle-fill"></i> Pago completado</div>
+                               <div>
+                                 <button class="btn btn-secondary btn-sm" onclick="descargarComprobantePago(${pagoExistente.id})">
+                                   <i class="bi bi-download"></i> Descargar boleta
+                                 </button>
+                               </div>
+                           </div>`
+                        : `<div class="d-flex flex-column gap-2">
+                               <div class="alert alert-secondary mb-0"><i class="bi bi-info-circle me-2"></i>Este trámite es gratuito <span class="badge bg-info ms-2">Gratis</span>.</div>
+                               <div>
+                                 <button class="btn btn-secondary btn-sm" onclick="descargarConstanciaTramite(${t.id})">
+                                   <i class="bi bi-download"></i> Descargar boleta
+                                 </button>
+                               </div>
+                           </div>`;
+
+                    tarjetas.push(`
+                        <div class="card shadow-sm mb-3" id="card-tramite-${t.id}">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <h5 class="mb-1">${obtenerNombreTipoTramite(t.tipo)} - ${t.titulo || 'Trámite'}</h5>
+                                        <div class="text-muted small">Código: ${t.codigo} • Estado: ${obtenerNombreEstadoTramite(t.estado)} • ${estadoBadge}</div>
+                                    </div>
+                                </div>
+                                ${moduloHtml}
+                            </div>
+                        </div>
+                    `);
+                }
+            }));
+            contenedor.innerHTML = tarjetas.length
+                ? tarjetas.join('')
+                : `<div class="alert alert-secondary"><i class="bi bi-check2-circle me-2"></i>No hay pagos realizados ni trámites gratuitos para mostrar.</div>`;
+        }
+
+        // Navegación
+        const btnVolverMisPagos = document.getElementById('btn-volver-mis-pagos');
+        if (btnVolverMisPagos) {
+            btnVolverMisPagos.addEventListener('click', (e) => {
+                e.preventDefault();
+                cargarMisPagos(usuario);
+            });
+        }
+        const volverMisPagosCrumb = document.getElementById('volver-mis-pagos');
+        if (volverMisPagosCrumb) {
+            volverMisPagosCrumb.addEventListener('click', (e) => {
+                e.preventDefault();
+                cargarMisPagos(usuario);
+            });
+        }
+    } catch (error) {
+        console.error('Error al cargar Pagos realizados:', error);
+        const mainContent = document.getElementById('main-content');
+        if (mainContent) {
+            mainContent.innerHTML = `
+                <div class="container py-4">
+                    <div class="row">
+                        <div class="col-12">
+                            <nav aria-label="breadcrumb">
+                                <ol class="breadcrumb">
+                                    <li class="breadcrumb-item"><a href="#" id="volver-mis-pagos">Mis Pagos</a></li>
+                                    <li class="breadcrumb-item active">Pagos realizados</li>
+                                </ol>
+                            </nav>
+                            <h2 class="mb-4">Pagos realizados</h2>
+                            <div class="alert alert-danger">Error al cargar: ${error.message}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    } finally {
+        mostrarCargando(false);
+    }
+}
+
+/**
+ * Maneja el envío del formulario de registro
+ * @param {Event} event - Evento del formulario
+ */
+async function manejarRegistro(event) {
+    event.preventDefault();
+    
+    const form = event.target;
+    const formData = new FormData(form);
+
+    // Obtener region/comuna crudos
+    const regionRaw = formData.get('region_id');
+    const comunaRaw = formData.get('comuna_id');
+    
+    // Obtener datos del formulario
+    const datosRegistro = {
+        primer_nombre: formData.get('primer_nombre'),
+        segundo_nombre: formData.get('segundo_nombre'),
+        apellido_paterno: formData.get('apellido_paterno'),
+        apellido_materno: formData.get('apellido_materno'),
+        rut: formData.get('rut'),
+        telefono: formData.get('telefono'),
+        email: formData.get('email'),
+        direccion: formData.get('direccion'),
+        region_id: regionRaw ? Number(regionRaw) : null,
+        comuna_id: comunaRaw ? Number(comunaRaw) : null,
+        password: (formData.get('password') || '').trim(),
+        confirm_password: (formData.get('confirm_password') || '').trim()
+    };
+    
+    // Validación de campos requeridos con feedback por campo (ahora con region/comuna)
+    const camposRequeridos = ['primer_nombre','apellido_paterno','apellido_materno','rut','telefono','email','direccion','region_id','comuna_id','password','confirm_password'];
+    let hayInvalidos = false;
+    camposRequeridos.forEach(name => {
+        const input = form.querySelector(`[name="${name}"]`);
+        if (input) {
+            limpiarCampoInvalido(input);
+            const valor = (formData.get(name) || '').toString().trim();
+            if (!valor) {
+                marcarCampoInvalido(input, 'Este campo es obligatorio');
+                hayInvalidos = true;
+            }
+        }
+    });
+    if (hayInvalidos) {
+        mostrarError('Completa los campos obligatorios marcados en rojo');
+        return;
+    }
+    
+    // Validación de complejidad de contraseña
+    if (!validarPasswordFuerte(datosRegistro.password)) {
+        mostrarError('La contraseña debe tener al menos 8 caracteres, incluir mayúsculas, minúsculas, números y un carácter especial.');
+        return;
+    }
+
+    // Validar que las contraseñas coincidan
+    if (datosRegistro.password !== datosRegistro.confirm_password) {
+        mostrarError('Las contraseñas no coinciden');
+        return;
+    }
+    
+    // Normalizar y validar RUT
+    datosRegistro.rut = normalizarRUT(datosRegistro.rut || '');
+    if (!validarRUT(datosRegistro.rut)) {
+        const inputRut = form.querySelector('[name="rut"]');
+        if (inputRut) marcarCampoInvalido(inputRut, 'El RUT ingresado no es válido');
+        mostrarError('El RUT ingresado no es válido');
+        return;
+    }
+
+    // Asegurar que region y comuna estén seleccionadas
+    if (!datosRegistro.region_id) {
+        const sel = form.querySelector('[name="region_id"]');
+        if (sel) marcarCampoInvalido(sel, 'Selecciona una región');
+        mostrarError('Selecciona región y comuna');
+        return;
+    }
+    if (!datosRegistro.comuna_id) {
+        const sel = form.querySelector('[name="comuna_id"]');
+        if (sel) marcarCampoInvalido(sel, 'Selecciona una comuna');
+        mostrarError('Selecciona región y comuna');
+        return;
+    }
+    
+    try {
+        // Mostrar indicador de carga
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Registrando...';
+        
+        // Realizar petición de registro
+        const response = await fetchAPI('/ciudadanos/register', {
+            method: 'POST',
+            body: datosRegistro
+        });
+        
+        if (response.success) {
+            mostrarExito('¡Registro exitoso! Ya puedes iniciar sesión con tu cuenta.');
+            form.reset();
+            // Mostrar formulario de login después de 2 segundos
+            setTimeout(() => {
+                mostrarFormularioLogin();
+            }, 2000);
+        } else {
+            mostrarError(response.message || 'Error en el registro');
+        }
+        
+        // Restaurar botón
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+        
+    } catch (error) {
+        console.error('Error en registro:', error);
+        mostrarError('Error al procesar el registro. Intenta nuevamente.');
+        
+        // Restaurar botón en caso de error
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Registrarse';
+        }
+    }
+}
+
+/**
+ * Muestra el formulario de registro y oculta el de login
+ */
+function mostrarFormularioRegistro() {
+    const loginContainer = document.getElementById('login-container');
+    const registerContainer = document.getElementById('register-container');
+    
+    if (loginContainer && registerContainer) {
+        loginContainer.classList.add('d-none');
+        registerContainer.classList.remove('d-none');
+    }
+
+    // Cargar regiones y comunas para el formulario de registro
+    cargarRegionesRegistro().catch(err => {
+        console.warn('No se pudieron cargar regiones para el registro:', err);
+    });
+}
+
+/**
+ * Carga regiones en el select de registro y configura el cambio para cargar comunas
+ */
+async function cargarRegionesRegistro() {
+    const regionSelect = document.querySelector('[name="region_id"]');
+    const comunaSelect = document.querySelector('[name="comuna_id"]');
+    if (!regionSelect) return;
+
+    regionSelect.innerHTML = '<option value="">Cargando regiones...</option>';
+    try {
+        const regionesResp = await fetchAPI('/geografia/regiones');
+        const regiones = regionesResp.regiones || regionesResp || [];
+
+        regionSelect.innerHTML = '<option value="">Seleccione una región</option>' +
+            regiones.map(r => `<option value="${r.id}">${r.nombre}</option>`).join('');
+
+        // Reemplazar handler para evitar múltiples listeners
+        regionSelect.onchange = async (e) => {
+            const regionId = e.target.value;
+            await cargarComunasRegistro(regionId);
+        };
+
+        // Cargar comunas para la región seleccionada si aplica
+        const selectedRegion = regionSelect.value || '';
+        await cargarComunasRegistro(selectedRegion);
+    } catch (error) {
+        console.error('Error cargando regiones para registro:', error);
+        mostrarNotificacion('No se pudieron cargar regiones', 'warning');
+        regionSelect.innerHTML = '<option value="">No disponibles</option>';
+        if (comunaSelect) comunaSelect.innerHTML = '<option value="">No disponibles</option>';
+    }
+}
+
+/**
+ * Carga comunas en el select de registro según la región
+ */
+async function cargarComunasRegistro(regionId) {
+    const comunaSelect = document.querySelector('[name="comuna_id"]');
+    if (!comunaSelect) return;
+    if (!regionId) {
+        comunaSelect.innerHTML = '<option value="">Seleccione una comuna</option>';
+        return;
+    }
+
+    comunaSelect.innerHTML = '<option value="">Cargando comunas...</option>';
+    try {
+        const comunasResp = await fetchAPI(`/geografia/regiones/${regionId}/comunas`);
+        const comunas = comunasResp.comunas || comunasResp || [];
+        comunaSelect.innerHTML = '<option value="">Seleccione una comuna</option>' +
+            comunas.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
+    } catch (error) {
+        console.error('Error cargando comunas para registro:', error);
+        mostrarNotificacion('No se pudieron cargar comunas', 'warning');
+        comunaSelect.innerHTML = '<option value="">No disponibles</option>';
+    }
+}
+
+/**
+ * Valida un RUT chileno
+ * @param {string} rut - RUT a validar
+ * @returns {boolean} - True si es válido
+ */
+function validarRUT(rut) {
+    if (!rut || typeof rut !== 'string') return false;
+    // Normalizar a formato sin puntos y con guión
+    const normalizado = normalizarRUT(rut);
+    // Exigir exactamente 8 dígitos + guión + DV (0-9 o K)
+    if (!/^\d{8}-[\dK]$/.test(normalizado)) return false;
+    const [numero, dv] = normalizado.split('-');
+    return calcularDV(numero) === dv;
+}
+
+// Calcula el dígito verificador con algoritmo módulo 11
+function calcularDV(numeroStr) {
+    let suma = 0;
+    let multiplicador = 2;
+    for (let i = numeroStr.length - 1; i >= 0; i--) {
+        suma += parseInt(numeroStr[i], 10) * multiplicador;
+        multiplicador = multiplicador === 7 ? 2 : (multiplicador + 1);
+    }
+    const resto = suma % 11;
+    const dvCalculado = resto === 0 ? '0' : resto === 1 ? 'K' : (11 - resto).toString();
+    return dvCalculado;
+}
+
+/**
+ * Valida que una contraseña cumpla requisitos mínimos de seguridad
+ * - Al menos 8 caracteres
+ * - Incluye mayúsculas, minúsculas, números y un carácter especial
+ */
+function validarPasswordFuerte(password) {
+    // Reglas: al menos una minúscula, una mayúscula, un número y un carácter especial de este conjunto: @ $ ! % * ? & #
+    const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#]).{8,}$/;
+    return regex.test(password || '');
+}
+
+// Helpers de feedback por campo
+function marcarCampoInvalido(input, mensaje) {
+    input.classList.add('is-invalid');
+    // No duplicar feedback
+    let fb = input.parentElement.querySelector('.invalid-feedback');
+    if (!fb) {
+        fb = document.createElement('div');
+        fb.className = 'invalid-feedback';
+        input.parentElement.appendChild(fb);
+    }
+    fb.textContent = mensaje || 'Campo inválido';
+}
+
+function limpiarCampoInvalido(input) {
+    input.classList.remove('is-invalid');
+    const fb = input.parentElement.querySelector('.invalid-feedback');
+    if (fb) fb.remove();
+}
+
+/**
+ * Formatea un RUT agregando puntos y guión
+ * @param {string} rut - RUT sin formato
+ * @returns {string} - RUT formateado
+ */
+function formatearRUT(rut) {
+    // Mantener formato sin puntos como se indica en el placeholder
+    return normalizarRUT(rut || '');
+}
+
+// Normaliza un RUT: sin puntos, guión antes del DV, DV en mayúscula
+function normalizarRUT(rut) {
+    const limpio = (rut || '')
+        .replace(/\./g, '')
+        .replace(/[^0-9kK]/g, '')
+        .toUpperCase();
+    if (limpio.length < 2) return limpio;
+    const numero = limpio.slice(0, -1);
+    const dv = limpio.slice(-1);
+    return `${numero}-${dv}`;
+}
+
+/**
+ * Muestra un mensaje de error
+ * @param {string} mensaje - Mensaje a mostrar
+ */
+function mostrarError(mensaje) {
+    // Remover alertas existentes
+    const alertasExistentes = document.querySelectorAll('.alert');
+    alertasExistentes.forEach(alerta => alerta.remove());
+    
+    // Crear nueva alerta
+    const alerta = document.createElement('div');
+    alerta.className = 'alert alert-danger alert-dismissible fade show';
+    alerta.innerHTML = `
+        ${mensaje}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Insertar antes del formulario activo
+    const formularioActivo = document.querySelector('#login-container:not(.d-none), #register-container:not(.d-none)');
+    if (formularioActivo) {
+        formularioActivo.insertBefore(alerta, formularioActivo.firstChild);
+    }
+}
+
+/**
+ * Muestra un mensaje de éxito
+ * @param {string} mensaje - Mensaje a mostrar
+ */
+function mostrarExito(mensaje) {
+    // Remover alertas existentes
+    const alertasExistentes = document.querySelectorAll('.alert');
+    alertasExistentes.forEach(alerta => alerta.remove());
+    
+    // Crear nueva alerta
+    const alerta = document.createElement('div');
+    alerta.className = 'alert alert-success alert-dismissible fade show';
+    alerta.innerHTML = `
+        ${mensaje}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Insertar antes del formulario activo
+    const formularioActivo = document.querySelector('#login-container:not(.d-none), #register-container:not(.d-none)');
+    if (formularioActivo) {
+        formularioActivo.insertBefore(alerta, formularioActivo.firstChild);
+    }
+}
+
+// Modal para detalle de trámite
+function crearModalDetalleTramite() {
+    if (document.getElementById('modal-detalle-tramite')) return;
+    const modalHtml = `
+<div class="modal fade" id="modal-detalle-tramite" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="bi bi-eye"></i> Detalle del Trámite</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="detalle-tramite-loader" class="d-flex align-items-center justify-content-center py-5">
+          <div class="spinner-border text-primary" role="status"></div>
+          <span class="ms-2">Cargando detalle...</span>
+        </div>
+        <div id="detalle-tramite-contenido" class="d-none"></div>
+        <div id="detalle-tramite-error" class="alert alert-danger d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-primary" id="btn-ver-completo">
+          <i class="bi bi-box-arrow-up-right"></i> Ver completo
+        </button>
+      </div>
+    </div>
+  </div>
+</div>`;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+}
+
+async function mostrarDetalleTramiteModal(tramiteId) {
+    try {
+        crearModalDetalleTramite();
+
+        // Asegurar que el overlay global de carga no bloquee el modal
+        try { if (typeof mostrarCargando === 'function') mostrarCargando(false); } catch (_) {}
+
+        const modalEl = document.getElementById('modal-detalle-tramite');
+        const modal = new bootstrap.Modal(modalEl);
+        const loader = document.getElementById('detalle-tramite-loader');
+        const contenido = document.getElementById('detalle-tramite-contenido');
+        const errorBox = document.getElementById('detalle-tramite-error');
+
+        errorBox.classList.add('d-none');
+        contenido.classList.add('d-none');
+        loader.classList.remove('d-none');
+        modal.show();
+
+        const tramite = await fetchAPI(`/tramites/${tramiteId}`);
+
+        const badgeEstado = `<span class="badge estado-${tramite.estado}">${tramite.estado}</span>`;
+        const fechaSol = formatearFecha(tramite.fecha_solicitud);
+        const fechaAct = formatearFecha(tramite.fecha_actualizacion);
+
+        contenido.innerHTML = `
+      <div class="row g-3">
+        <div class="col-md-8">
+          <h5 class="mb-1">${tramite.titulo || 'Trámite sin título'}</h5>
+          <div class="text-muted">Código: ${tramite.codigo || '-'}</div>
+        </div>
+        <div class="col-md-4 text-md-end">
+          ${badgeEstado}
+        </div>
+        <div class="col-12">
+          <hr>
+        </div>
+        <div class="col-md-6">
+          <div class="small text-muted">Tipo</div>
+          <div class="fw-semibold">${tramite.tipo || '-'}</div>
+        </div>
+        <div class="col-md-6">
+          <div class="small text-muted">Departamento</div>
+          <div class="fw-semibold">${tramite.Departamento?.nombre || tramite.departamento?.nombre || '-'}</div>
+        </div>
+        <div class="col-md-6">
+          <div class="small text-muted">Fecha de solicitud</div>
+          <div class="fw-semibold">${fechaSol || '-'}</div>
+        </div>
+        <div class="col-md-6">
+          <div class="small text-muted">Última actualización</div>
+          <div class="fw-semibold">${fechaAct || '-'}</div>
+        </div>
+        ${tramite.descripcion ? `
+          <div class="col-12">
+            <div class="small text-muted">Descripción</div>
+            <div>${tramite.descripcion}</div>
+          </div>` : ''}
+      </div>
+    `;
+
+        loader.classList.add('d-none');
+        contenido.classList.remove('d-none');
+
+        const btnVerCompleto = document.getElementById('btn-ver-completo');
+        if (btnVerCompleto) {
+            btnVerCompleto.onclick = () => {
+                try {
+                    if (typeof verDetalleTramiteCiudadano === 'function') {
+                        verDetalleTramiteCiudadano(tramiteId);
+                    } else if (typeof verDetalleTramite === 'function') {
+                        verDetalleTramite(tramiteId);
+                    } else if (typeof cargarMisTramites === 'function') {
+                        const usuario = obtenerUsuario();
+                        cargarMisTramites(usuario);
+                    }
+                } finally {
+                    const instance = bootstrap.Modal.getInstance(modalEl);
+                    if (instance) instance.hide();
+                }
+            };
+        }
+    } catch (err) {
+        const loader = document.getElementById('detalle-tramite-loader');
+        const contenido = document.getElementById('detalle-tramite-contenido');
+        const errorBox = document.getElementById('detalle-tramite-error');
+
+        if (loader) loader.classList.add('d-none');
+        if (contenido) contenido.classList.add('d-none');
+        if (errorBox) {
+            errorBox.textContent = 'No se pudo cargar el detalle del trámite.';
+            errorBox.classList.remove('d-none');
+        }
+    }
+}

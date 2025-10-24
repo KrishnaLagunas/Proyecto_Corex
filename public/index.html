@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema ERP Municipal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Contenedor principal de la aplicación -->
+        <div id="loading" class="d-none">
+            <div class="spinner"></div>
+        </div>
+
+        <!-- Contenedor de registro de ciudadanos -->
+        <div id="register-container" class="container mt-5 d-none">
+            <div class="row justify-content-center">
+                <div class="col-md-8 col-lg-6">
+                    <div class="card shadow">
+                        <div class="card-header bg-success text-white text-center py-3">
+                            <h3 class="mb-0"><i class="bi bi-person-plus me-2"></i>Registro Portal Ciudadano</h3>
+                        </div>
+                        <div class="card-body">
+                            <h4 class="text-center mb-4">Crear Cuenta</h4>
+                            <form id="register-form">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="primerNombre" class="form-label">Primer Nombre *</label>
+                                        <input type="text" class="form-control" id="primerNombre" name="primer_nombre" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="segundoNombre" class="form-label">Segundo Nombre</label>
+                                        <input type="text" class="form-control" id="segundoNombre" name="segundo_nombre">
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="apellidoPaterno" class="form-label">Apellido Paterno *</label>
+                                        <input type="text" class="form-control" id="apellidoPaterno" name="apellido_paterno" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="apellidoMaterno" class="form-label">Apellido Materno *</label>
+                                        <input type="text" class="form-control" id="apellidoMaterno" name="apellido_materno" required>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="rut" class="form-label">RUT *</label>
+                                        <input type="text" class="form-control" id="rut" name="rut" placeholder="12345678-9" required>
+                                        <div class="form-text">
+                                            <small class="text-muted">
+                                                <i class="bi bi-info-circle"></i> Formato: 12345678-9 (sin puntos)
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="telefono" class="form-label">Número de Teléfono *</label>
+                                        <input type="text" class="form-control" id="telefono" name="telefono" placeholder="Ingresa tu teléfono" required>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="emailRegistro" class="form-label">Correo Electrónico *</label>
+                                    <input type="text" class="form-control" id="emailRegistro" name="email" placeholder="Ingresa tu correo" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="direccionRegistro" class="form-label">Dirección *</label>
+                                    <input type="text" class="form-control" id="direccionRegistro" name="direccion" placeholder="Ingresa tu dirección" required>
+                                </div>
+
+                                <!-- Selección de Región y Comuna -->
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="region-select" class="form-label">Región *</label>
+                                        <select class="form-select" id="region-select" name="region_id" required>
+                                            <option value="">Cargando regiones...</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="comuna-select" class="form-label">Comuna *</label>
+                                        <select class="form-select" id="comuna-select" name="comuna_id" required>
+                                            <option value="">Seleccione una comuna</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="passwordRegistro" class="form-label">Contraseña *</label>
+                                        <input type="password" class="form-control" id="passwordRegistro" name="password" required>
+                                        <div class="form-text">
+                                            <small class="text-muted">
+                                                <i class="bi bi-info-circle"></i> Mínimo 6 caracteres, máximo 50 caracteres
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="confirmPassword" class="form-label">Repetir Contraseña *</label>
+                                        <input type="password" class="form-control" id="confirmPassword" name="confirm_password" required>
+                                    </div>
+                                </div>
+                                <div class="d-grid gap-2 mt-4">
+                                    <button type="submit" class="btn btn-success">Registrarse</button>
+                                </div>
+                                <div id="register-error" class="alert alert-danger mt-3 d-none"></div>
+                                <div id="register-success" class="alert alert-success mt-3 d-none"></div>
+                            </form>
+                        </div>
+                        <div class="card-footer text-center">
+                            <small class="text-muted">
+                                <a href="#" id="back-to-login" class="text-decoration-none">Volver al Login</a>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contenedor de login -->
+        <div id="login-container" class="container mt-5">
+            <div class="row justify-content-center">
+                <div class="col-md-6 col-lg-5">
+                    <div class="card shadow">
+                        <div class="card-header bg-primary text-white text-center py-3">
+                            <h3 class="mb-0"><i class="bi bi-building me-2"></i>Sistema ERP Municipal</h3>
+                        </div>
+                        <div class="card-body">
+                            <h4 class="text-center mb-4">Iniciar Sesión</h4>
+                            <form id="login-form">
+                                <div class="mb-3">
+                                    <label for="email" class="form-label">Correo electrónico</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                                        <input type="email" class="form-control" id="email" name="email" required>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="password" class="form-label">Contraseña</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                                        <input type="password" class="form-control" id="password" name="password" required>
+                                    </div>
+                                    <div id="password-error" class="invalid-feedback d-none">Contraseña incorrecta</div>
+                                </div>
+                                <div class="d-grid gap-2 mt-4">
+                                    <button type="submit" class="btn btn-primary">Ingresar</button>
+                                </div>
+                                <div id="login-error" class="alert alert-danger mt-3 d-none"></div>
+                            </form>
+                        </div>
+                        <div class="card-footer text-center">
+                            <small class="text-muted">
+                                <a href="#" id="register-link" class="text-decoration-none me-3">Registrarse al Portal Ciudadano</a>
+                                <a href="#" id="forgot-password-link" class="text-decoration-none">¿Olvidaste tu contraseña?</a>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <header class="header d-none">
+            <div class="container-fluid">
+                <div class="d-flex justify-between align-center">
+                    <div class="d-flex align-center gap-3">
+                        <button class="btn-menu-toggle d-lg-none" id="menu-toggle" aria-label="Abrir menú">
+                            <i class="bi bi-list"></i>
+                        </button>
+                        <div>
+                            <h1 class="heading-responsive"><i class="bi bi-building"></i> <span class="d-none d-sm-inline">Sistema ERP Municipal</span><span class="d-sm-none">ERP Municipal</span></h1>
+                            <div class="subtitle d-none d-md-block">Gestión Municipal Inteligente</div>
+                        </div>
+                    </div>
+                    <div id="user-info" class="user-info">
+                        <!-- Información del usuario -->
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <nav class="nav d-none" id="main-navbar">
+            <div class="nav-overlay" id="nav-overlay"></div>
+            <div class="nav-container">
+                <div class="nav-header d-lg-none">
+                    <h3 class="nav-title">Menú</h3>
+                    <button class="btn-nav-close" id="nav-close" aria-label="Cerrar menú">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+                <ul class="nav-list" id="menu-items">
+                    <!-- Los elementos del menú se cargarán dinámicamente según el rol del usuario -->
+                </ul>
+            </div>
+        </nav>
+
+        <div id="main-content" class="d-none">
+            <!-- El contenido principal se cargará dinámicamente -->
+        </div>
+
+        <footer style="background: var(--gray-800); color: white; padding: var(--spacing-4) var(--spacing-6); text-align: center; border-top: 3px solid var(--secondary-color); margin-top: auto;">
+            <div style="color: white;">
+                <i class="bi bi-shield-check"></i> © 2025 Sistema ERP Municipal - Krishna Lagunas - Ingeniera en Informática
+            </div>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/mobile-nav.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/usuarios.js"></script>
+    <script src="js/departamentos.js"></script>
+    <script src="js/pagos.js"></script>
+    <script src="js/tramites.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
