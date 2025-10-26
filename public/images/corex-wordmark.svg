@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="170" viewBox="0 0 640 170" role="img" aria-label="Corex wordmark">
+  <defs>
+    <linearGradient id="corexBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1F5BFF"/>
+      <stop offset="100%" stop-color="#0F45F5"/>
+    </linearGradient>
+    <linearGradient id="facetLight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6EA1FF"/>
+      <stop offset="100%" stop-color="#3E7CFF"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#corexBlue)" stroke="none">
+    <!-- C -->
+    <path d="M30 35 h90 l-20 20 h-50 v60 h50 l20 20 h-90 z" />
+    <!-- O -->
+    <path d="M150 35 h100 v120 h-100 z" />
+    <rect x="170" y="55" width="60" height="80" fill="#fff" opacity="0.0"/>
+    <!-- R -->
+    <path d="M280 35 h90 v55 h-60 l40 65 h-35 l-38 -65 h-17 z M310 55 h40 v25 h-40 z" />
+    <!-- E -->
+    <path d="M400 35 h100 l-20 20 h-60 v25 h55 l-18 18 h-37 v25 h60 l-22 22 h-78 z" />
+    <!-- X base (two diagonals) -->
+    <path d="M525 35 h35 l45 60 l-45 60 h-35 l45 -60 z" />
+  </g>
+  <!-- Facets overlays -->
+  <g fill="url(#facetLight)" opacity="0.85">
+    <!-- C facets -->
+    <polygon points="30,35 50,35 30,55" />
+    <polygon points="120,35 120,55 100,55" />
+    <polygon points="120,155 100,155 120,135" />
+    <polygon points="30,155 50,155 30,135" />
+    <!-- O facets -->
+    <polygon points="150,35 170,35 150,55" />
+    <polygon points="250,35 250,55 230,55" />
+    <polygon points="150,155 170,155 150,135" />
+    <polygon points="250,155 230,155 250,135" />
+    <!-- R facets -->
+    <polygon points="280,35 300,35 280,55" />
+    <polygon points="370,35 370,55 350,55" />
+    <polygon points="355,90 370,90 360,105" />
+    <!-- E facets -->
+    <polygon points="400,35 420,35 400,55" />
+    <polygon points="500,35 500,55 480,55" />
+    <polygon points="480,78 500,78 490,93" />
+    <polygon points="500,155 480,155 500,135" />
+    <!-- X facets -->
+    <polygon points="525,35 545,35 525,55" />
+    <polygon points="605,35 605,55 585,55" />
+    <polygon points="610,95 595,110 610,125" />
+    <polygon points="560,95 575,110 560,125" />
+  </g>
+</svg>

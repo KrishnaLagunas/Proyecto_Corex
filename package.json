@@ -16,7 +16,9 @@
     "db:patch:usuarios": "node scripts/patch_usuarios_nombres_separados.js",
     "setup": "node scripts/setup.js",
     "test": "node scripts/run_tests.js",
-    "test:integration": "node scripts/run_integration_tests.js"
+    "test:integration": "node scripts/run_integration_tests.js",
+    "img:convert:wordmark": "node scripts/convert_wordmark_to_webp.js",
+    "img:convert:fondo": "node scripts/convert_fondo_to_webp.js"
   },
   "keywords": [
     "erp",
@@ -42,6 +44,7 @@
   },
   "devDependencies": {
     "nodemon": "^2.0.22",
-    "sequelize-cli": "^6.6.0"
+    "sequelize-cli": "^6.6.0",
+    "sharp": "^0.34.4"
   }
 }

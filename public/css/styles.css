@@ -125,6 +125,95 @@ body:has(#login-container:not(.d-none)) {
     overflow: auto;
 }
 
+/* Diseño Corex para el login (sólo visual) */
+#login-container.corex-login-bg {
+    position: relative;
+    padding-top: 80px;
+    padding-bottom: 80px;
+    background: transparent; /* Fondo se aplica al body para ocupar todo el viewport */
+}
+
+/* Fondo de login a pantalla completa con imagen contenida */
+body:has(#login-container.corex-login-bg:not(.d-none)) {
+    background-color: #f8f9fa; /* color base por si no carga imagen */
+    background-image: url('../images/fondo.png'); /* fallback universal */
+    background-image: image-set(
+        url('../images/fondo.webp') type('image/webp') 1x,
+        url('../images/fondo.png') type('image/png') 1x
+    );
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-size: cover; /* ocupa toda la pantalla manteniendo proporción */
+    min-height: 100vh;
+}
+/* Fondo responsive con preferencia WebP para menor consumo */
+
+.corex-brand {
+    font-family: var(--font-family-heading);
+    font-size: clamp(2rem, 4vw, 3rem);
+    font-weight: var(--font-weight-extrabold);
+    letter-spacing: 0.08em;
+    color: transparent;
+    background: linear-gradient(90deg, #7bdff2 0%, #00b3ff 50%, #82aaff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    text-shadow: 0 2px 16px rgba(0,0,0,0.35);
+    margin-bottom: var(--spacing-4);
+}
+
+.corex-login-card {
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+    backdrop-filter: blur(8px);
+    background: linear-gradient(135deg, rgba(240,248,255,0.96) 0%, rgba(229,240,255,0.95) 50%, rgba(220,235,255,0.94) 100%);
+    border: 1px solid rgba(19,97,227,0.12);
+}
+
+.corex-card-header {
+    background: linear-gradient(90deg, rgba(0,153,255,0.18) 0%, rgba(0,89,255,0.15) 100%) !important;
+    border-bottom: 1px solid rgba(19,97,227,0.12);
+    color: var(--gray-800);
+}
+
+/* Fondo del formulario dentro de la tarjeta */
+.corex-login-card .card-body {
+    background: linear-gradient(135deg, rgba(0,153,255,0.10) 0%, rgba(0,89,255,0.08) 100%);
+    border-radius: 0 0 16px 16px;
+}
+/* Wordmark Corex dentro de la tarjeta */
+.corex-wordmark-img {
+    height: 42px; /* mantener proporción visual actual */
+    width: auto;
+    max-width: 100%;
+    display: inline-block;
+    margin: 0 auto;
+    object-fit: contain;
+    filter: drop-shadow(0 6px 14px rgba(0,0,0,0.2));
+    transform: translateZ(0);
+}
+
+#login-container .form-control {
+    border-radius: 12px;
+}
+#login-container .input-group-text {
+    border-radius: 12px 0 0 12px;
+}
+#login-container .btn.btn-primary {
+    background: linear-gradient(90deg, #27ADF5 0%, #6BD4FF 100%);
+    border: none;
+    border-radius: 999px;
+    color: #ffffff;
+    box-shadow: 0 10px 18px rgba(39,173,245,0.30);
+}
+#login-container .btn.btn-primary:hover {
+    filter: brightness(1.06);
+    box-shadow: 0 12px 22px rgba(39,173,245,0.40);
+}
+#login-container .card-footer {
+    background: transparent;
+    border-top: none;
+}
+
 /* Layout principal */
 #app {
     display: flex;

@@ -468,6 +468,9 @@ async function cargarPortalCiudadano(usuario) {
                                         </span>
                                     </td>
                                     <td>
+                                        <button class="btn btn-sm btn-secondary me-2" onclick="descargarConstanciaTramite(${tramite.id})">
+                                            <i class="bi bi-download"></i> Descargar boleta
+                                        </button>
                                         <button class="btn btn-sm btn-primary ver-detalle-tramite" data-id="${tramite.id}">
                                             <i class="bi bi-eye"></i> Ver
                                         </button>
@@ -589,6 +592,15 @@ async function cargarPortalCiudadano(usuario) {
                 });
             });
         }
+
+        // Refresco automático de “Trámites Recientes” al crear un nuevo trámite
+        if (window.__onTramiteCreadoPortal) {
+            window.removeEventListener('tramite:creado', window.__onTramiteCreadoPortal);
+        }
+        window.__onTramiteCreadoPortal = () => {
+            cargarPortalCiudadano(usuario);
+        };
+        window.addEventListener('tramite:creado', window.__onTramiteCreadoPortal);
     }
 }
 
@@ -1144,6 +1156,13 @@ async function cargarMisTramites(usuario) {
             });
         }
     }
+
+    // Refresco automático de la tabla "Mis Trámites" al crear un nuevo trámite
+    if (window.__onTramiteCreadoMisTramites) {
+        window.removeEventListener('tramite:creado', window.__onTramiteCreadoMisTramites);
+    }
+    window.__onTramiteCreadoMisTramites = () => cargarMisTramites(usuario);
+    window.addEventListener('tramite:creado', window.__onTramiteCreadoMisTramites);
 }
 
 function cargarFormularioNuevoTramite(usuario) {
@@ -1338,8 +1357,15 @@ async function enviarNuevoTramite(usuario) {
             // Ocultar indicador de carga
             mostrarCargando(false);
             
-            // Volver al portal ciudadano
-            cargarPortalCiudadano(usuario);
+            // Notificar y refrescar vistas que escuchan el evento
+            window.dispatchEvent(new CustomEvent('tramite:creado', { detail: nuevoTramite }));
+
+            // Navegar sólo si no estamos ya en Portal o Mis Trámites
+            const enPortal = !!document.getElementById('btn-nuevo-tramite');
+            const enMisTramites = !!document.getElementById('btn-nuevo-tramite-desde-lista');
+            if (!enPortal && !enMisTramites) {
+                cargarPortalCiudadano(usuario);
+            }
         } else {
             throw new Error('No se pudo guardar el trámite');
         }
