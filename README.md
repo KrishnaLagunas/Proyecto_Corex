@@ -40,6 +40,13 @@ Sistema de Gestión Municipal (ERP) para la administración eficiente de recurso
    ```
    Editar el archivo `.env` con la configuración de tu entorno.
 
+   Credenciales Mercado Pago (Sandbox):
+   - Inicia sesión con tu `Seller Test User` en el Panel de Desarrolladores y copia el `Access Token` de TEST (formato `TEST-...`).
+   - En `.env` define:
+     - `MERCADO_PAGO_ACCESS_TOKEN=TEST-...`
+     - `PUBLIC_BASE_URL=http://localhost:3001` (o tu dominio público en producción)
+   - Reinicia el servidor después de cambiar `.env`.
+
 4. Inicializar la base de datos y cargar datos de prueba:
    ```
    npm run setup

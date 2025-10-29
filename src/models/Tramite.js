@@ -70,6 +70,10 @@ const Tramite = sequelize.define('Tramite', {
     type: DataTypes.TEXT,
     allowNull: true
   },
+  observaciones: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
   requiere_pago: {
     type: DataTypes.BOOLEAN,
     defaultValue: false

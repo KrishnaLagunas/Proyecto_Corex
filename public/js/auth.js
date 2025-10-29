@@ -1687,16 +1687,49 @@ async function cargarMisPagos(usuario) {
             }
 
             if (btnPagarSel) {
-                btnPagarSel.addEventListener('click', () => {
-                    const seleccionados = checkboxes.filter(chk => chk.checked && !chk.disabled).map(chk => parseInt(chk.dataset.id));
-                    if (seleccionados.length === 0) {
-                        mostrarNotificacion('Seleccione al menos un trámite para pagar', 'warning');
-                        return;
+                btnPagarSel.addEventListener('click', async () => {
+                    try {
+                        const seleccionados = checkboxes
+                            .filter(chk => chk.checked && !chk.disabled)
+                            .map(chk => ({ id: parseInt(chk.dataset.id), monto: parseFloat(chk.dataset.monto || 0) }));
+
+                        if (seleccionados.length === 0) {
+                            mostrarNotificacion('Seleccione al menos un trámite para pagar', 'warning');
+                            return;
+                        }
+
+                        // Construir items para Mercado Pago
+                        const items = seleccionados.map(sel => {
+                            const t = Array.isArray(tramites) ? tramites.find(tr => tr.id === sel.id) : null;
+                            const titulo = t ? (t.titulo || 'Trámite') : 'Trámite';
+                            const tipoNombre = t ? obtenerNombreTipoTramite(t.tipo) : 'Trámite';
+                            const codigo = t?.codigo || sel.id;
+                            return {
+                                id: sel.id,
+                                title: `${tipoNombre} - ${titulo} (${codigo})`,
+                                quantity: 1,
+                                unit_price: sel.monto,
+                                currency_id: 'CLP'
+                            };
+                        });
+
+                        mostrarCargando(true);
+                        const pref = await fetchAPI('/mercado-pago/preferencias', {
+                            method: 'POST',
+                            body: { items }
+                        });
+
+                        if (pref && pref.init_point) {
+                            window.location.href = pref.init_point;
+                        } else {
+                            mostrarNotificacion('No se pudo obtener la URL de pago de Mercado Pago', 'danger');
+                        }
+                    } catch (error) {
+                        console.error('Error al iniciar pago en Mercado Pago:', error);
+                        mostrarNotificacion(`Error al iniciar pago: ${error.message}`, 'danger');
+                    } finally {
+                        mostrarCargando(false);
                     }
-                    const total = checkboxes.filter(chk => chk.checked && !chk.disabled)
-                        .reduce((acc, chk) => acc + parseFloat(chk.dataset.monto || 0), 0);
-                    const qs = new URLSearchParams({ ids: seleccionados.join(','), total: String(total) });
-                    window.location.href = `/pago.html?${qs.toString()}`;
                 });
             }
         }
@@ -2352,6 +2385,10 @@ async function mostrarDetalleTramiteModal(tramiteId) {
             <div class="small text-muted">Descripción</div>
             <div>${tramite.descripcion}</div>
           </div>` : ''}
+        <div class="col-12">
+          <div class="small text-muted">Observaciones</div>
+          <div>${tramite.observaciones || 'Sin observaciones'}</div>
+        </div>
       </div>
     `;
 

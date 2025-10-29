@@ -90,6 +90,7 @@ const tramiteSchemas = {
     prioridad: Joi.string().valid('baja', 'media', 'alta', 'urgente').messages(customMessages),
     descripcion: Joi.string().min(10).max(1000).messages(customMessages),
     notas_internas: Joi.string().max(1000).allow('', null).messages(customMessages),
+    observaciones: Joi.string().max(1000).allow('', null).messages(customMessages),
     requiere_pago: Joi.boolean().messages(customMessages),
     monto: Joi.number().min(0).allow(null).messages(customMessages),
     pago_completado: Joi.boolean().messages(customMessages),
