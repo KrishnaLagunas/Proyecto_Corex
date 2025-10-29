@@ -685,14 +685,28 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">
-                                            <label for="nombre" class="form-label">Nombre</label>
-                                            <input type="text" class="form-control" id="nombre" value="${usuario?.nombre || ''}" required>
+                                            <label for="primer_nombre" class="form-label">Primer nombre</label>
+                                            <input type="text" class="form-control" id="primer_nombre" value="${usuario?.primer_nombre || ''}" required>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
-                                            <label for="apellido" class="form-label">Apellido</label>
-                                            <input type="text" class="form-control" id="apellido" value="${usuario?.apellido || ''}" required>
+                                            <label for="segundo_nombre" class="form-label">Segundo nombre</label>
+                                            <input type="text" class="form-control" id="segundo_nombre" value="${usuario?.segundo_nombre || ''}" placeholder="Opcional">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="primer_apellido" class="form-label">Primer apellido</label>
+                                            <input type="text" class="form-control" id="primer_apellido" value="${usuario?.primer_apellido || ''}" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="segundo_apellido" class="form-label">Segundo apellido</label>
+                                            <input type="text" class="form-control" id="segundo_apellido" value="${usuario?.segundo_apellido || ''}" placeholder="Opcional">
                                         </div>
                                     </div>
                                 </div>
@@ -706,7 +720,39 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="rut" class="form-label">RUT</label>
-                                            <input type="text" class="form-control" id="rut" value="${usuario?.rut || ''}">
+                                            <input type="text" class="form-control" id="rut" value="${usuario?.rut || ''}" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="telefono" class="form-label">Teléfono</label>
+                                            <input type="text" class="form-control" id="telefono" value="${usuario?.telefono || ''}" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="direccion" class="form-label">Dirección</label>
+                                            <input type="text" class="form-control" id="direccion" value="${usuario?.direccion || ''}" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="region" class="form-label">Región</label>
+                                            <select class="form-select" id="region">
+                                                <option value="">Seleccione una región</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="comuna" class="form-label">Comuna</label>
+                                            <select class="form-select" id="comuna">
+                                                <option value="">Seleccione una comuna</option>
+                                            </select>
                                         </div>
                                     </div>
                                 </div>
@@ -738,6 +784,7 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                         <div class="mb-3">
                                             <label for="password" class="form-label">Contraseña</label>
                                             <input type="password" class="form-control" id="password" required>
+                                            <div id="password_hint" class="form-text">Debe tener 8+, mayúscula, minúscula, número y símbolo (@$!%*?&#.).</div>
                                         </div>
                                     </div>
                                 </div>`}
@@ -753,8 +800,42 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                 </div>
             </div>
         `;
+        // Enlazar eventos de validación/formateo en tiempo real (escopados al formulario)
+        const formEl = document.getElementById('form-usuario');
+        const rutInput = formEl?.querySelector('#rut');
+        if (rutInput) {
+            // Normaliza valor inicial si existe
+            rutInput.value = normalizarRut(rutInput.value);
+            rutInput.addEventListener('input', validarRutEnTiempoReal);
+            rutInput.addEventListener('blur', validarRutCompleto);
+        }
+        const telInput = formEl?.querySelector('#telefono');
+        if (telInput) {
+            telInput.addEventListener('input', (e) => {
+                const v = normalizarTelefono(e.target.value, true);
+                e.target.value = v;
+            });
+            telInput.addEventListener('blur', (e) => {
+                e.target.value = normalizarTelefono(e.target.value);
+            });
+        }
+        // Ayuda en tiempo real para contraseña fuerte
+        const passInput = formEl?.querySelector('#password');
+        if (passInput) {
+            passInput.addEventListener('input', (e) => {
+                const hintEl = formEl?.querySelector('#password_hint');
+                if (!hintEl) return;
+                const issues = obtenerFaltasPassword(e.target.value);
+                hintEl.textContent = issues.length === 0
+                    ? 'Contraseña fuerte'
+                    : 'Falta: ' + issues.join(', ');
+            });
+        }
 
-        document.getElementById('form-usuario').addEventListener('submit', guardarUsuario);
+        formEl?.addEventListener('submit', guardarUsuario);
+
+        // Cargar regiones y comunas en los selects con preselección cuando edita
+        await cargarRegionesYComunasEnFormularioUsuario(usuario || null);
     } catch (error) {
         console.error('Error al mostrar formulario de usuario:', error);
         mostrarNotificacion('Error al cargar formulario: ' + (error.message || ''), 'danger');
@@ -771,17 +852,65 @@ async function guardarUsuario(e) {
     const accion = form?.dataset?.accion;
     const usuarioId = form?.dataset?.id;
 
-    const nombre = document.getElementById('nombre')?.value.trim();
-    const apellido = document.getElementById('apellido')?.value.trim();
-    const email = document.getElementById('email')?.value.trim();
-    const rut = document.getElementById('rut')?.value.trim();
-    const role = document.getElementById('role')?.value;
-    const departamento_id_raw = document.getElementById('departamento_id')?.value;
+    // Importante: usar selecciones relativas al formulario para evitar colisiones de IDs
+    const primer_nombre = form?.querySelector('#primer_nombre')?.value.trim();
+    const segundo_nombre = form?.querySelector('#segundo_nombre')?.value.trim();
+    const primer_apellido = form?.querySelector('#primer_apellido')?.value.trim();
+    const segundo_apellido = form?.querySelector('#segundo_apellido')?.value.trim();
+    const email = form?.querySelector('#email')?.value.trim();
+    let rut = form?.querySelector('#rut')?.value.trim();
+    let telefono = form?.querySelector('#telefono')?.value.trim();
+    const direccion = form?.querySelector('#direccion')?.value.trim();
+    const regionSelect = form?.querySelector('#region');
+    const comunaSelect = form?.querySelector('#comuna');
+    const regionNombre = (regionSelect && regionSelect.selectedIndex > 0)
+        ? regionSelect.options[regionSelect.selectedIndex].text
+        : '';
+    const comunaNombre = comunaSelect?.value?.trim() || '';
+    const role = form?.querySelector('#role')?.value;
+    const departamento_id_raw = form?.querySelector('#departamento_id')?.value;
     const departamento_id = departamento_id_raw ? parseInt(departamento_id_raw) : null;
-    const password = document.getElementById('password')?.value;
+    const password = form?.querySelector('#password')?.value;
 
-    if (!nombre || !apellido || !email || !role || (!usuarioId && !password)) {
-        mostrarNotificacion('Completa los campos obligatorios', 'warning');
+    // Normalizar antes de validar/enviar (con valores por defecto seguros)
+    rut = normalizarRut(rut || '');
+    telefono = normalizarTelefono(telefono || '');
+    // Reflejar normalización en los inputs (evita discrepancias visuales)
+    const rutEl = form?.querySelector('#rut');
+    if (rutEl) rutEl.value = rut;
+    const telEl = form?.querySelector('#telefono');
+    if (telEl) telEl.value = telefono;
+
+    // Validación más descriptiva de campos obligatorios
+    const faltantes = [];
+    const reportarFalta = (id, mensaje) => {
+        const el = form?.querySelector(`#${id}`);
+        if (el) marcarCampoInvalidoUsuarios(el, mensaje);
+        faltantes.push(mensaje);
+    };
+
+    const isEmpty = (v) => (v ?? '').toString().trim().length === 0;
+    if (isEmpty(primer_nombre)) reportarFalta('primer_nombre', 'El campo "primer_nombre" es obligatorio');
+    if (isEmpty(primer_apellido)) reportarFalta('primer_apellido', 'El campo "primer_apellido" es obligatorio');
+    if (isEmpty(email)) reportarFalta('email', 'El campo "email" es obligatorio');
+    // RUT se valida con reglas específicas más abajo; aquí solo chequeamos vacío
+    if (isEmpty(rut)) reportarFalta('rut', 'El campo "rut" es obligatorio');
+    if (isEmpty(telefono)) reportarFalta('telefono', 'El campo "telefono" es obligatorio');
+    if (isEmpty(direccion)) reportarFalta('direccion', 'El campo "direccion" es obligatorio');
+    if (isEmpty(role)) reportarFalta('role', 'El campo "role" es obligatorio');
+    if (!usuarioId && isEmpty(password)) reportarFalta('password', 'La contraseña es obligatoria');
+
+    if (faltantes.length > 0) {
+        mostrarNotificacion('Completa los campos obligatorios: ' + faltantes.join(', '), 'warning');
+        return;
+    }
+
+    // Validar RUT con reglas exactas de backend
+    const rutCheck = validarRutValor(rut, { exacto8: true });
+    if (!rutCheck.valido) {
+        const inputRut = form?.querySelector('#rut');
+        if (inputRut) marcarCampoInvalidoUsuarios(inputRut, rutCheck.mensaje);
+        mostrarNotificacion(rutCheck.mensaje, 'warning');
         return;
     }
 
@@ -790,7 +919,21 @@ async function guardarUsuario(e) {
         return;
     }
 
-    const payload = { nombre, apellido, email, rut, role, departamento_id };
+    if (!usuarioId) {
+        const passIssues = obtenerFaltasPassword(password);
+        if (passIssues.length > 0) {
+            const passEl = form?.querySelector('#password');
+            if (passEl) marcarCampoInvalidoUsuarios(passEl, 'Falta: ' + passIssues.join(', '));
+            mostrarNotificacion('La contraseña debe ser fuerte: falta ' + passIssues.join(', '), 'warning');
+            return;
+        }
+    }
+
+    const direccionCompuesta = [direccion, comunaNombre, regionNombre].filter(Boolean).join(', ');
+    const payload = { 
+        primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
+        email, rut, telefono, direccion: direccionCompuesta, role, departamento_id 
+    };
     if (!usuarioId) payload.password = password;
 
     try {
@@ -827,6 +970,18 @@ function validarPasswordFuerte(password) {
     // Reglas: al menos una minúscula, una mayúscula, un número y un carácter especial de este conjunto: @ $ ! % * ? & # .
     const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#.]).{8,}$/;
     return regex.test(password || '');
+}
+
+// Devuelve lista de requisitos faltantes para la contraseña
+function obtenerFaltasPassword(password) {
+    const v = password || '';
+    const faltas = [];
+    if (v.length < 8) faltas.push('mínimo 8 caracteres');
+    if (!/[A-Z]/.test(v)) faltas.push('una mayúscula');
+    if (!/[a-z]/.test(v)) faltas.push('una minúscula');
+    if (!/\d/.test(v)) faltas.push('un número');
+    if (!/[@$!%*?&#.]/.test(v)) faltas.push('un símbolo (@$!%*?&#.)');
+    return faltas;
 }
 
 // Validador de email simple y robusto sin dependencias externas
@@ -1533,5 +1688,89 @@ function togglePassword(inputId) {
     } else {
         passwordInput.type = 'password';
         passwordIcon.className = 'bi bi-eye';
+    }
+}
+
+/**
+ * Cargar regiones y comunas en los selects del formulario de usuario
+ */
+async function cargarRegionesYComunasEnFormularioUsuario(usuario = null) {
+    try {
+        const regionSelect = document.getElementById('region');
+        const comunaSelect = document.getElementById('comuna');
+        if (!regionSelect || !comunaSelect) return;
+
+        // Cargar regiones
+        regionSelect.innerHTML = '<option value="">Seleccione una región</option>';
+        const regionesResp = await fetchAPI('/geografia/regiones');
+        const regiones = regionesResp.regiones || regionesResp || [];
+        regionSelect.innerHTML = '<option value="">Seleccione una región</option>' +
+            regiones.map(r => `<option value="${r.id}">${r.nombre}</option>`).join('');
+
+        // Intentar preseleccionar región y comuna si se está editando
+        if (usuario) {
+            const direccion = (usuario.direccion || '').trim();
+            // Si el backend enviara campos separados, usarlos primero
+            let preferRegion = (usuario.region || '').trim();
+            let preferComuna = (usuario.comuna || '').trim();
+            if (!preferRegion || !preferComuna) {
+                const partes = direccion.split(',').map(p => p.trim()).filter(Boolean);
+                // Heurística: último elemento = región, penúltimo = comuna
+                if (!preferRegion && partes.length >= 1) {
+                    preferRegion = partes[partes.length - 1];
+                }
+                if (!preferComuna && partes.length >= 2) {
+                    preferComuna = partes[partes.length - 2];
+                }
+            }
+
+            // Buscar opción de región por texto (case-insensitive)
+            if (preferRegion) {
+                const optRegion = Array.from(regionSelect.options).find(o => (o.textContent || '').trim().toLowerCase() === preferRegion.toLowerCase());
+                if (optRegion) {
+                    regionSelect.value = optRegion.value;
+                    // Cargar comunas y luego preseleccionar la comuna preferida
+                    await cargarComunasUsuario(optRegion.value, comunaSelect, preferComuna || null);
+                }
+            }
+        }
+
+        // Al cambiar región, cargar comunas
+        regionSelect.addEventListener('change', async (e) => {
+            const regionId = e.target.value;
+            await cargarComunasUsuario(regionId, comunaSelect);
+        });
+    } catch (error) {
+        console.error('Error cargando regiones/comunas (usuarios):', error);
+        mostrarNotificacion('No se pudieron cargar regiones y comunas', 'warning');
+    }
+}
+
+/**
+ * Cargar comunas para una región dada en el formulario de usuario
+ */
+async function cargarComunasUsuario(regionId, comunaSelect, comunaNombrePreselect = null) {
+    try {
+        if (!comunaSelect) return;
+        comunaSelect.innerHTML = '<option value="">Seleccione una comuna</option>';
+        if (!regionId) return;
+        // Mostrar estado de carga
+        comunaSelect.innerHTML = '<option value="">Cargando comunas...</option>';
+        const comunasResp = await fetchAPI(`/geografia/regiones/${regionId}/comunas`);
+        const comunas = comunasResp.comunas || comunasResp || [];
+        comunaSelect.innerHTML = '<option value="">Seleccione una comuna</option>' +
+            comunas.map(c => `<option value="${c.nombre}">${c.nombre}</option>`).join('');
+
+        // Preselección de comuna si se proporcionó
+        if (comunaNombrePreselect) {
+            const optComuna = Array.from(comunaSelect.options).find(o => (o.textContent || '').trim().toLowerCase() === comunaNombrePreselect.toLowerCase());
+            if (optComuna) {
+                comunaSelect.value = optComuna.value;
+            }
+        }
+    } catch (error) {
+        console.error('Error cargando comunas (usuarios):', error);
+        mostrarNotificacion('No se pudieron cargar comunas de la región seleccionada', 'warning');
+        comunaSelect.innerHTML = '<option value="">No disponibles</option>';
     }
 }

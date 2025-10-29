@@ -112,10 +112,16 @@ const createUsuarioSchema = Joi.object({
     'string.pattern.base': 'La contraseña debe tener al menos 8 caracteres, incluir mayúsculas, minúsculas, números y caracteres especiales'
   }),
   rut: rutValidation.required(),
-  telefono: Joi.string().required().messages(mensajesError),
-  direccion: Joi.string().required().messages(mensajesError),
+  telefono: Joi.string().min(7).max(20).required().messages(mensajesError),
+  direccion: Joi.string().min(5).max(200).required().messages(mensajesError),
   role: Joi.string().valid('admin', 'funcionario', 'ciudadano').required().messages(mensajesError),
-  departamento_id: Joi.number().integer().min(1).required().messages(mensajesError)
+  departamento_id: Joi.number().integer().min(1)
+    .when('role', {
+      is: 'funcionario',
+      then: Joi.required(),
+      otherwise: Joi.allow(null)
+    })
+    .messages(mensajesError)
 }).messages(mensajesError);
 
 // Esquema para validar la actualización de un usuario

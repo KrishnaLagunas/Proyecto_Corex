@@ -1,8 +1,8 @@
-const { Usuario, Departamento } = require('../models');
+const { Usuario, Departamento, Tramite, Pago, Documento, Presupuesto, Contrato, Proyecto } = require('../models');
 const { ApiError } = require('../middlewares/errorHandler');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
-const sequelize = require('sequelize');
+const { sequelize } = require('../config/database');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { cleanName } = require('../utils/text.utils');
@@ -441,14 +441,55 @@ const usuariosController = {
         throw new ApiError('Usuario no encontrado', 404);
       }
       
-      // Verificar si el usuario es responsable de algún departamento
-      const departamentosDirigidos = await Departamento.count({
-        where: { responsable_id: id }
-      });
-      
-      if (departamentosDirigidos > 0) {
+      // Verificar referencias reales antes de eliminar (integridad referencial)
+      // Usamos consultas SQL directas para evitar cualquier conflicto de asociaciones
+      const [[{ tramitesCiudadano }]] = await sequelize.query(
+        'SELECT COUNT(*) AS tramitesCiudadano FROM tramites WHERE ciudadano_id = ?',
+        { replacements: [id] }
+      );
+      const [[{ tramitesFuncionario }]] = await sequelize.query(
+        'SELECT COUNT(*) AS tramitesFuncionario FROM tramites WHERE funcionario_id = ?',
+        { replacements: [id] }
+      );
+      const [[{ pagosCiudadano }]] = await sequelize.query(
+        'SELECT COUNT(*) AS pagosCiudadano FROM pagos WHERE ciudadano_id = ?',
+        { replacements: [id] }
+      );
+      const [[{ pagosFuncionario }]] = await sequelize.query(
+        'SELECT COUNT(*) AS pagosFuncionario FROM pagos WHERE funcionario_id = ?',
+        { replacements: [id] }
+      );
+      const [[{ documentos }]] = await sequelize.query(
+        'SELECT COUNT(*) AS documentos FROM documentos WHERE usuario_id = ?',
+        { replacements: [id] }
+      );
+      const [[{ presupuestosResp }]] = await sequelize.query(
+        'SELECT COUNT(*) AS presupuestosResp FROM presupuestos WHERE responsable_id = ?',
+        { replacements: [id] }
+      );
+      const [[{ contratosResp }]] = await sequelize.query(
+        'SELECT COUNT(*) AS contratosResp FROM contratos WHERE responsable_id = ?',
+        { replacements: [id] }
+      );
+      const [[{ proyectosResp }]] = await sequelize.query(
+        'SELECT COUNT(*) AS proyectosResp FROM proyectos WHERE responsable_id = ?',
+        { replacements: [id] }
+      );
+
+      const totalReferencias = tramitesCiudadano + tramitesFuncionario + pagosCiudadano + pagosFuncionario + documentos + presupuestosResp + contratosResp + proyectosResp;
+      if (totalReferencias > 0) {
+        const causas = [];
+        if (tramitesCiudadano) causas.push(`${tramitesCiudadano} trámite(s) como ciudadano`);
+        if (tramitesFuncionario) causas.push(`${tramitesFuncionario} trámite(s) como funcionario`);
+        if (pagosCiudadano) causas.push(`${pagosCiudadano} pago(s) como ciudadano`);
+        if (pagosFuncionario) causas.push(`${pagosFuncionario} pago(s) como funcionario`);
+        if (documentos) causas.push(`${documentos} documento(s) subido(s)`);
+        if (presupuestosResp) causas.push(`${presupuestosResp} presupuesto(s) responsable`);
+        if (contratosResp) causas.push(`${contratosResp} contrato(s) responsable`);
+        if (proyectosResp) causas.push(`${proyectosResp} proyecto(s) responsable`);
+
         throw new ApiError(
-          `No se puede eliminar el usuario porque es responsable de ${departamentosDirigidos} departamento(s)`,
+          `No se puede eliminar el usuario porque tiene registros asociados: ${causas.join(', ')}`,
           400
         );
       }
