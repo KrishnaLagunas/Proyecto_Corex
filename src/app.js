@@ -25,6 +25,7 @@ const contratosRoutes = require('./routes/contratos.routes');
 const proyectosRoutes = require('./routes/proyectos.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const geografiaRoutes = require('./routes/geografia.routes');
+const mercadoPagoRoutes = require('./routes/mercadopago.routes');
 // const ciudadanoRoutes = require('./routes/ciudadano.routes');
 
 // Configuración de variables de entorno
@@ -57,6 +58,7 @@ app.use('/api/contratos', contratosRoutes);
 app.use('/api/proyectos', proyectosRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/geografia', geografiaRoutes);
+app.use('/api/mercado-pago', mercadoPagoRoutes);
 // app.use('/api/ciudadano', ciudadanoRoutes);
 
 // Middleware para manejar rutas de API no encontradas
