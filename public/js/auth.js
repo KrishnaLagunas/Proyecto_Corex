@@ -459,7 +459,7 @@ async function cargarPortalCiudadano(usuario) {
                             ${tramitesRecientes.map(tramite => `
                                 <tr>
                                     <td>${tramite.codigo}</td>
-                                    <td>${obtenerNombreTipoTramite(tramite.tipo)}</td>
+                                    <td class="text-uppercase">${obtenerNombreTipoTramite(tramite.tipo)}</td>
                                     <td>${tramite.titulo}</td>
                                     <td>${formatearFecha(tramite.fecha_solicitud)}</td>
                                     <td>
@@ -1083,7 +1083,7 @@ async function cargarMisTramites(usuario) {
                             ${tramitesUsuario.map(tramite => `
                                 <tr>
                                     <td>${tramite.codigo}</td>
-                                    <td>${obtenerNombreTipoTramite(tramite.tipo)}</td>
+                                    <td class="text-uppercase">${obtenerNombreTipoTramite(tramite.tipo)}</td>
                                     <td>${tramite.titulo}</td>
                                     <td>${formatearFecha(tramite.fecha_solicitud)}</td>
                                     <td>

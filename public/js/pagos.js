@@ -10,6 +10,10 @@
 async function cargarPagos(filtros = {}) {
     try {
         mostrarCargando(true);
+        // Detectar rol actual para controlar visibilidad de acciones
+        const usuarioActual = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+        const rolActual = (usuarioActual && (usuarioActual.role || usuarioActual.rol)) || null;
+        const puedeCrearPago = rolActual === 'admin';
         
         // Construir query string para filtros
         const queryParams = new URLSearchParams();
@@ -30,9 +34,11 @@ async function cargarPagos(filtros = {}) {
                     <h2>Gestión de Pagos</h2>
                 </div>
                 <div class="col-md-4 text-end">
+                    ${puedeCrearPago ? `
                     <button class="btn btn-primary" onclick="mostrarFormularioPago()">
                         <i class="bi bi-plus-circle"></i> Nuevo Pago
                     </button>
+                    ` : ''}
                 </div>
             </div>
             
@@ -175,6 +181,14 @@ function limpiarFiltrosPagos() {
  */
 async function mostrarFormularioPago(ciudadanoId = null, tramiteId = null) {
     try {
+        // Restringir creación de pagos a administradores
+        const usuarioActual = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+        const rolActual = (usuarioActual && (usuarioActual.role || usuarioActual.rol)) || null;
+        if (rolActual !== 'admin') {
+            mostrarNotificacion('No tienes permisos para crear pagos.', 'warning');
+            if (typeof cargarPagos === 'function') cargarPagos();
+            return;
+        }
         mostrarCargando(true);
         
         // Obtener lista de ciudadanos si no se especifica uno
@@ -421,117 +435,113 @@ async function verDetallePago(pagoId) {
         
         const pago = await fetchAPI(`/pagos/${pagoId}`);
         
+        // Normalizar campos según el backend
+        const codigo = pago.codigo || 'N/A';
+        const estado = pago.estado || 'N/A';
+        const monto = typeof formatearMoneda === 'function' ? formatearMoneda(pago.monto) : (pago.monto ?? 'N/A');
+        const fechaPago = pago.fecha_pago ? formatearFecha(pago.fecha_pago) : '—';
+        const metodoPago = pago.metodo_pago || '—';
+        const referencia = pago.referencia_externa || '—';
+        const notas = pago.notas || 'Sin observaciones';
+        const estadoClase = estado === 'completado' ? 'success' : (estado === 'pendiente' ? 'warning' : (estado === 'rechazado' ? 'danger' : 'secondary'));
+        const tieneComprobante = estado === 'completado';
+
+        const tramite = pago.Tramite || null;
+        const ciudadano = pago.ciudadano || null;
+
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-12">
-                    <button class="btn btn-outline-secondary mb-3" onclick="cargarPagos()">
-                        <i class="bi bi-arrow-left"></i> Volver a pagos
-                    </button>
-                    <h2>Detalle del Pago</h2>
+            <div class="row mb-2">
+                <div class="col-12 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="cargarPagos()">
+                            <i class="bi bi-arrow-left"></i> Volver a pagos
+                        </button>
+                    </div>
+                    <h4 class="m-0">Detalle del Pago</h4>
+                    ${tieneComprobante ? `
+                    <button class="btn btn-sm btn-secondary" onclick="descargarComprobantePago(${pago.id})">
+                        <i class="bi bi-download"></i> Comprobante
+                    </button>` : ''}
                 </div>
             </div>
-            
+
             <div class="row">
-                <div class="col-md-8">
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5>Información del Pago</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <p><strong>ID:</strong> ${pago.id}</p>
-                                    <p><strong>Concepto:</strong> ${pago.concepto}</p>
-                                    <p><strong>Monto:</strong> ${formatearMoneda(pago.monto)}</p>
-                                    <p><strong>Estado:</strong> <span class="estado-${pago.estado}">${pago.estado}</span></p>
+                <div class="col-12">
+                    <div class="card compact-card detalle-pago">
+                        <div class="card-body py-2">
+                            <!-- Resumen compacto -->
+                            <div class="row row-cols-2 row-cols-lg-6 g-2 mb-2">
+                                <div class="col">
+                                    <div class="small text-muted">Código</div>
+                                    <div class="small fw-semibold text-break">${codigo}</div>
                                 </div>
-                                <div class="col-md-6">
-                                    <p><strong>Fecha de Creación:</strong> ${formatearFecha(pago.fechaCreacion)}</p>
-                                    <p><strong>Fecha de Vencimiento:</strong> ${formatearFecha(pago.fechaVencimiento)}</p>
-                                    ${pago.fechaPago ? `<p><strong>Fecha de Pago:</strong> ${formatearFecha(pago.fechaPago)}</p>` : ''}
-                                    ${pago.metodoPago ? `<p><strong>Método de Pago:</strong> ${pago.metodoPago}</p>` : ''}
+                                <div class="col">
+                                    <div class="small text-muted">Estado</div>
+                                    <span class="badge rounded-pill p-1 small bg-${estadoClase} text-uppercase">${estado}</span>
+                                </div>
+                                <div class="col">
+                                    <div class="small text-muted">Monto</div>
+                                    <div class="small fw-semibold">${monto}</div>
+                                </div>
+                                <div class="col">
+                                    <div class="small text-muted">Fecha pago</div>
+                                    <div class="small fw-semibold">${fechaPago}</div>
+                                </div>
+                                <div class="col">
+                                    <div class="small text-muted">Método</div>
+                                    <div class="small fw-semibold">${metodoPago}</div>
+                                </div>
+                                <div class="col">
+                                    <div class="small text-muted">Referencia</div>
+                                    <div class="small fw-semibold text-break">${referencia}</div>
                                 </div>
                             </div>
-                            
-                            <div class="mb-3">
-                                <p><strong>Descripción:</strong></p>
-                                <p>${pago.descripcion || 'Sin descripción'}</p>
+
+                            <!-- Información del ciudadano -->
+                            ${ciudadano ? `
+                            <hr class="my-2" />
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="m-0">Ciudadano</h6>
+                                ${ciudadano.id ? `<button class="btn btn-sm btn-info" onclick="verPerfilUsuario(${ciudadano.id})"><i class="bi bi-person"></i> Ver Perfil</button>` : ''}
                             </div>
-                            
-                            ${pago.estado === 'pendiente' ? `
-                                <div class="d-flex gap-2">
-                                    <button class="btn btn-success" onclick="procesarPago(${pago.id})">
-                                        <i class="bi bi-check-circle"></i> Procesar Pago
-                                    </button>
-                                    <button class="btn btn-danger" onclick="anularPago(${pago.id})">
-                                        <i class="bi bi-x-circle"></i> Anular Pago
-                                    </button>
-                                </div>
-                            ` : ''}
-                            
-                            ${pago.estado === 'completado' ? `
-                                <button class="btn btn-secondary" onclick="descargarComprobantePago(${pago.id})">
-                                    <i class="bi bi-download"></i> Descargar Comprobante
-                                </button>
-                            ` : ''}
-                        </div>
-                    </div>
-                    
-                    ${pago.tramiteId ? `
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <h5>Trámite Asociado</h5>
+                            <div class="row g-2">
+                                <div class="col-12 col-md-6"><div class="small text-muted">Nombre</div><div class="small">${ciudadano.nombre || ''} ${ciudadano.apellido || ''}</div></div>
+                                <div class="col-12 col-md-6"><div class="small text-muted">Email</div><div class="small">${ciudadano.email || '—'}</div></div>
+                                <div class="col-12 col-md-6"><div class="small text-muted">Teléfono</div><div class="small">${ciudadano.telefono || '—'}</div></div>
+                                <div class="col-12 col-md-6"><div class="small text-muted">RUT</div><div class="small font-monospace text-break">${ciudadano.rut || '—'}</div></div>
+                            </div>` : ''}
+
+                            <!-- Información del trámite -->
+                            ${tramite ? `
+                            <hr class="my-2" />
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="m-0">Trámite asociado</h6>
+                                <button class="btn btn-sm btn-info" onclick="verDetalleTramite(${tramite.id})"><i class="bi bi-eye"></i> Ver Trámite</button>
                             </div>
-                            <div class="card-body">
-                                <p><strong>Tipo de Trámite:</strong> ${pago.tramite?.tipo?.nombre}</p>
-                                <p><strong>Código:</strong> ${pago.tramite?.codigo}</p>
-                                <p><strong>Estado:</strong> <span class="estado-${pago.tramite?.estado}">${pago.tramite?.estado}</span></p>
-                                <button class="btn btn-info" onclick="verDetalleTramite(${pago.tramiteId})">
-                                    <i class="bi bi-eye"></i> Ver Trámite
-                                </button>
+                            <div class="row g-2">
+                                <div class="col-12 col-md-4"><div class="small text-muted">Código</div><div class="small">${tramite.codigo || '—'}</div></div>
+                                <div class="col-12 col-md-4"><div class="small text-muted">Título</div><div class="small">${tramite.titulo || '—'}</div></div>
+                                <div class="col-12 col-md-4"><div class="small text-muted">Tipo</div><div class="small text-uppercase">${tramite.tipo || '—'}</div></div>
+                                <div class="col-12 col-md-4"><div class="small text-muted">Estado</div><div class="small text-uppercase">${tramite.estado || '—'}</div></div>
+                                <div class="col-12 col-md-4"><div class="small text-muted">Prioridad</div><div class="small text-uppercase">${tramite.prioridad || '—'}</div></div>
+                                <div class="col-12 col-md-4"><div class="small text-muted">Requiere pago</div><div class="small">${tramite.requiere_pago ? 'Sí' : 'No'}</div></div>
+                                <div class="col-12 col-md-4"><div class="small text-muted">Monto</div><div class="small">${typeof formatearMoneda === 'function' ? formatearMoneda(tramite.monto) : (tramite.monto ?? '—')}</div></div>
+                                <div class="col-12 col-md-4"><div class="small text-muted">Solicitud</div><div class="small">${tramite.fecha_solicitud ? formatearFecha(tramite.fecha_solicitud) : '—'}</div></div>
+                                <div class="col-12 col-md-4"><div class="small text-muted">Actualización</div><div class="small">${tramite.fecha_actualizacion ? formatearFecha(tramite.fecha_actualizacion) : '—'}</div></div>
+                            </div>` : ''}
+
+                            <!-- Observaciones -->
+                            ${notas ? `
+                            <hr class="my-2" />
+                            <h6>Observaciones</h6>
+                            <p class="mb-0 small">${notas}</p>` : ''}
+
+                            <!-- Acciones -->
+                            <div class="d-flex gap-2 mt-2">
+                                ${estado === 'pendiente' ? `<button class="btn btn-sm btn-success" onclick="procesarPago(${pago.id})"><i class="bi bi-check-circle"></i> Procesar</button>` : ''}
+                                ${estado === 'pendiente' ? `<button class="btn btn-sm btn-outline-danger" onclick="anularPago(${pago.id})"><i class="bi bi-x-circle"></i> Anular</button>` : ''}
                             </div>
-                        </div>
-                    ` : ''}
-                </div>
-                
-                <div class="col-md-4">
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5>Información del Ciudadano</h5>
-                        </div>
-                        <div class="card-body">
-                            <p><strong>Nombre:</strong> ${pago.ciudadano?.nombre} ${pago.ciudadano?.apellido}</p>
-                            <p><strong>Documento:</strong> ${pago.ciudadano?.documento}</p>
-                            <p><strong>Email:</strong> ${pago.ciudadano?.email}</p>
-                            <p><strong>Teléfono:</strong> ${pago.ciudadano?.telefono || 'No especificado'}</p>
-                            <button class="btn btn-info" onclick="verPerfilUsuario(${pago.ciudadanoId})">
-                                <i class="bi bi-person"></i> Ver Perfil
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="card-header">
-                            <h5>Historial</h5>
-                        </div>
-                        <div class="card-body">
-                            ${!pago.historial || pago.historial.length === 0 ? `
-                                <p>No hay registros en el historial de este pago.</p>
-                            ` : `
-                                <div class="timeline">
-                                    ${pago.historial.map((registro, index) => `
-                                        <div class="timeline-item">
-                                            <div class="timeline-date">${formatearFecha(registro.fecha)}</div>
-                                            <div class="timeline-content">
-                                                <h6>${registro.accion}</h6>
-                                                <p>${registro.descripcion}</p>
-                                                <small>Por: ${registro.usuario?.nombre} ${registro.usuario?.apellido}</small>
-                                            </div>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            `}
                         </div>
                     </div>
                 </div>

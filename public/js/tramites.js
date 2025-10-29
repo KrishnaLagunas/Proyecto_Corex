@@ -56,7 +56,7 @@ async function cargarTiposTramites() {
                                 ${tiposTramites.map(tipo => `
                                     <tr>
                                         <td>${tipo.id}</td>
-                                        <td>${tipo.nombre}</td>
+                                        <td class="text-uppercase">${tipo.nombre}</td>
                                         <td>${tipo.descripcion.substring(0, 50)}${tipo.descripcion.length > 50 ? '...' : ''}</td>
                                         <td>${formatearMoneda(tipo.costo)}</td>
                                         <td>${tipo.tiempo_estimado} días</td>
@@ -559,20 +559,33 @@ async function cargarTramites() {
         const respTramites = await fetchAPI('/tramites?limit=100');
         const tramites = Array.isArray(respTramites) ? respTramites : (respTramites.tramites || []);
         const tiposTramites = await fetchAPI('/tramites/tipos');
+        // Detectar rol actual para controlar acciones disponibles
+        const usuarioActual = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+        const rolActual = (usuarioActual && (usuarioActual.role || usuarioActual.rol)) || null;
+        const puedeGestionarTipos = rolActual === 'admin';
+        const puedeCrearTramite = rolActual === 'admin';
+        let accionesHTML = '';
+        if (puedeGestionarTipos) {
+            accionesHTML += `
+                <button class="btn btn-outline-secondary me-2" onclick="cargarTiposTramites()">
+                    <i class="bi bi-gear"></i> Gestionar Tipos de Trámites
+                </button>
+            `;
+        }
+        if (puedeCrearTramite) {
+            accionesHTML += `
+                <button class="btn btn-primary" onclick="mostrarFormularioTramite()">
+                    <i class="bi bi-plus-circle"></i> Nuevo Trámite
+                </button>
+            `;
+        }
         
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
             <div class="row mb-4">
                 <div class="col-12 d-flex justify-content-between align-items-center">
                     <h2>Gestión de Trámites</h2>
-                    <div>
-                        <button class="btn btn-outline-secondary me-2" onclick="cargarTiposTramites()">
-                            <i class="bi bi-gear"></i> Gestionar Tipos de Trámites
-                        </button>
-                        <button class="btn btn-primary" onclick="mostrarFormularioTramite()">
-                            <i class="bi bi-plus-circle"></i> Nuevo Trámite
-                        </button>
-                    </div>
+                    <div>${accionesHTML}</div>
                 </div>
             </div>
             
@@ -627,7 +640,7 @@ async function cargarTramites() {
                                 ${tramites.map(tramite => `
                                     <tr>
                                         <td>${tramite.id}</td>
-                                        <td>${tramite.tipo || 'N/A'}</td>
+                                        <td class="text-uppercase">${tramite.tipo || 'N/A'}</td>
                                         <td>${tramite.ciudadano?.nombre} ${tramite.ciudadano?.apellido}</td>
                                         <td>${formatearFecha(tramite.fecha_solicitud)}</td>
                                         <td>${formatearFecha(tramite.fecha_actualizacion)}</td>
@@ -707,10 +720,18 @@ function filtrarTramites() {
  */
 async function mostrarFormularioTramite() {
     try {
+        // Restringir creación de trámites a administradores
+        const usuarioActual = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+        const rolActual = (usuarioActual && (usuarioActual.role || usuarioActual.rol)) || null;
+        if (rolActual !== 'admin') {
+            mostrarNotificacion('No tienes permisos para crear trámites.', 'warning');
+            if (typeof cargarTramites === 'function') cargarTramites();
+            return;
+        }
         mostrarCargando(true);
         
-        const responseTipos = await fetchAPI('/tipos-tramites?estado=activo');
-        const tiposTramites = responseTipos.tiposTramites || [];
+        const responseTipos = await fetchAPI('/tramites/tipos');
+        const tiposTramites = Array.isArray(responseTipos) ? responseTipos : (responseTipos.tiposTramites || responseTipos.data || []);
         const responseUsuarios = await fetchAPI('/usuarios?rol=ciudadano&estado=activo');
         const ciudadanos = responseUsuarios.usuarios || [];
         
@@ -746,11 +767,7 @@ async function mostrarFormularioTramite() {
                                         <label for="tipo" class="form-label">Tipo</label>
                                         <select class="form-select" id="tipo" required>
                                             <option value="">Seleccione un tipo</option>
-                                            <option value="licencia">Licencia</option>
-                                            <option value="permiso">Permiso</option>
-                                            <option value="certificado">Certificado</option>
-                                            <option value="registro">Registro</option>
-                                            <option value="solicitud">Solicitud</option>
+                                            ${(Array.isArray(tiposTramites) ? tiposTramites : []).map(t => `<option value="${t.nombre}">${t.nombre}</option>`).join('')}
                                         </select>
                                     </div>
                                     <div class="col-md-6">
@@ -966,14 +983,16 @@ async function verDetalleTramite(tramiteId) {
             
             <div class="row">
                 <div class="col-md-10 offset-md-1">
-                    <div class="card mb-4">
+                    <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                    <div class="card compact-card h-100">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h5 class="mb-0">Información General</h5>
                             <div>
-                                <button class="btn btn-primary" onclick="actualizarEstadoTramite(${tramite.id})">
+                                <button class="btn btn-primary btn-sm" onclick="actualizarEstadoTramite(${tramite.id})">
                                     <i class="bi bi-pencil"></i> Actualizar Estado
                                 </button>
-                                <button class="btn btn-info" onclick="generarReporteTramite(${tramite.id})">
+                                <button class="btn btn-info btn-sm" onclick="generarReporteTramite(${tramite.id})">
                                     <i class="bi bi-file-earmark-text"></i> Generar Reporte
                                 </button>
                             </div>
@@ -1017,8 +1036,10 @@ async function verDetalleTramite(tramiteId) {
                             </div>
                         </div>
                     </div>
+                    </div>
                     
-                    <div class="card mb-4">
+                    <div class="col-12 col-md-6">
+                    <div class="card compact-card h-100">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h5 class="mb-0">Documentos</h5>
                             <button class="btn btn-primary btn-sm" onclick="mostrarFormularioDocumento(${tramite.id})">
@@ -1063,8 +1084,10 @@ async function verDetalleTramite(tramiteId) {
                             `}
                         </div>
                     </div>
+                    </div>
                     
-                    <div class="card mb-4">
+                    <div class="col-12 col-md-6">
+                    <div class="card compact-card h-100">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <h5 class="mb-0">Pagos</h5>
                             ${tramite.estado !== 'rechazado' && !pagos.some(p => p.estado === 'completado') ? `
@@ -1115,8 +1138,10 @@ async function verDetalleTramite(tramiteId) {
                             `}
                         </div>
                     </div>
+                    </div>
                     
-                    <div class="card">
+                    <div class="col-12 col-md-6">
+                    <div class="card compact-card h-100">
                         <div class="card-header">
                             <h5>Historial</h5>
                         </div>
@@ -1138,6 +1163,8 @@ async function verDetalleTramite(tramiteId) {
                                 </div>
                             `}
                         </div>
+                    </div>
+                    </div>
                     </div>
                 </div>
             </div>

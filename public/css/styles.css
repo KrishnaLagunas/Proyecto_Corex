@@ -199,15 +199,15 @@ body:has(#login-container.corex-login-bg:not(.d-none)) {
     border-radius: 12px 0 0 12px;
 }
 #login-container .btn.btn-primary {
-    background: linear-gradient(90deg, #27ADF5 0%, #6BD4FF 100%);
+    background: linear-gradient(90deg, #27ADF5 0%, #1FA2F2 100%);
     border: none;
     border-radius: 999px;
     color: #ffffff;
-    box-shadow: 0 10px 18px rgba(39,173,245,0.30);
+    box-shadow: 0 10px 18px rgba(31,162,242,0.35);
 }
 #login-container .btn.btn-primary:hover {
     filter: brightness(1.06);
-    box-shadow: 0 12px 22px rgba(39,173,245,0.40);
+    box-shadow: 0 12px 22px rgba(31,162,242,0.45);
 }
 #login-container .card-footer {
     background: transparent;
@@ -507,6 +507,54 @@ body:has(#login-container.corex-login-bg:not(.d-none)) {
     flex-direction: column;
 }
 
+/* Tarjetas compactas para reducir uso de pantalla en vistas de detalle */
+.compact-card .card-header {
+    padding: var(--spacing-2) var(--spacing-3);
+}
+.compact-card .card-title,
+.compact-card h5,
+.compact-card h6 {
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-tight);
+}
+.compact-card .card-body {
+    padding: var(--spacing-2) var(--spacing-3);
+}
+.compact-card .row.mb-3 {
+    margin-bottom: var(--spacing-1) !important;
+}
+.compact-card .col-md-4,
+.compact-card .col-md-6,
+.compact-card .col-md-8,
+.compact-card .col-12,
+.compact-card .col-6,
+.compact-card .col-4,
+.compact-card .small {
+    font-size: var(--font-size-sm);
+}
+.compact-card hr {
+    margin: var(--spacing-2) 0;
+}
+.compact-card .table th,
+.compact-card .table td {
+    padding: 0.4rem 0.5rem;
+}
+.compact-card .btn {
+    padding: var(--spacing-2) var(--spacing-3);
+    font-size: var(--font-size-xs);
+    min-height: 32px;
+}
+.compact-card .badge,
+.compact-card .estado-pendiente,
+.compact-card .estado-aprobado,
+.compact-card .estado-rechazado,
+.compact-card .pago-completado,
+.compact-card .pago-pendiente {
+    padding: 2px 6px;
+    font-size: 0.75rem;
+    border-radius: 4px;
+}
+
 /* Botones empresariales sofisticados */
 .btn {
     display: inline-flex;
@@ -637,6 +685,7 @@ body:has(#login-container.corex-login-bg:not(.d-none)) {
 .btn-sm {
     padding: var(--spacing-2) var(--spacing-4);
     font-size: var(--font-size-xs);
+    min-height: 32px;
 }
 
 /* Botones específicos para usuarios - coherencia con dashboard */

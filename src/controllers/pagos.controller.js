@@ -49,14 +49,16 @@ const pagosController = {
         where.tramite_id = tramite_id;
       }
       
-      // Filtro por rango de fechas
-      if (desde || hasta) {
+      // Filtro por rango de fechas (admite alias fechaDesde/fechaHasta desde frontend)
+      const desdeQuery = desde || req.query.fechaDesde;
+      const hastaQuery = hasta || req.query.fechaHasta;
+      if (desdeQuery || hastaQuery) {
         where.fecha_pago = {};
-        if (desde) {
-          where.fecha_pago[Op.gte] = new Date(desde);
+        if (desdeQuery) {
+          where.fecha_pago[Op.gte] = new Date(desdeQuery);
         }
-        if (hasta) {
-          where.fecha_pago[Op.lte] = new Date(hasta);
+        if (hastaQuery) {
+          where.fecha_pago[Op.lte] = new Date(hastaQuery);
         }
       }
       
@@ -74,8 +76,8 @@ const pagosController = {
         // Los ciudadanos solo pueden ver sus propios pagos
         where.ciudadano_id = req.user.id;
       } else if (req.user.role === 'funcionario') {
-        // Los funcionarios ven los pagos que han procesado
-        where.funcionario_id = req.user.id;
+        // Los funcionarios pueden ver todos los pagos
+        // No aplicar restricción por funcionario_id
       }
       // Filtro opcional por ciudadano cuando lo solicita admin/funcionario
       const ciudadanoIdParam = req.query.ciudadanoId || req.query.ciudadano_id;
@@ -152,7 +154,11 @@ const pagosController = {
         include: [
           { 
             model: Tramite,
-            attributes: ['id', 'codigo', 'titulo', 'tipo', 'descripcion'] 
+            attributes: [
+              'id', 'codigo', 'titulo', 'tipo', 'descripcion',
+              'estado', 'prioridad', 'requiere_pago', 'monto',
+              'fecha_solicitud', 'fecha_actualizacion', 'fecha_finalizacion'
+            ] 
           },
           { 
             model: Usuario, 
@@ -400,7 +406,10 @@ const pagosController = {
       // Cargar pago con relaciones
       const pagoProcesado = await Pago.findByPk(pago.id, {
         include: [
-          { model: Tramite, attributes: ['id', 'codigo', 'titulo', 'tipo'] },
+          { 
+            model: Tramite, 
+            attributes: ['id', 'codigo', 'titulo', 'tipo', 'estado', 'prioridad', 'requiere_pago', 'monto'] 
+          },
           { model: Usuario, as: 'ciudadano', attributes: ['id', 'nombre', 'apellido', 'email', 'rut'] },
           { model: Usuario, as: 'funcionario', attributes: ['id', 'nombre', 'apellido', 'email'] }
         ]
@@ -432,7 +441,11 @@ const pagosController = {
         include: [
           { 
             model: Tramite,
-            attributes: ['id', 'codigo', 'titulo', 'tipo', 'descripcion'] 
+            attributes: [
+              'id', 'codigo', 'titulo', 'tipo', 'descripcion',
+              'estado', 'prioridad', 'requiere_pago', 'monto',
+              'fecha_solicitud', 'fecha_actualizacion', 'fecha_finalizacion'
+            ] 
           },
           { 
             model: Usuario, 

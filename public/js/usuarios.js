@@ -1047,7 +1047,7 @@ async function cargarTramitesCiudadano(usuarioId) {
                         ${tramites.map(tramite => `
                             <tr>
                                 <td>${tramite.folio}</td>
-                                <td>${tramite.tipo || 'N/A'}</td>
+                                <td class="text-uppercase">${tramite.tipo || 'N/A'}</td>
                                 <td>${formatearFecha(tramite.fecha_solicitud)}</td>
                                 <td><span class="estado-${tramite.estado}">${tramite.estado}</span></td>
                                 <td>

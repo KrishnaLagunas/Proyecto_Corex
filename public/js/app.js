@@ -5,7 +5,7 @@ function cargarContenidoPagina(pagina) {
     
     switch (pagina) {
         case 'dashboard': {
-            // Restringir dashboard al rol admin y sesión válida
+            // Permitir dashboard para 'admin' y 'funcionario' con sesión válida
             let rol, token;
             try {
                 const usuario = JSON.parse(localStorage.getItem('usuario'));
@@ -13,22 +13,22 @@ function cargarContenidoPagina(pagina) {
                 token = localStorage.getItem('token');
             } catch (e) { rol = undefined; token = undefined; }
 
-            if (rol !== 'admin' || !token) {
-                mostrarNotificacion('Acceso denegado: solo el admin puede ver el panel de control', 'warning');
-                // Redirigir a una sección permitida
-                if (rol === 'funcionario') {
-                    if (typeof cargarTramites === 'function') {
-                        cargarTramites();
-                    } else {
-                        cargarContenidoPagina('tramites');
-                    }
+            // Validar sesión
+            if (!token) {
+                mostrarNotificacion('Sesión expirada. Inicia sesión nuevamente.', 'warning');
+                if (typeof mostrarFormularioLogin === 'function') {
+                    mostrarFormularioLogin();
+                }
+                break;
+            }
+
+            // Restringir solo a roles no autorizados
+            if (rol !== 'admin' && rol !== 'funcionario') {
+                mostrarNotificacion('Acceso denegado: tu rol no puede ver el panel de control', 'warning');
+                if (typeof cargarPortalCiudadano === 'function') {
+                    try { const u = JSON.parse(localStorage.getItem('usuario')); cargarPortalCiudadano(u); } catch { cargarPortalCiudadano(); }
                 } else {
-                    if (typeof cargarPortalCiudadano === 'function') {
-                        // Pasar usuario si es necesario
-                        try { const u = JSON.parse(localStorage.getItem('usuario')); cargarPortalCiudadano(u); } catch { cargarPortalCiudadano(); }
-                    } else {
-                        mainContent.innerHTML = '<div class="alert alert-info">Seleccione una opción válida del menú.</div>';
-                    }
+                    mainContent.innerHTML = '<div class="alert alert-info">Seleccione una opción válida del menú.</div>';
                 }
                 break;
             }
@@ -387,12 +387,12 @@ function cargarContenidoPagina(pagina) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Cargar Dashboard solo si hay token y el usuario es admin
+    // Cargar Dashboard si hay token y el usuario es admin o funcionario
     try {
         const usuario = JSON.parse(localStorage.getItem('usuario'));
         const rol = usuario && (usuario.rol || usuario.role);
         const token = localStorage.getItem('token');
-        if (token && rol === 'admin') {
+        if (token && (rol === 'admin' || rol === 'funcionario')) {
             if (typeof cargarDashboard === 'function') {
                 cargarDashboard();
             } else {
