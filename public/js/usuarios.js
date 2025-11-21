@@ -460,62 +460,61 @@ async function mostrarListaUsuarios() {
     const mainContent = document.getElementById('main-content');
     if (!mainContent) return;
     mainContent.classList.remove('d-none');
+    mainContent.classList.add('full-width');
 
     mainContent.innerHTML = `
-        <div class="row mb-4">
-            <div class="col-12 d-flex justify-content-between align-items-center">
-                <h2>Gestión de Usuarios</h2>
-                <button class="btn btn-primary" id="btn-nuevo-usuario">
+        <div class="row mb-3">
+            <div class="col-12 text-center">
+                <h2 class="section-title">Gestión de Usuarios</h2>
+            </div>
+        </div>
+
+        <div class="row g-2 align-items-end mb-2">
+            <div class="col-md-5">
+                <input type="text" class="form-control" id="buscar-usuario" placeholder="Buscar por nombre, apellido, email o RUT">
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="filtro-rol-usuario">
+                    <option value="">Todos los roles</option>
+                    <option value="admin">Admin</option>
+                    <option value="funcionario">Funcionario</option>
+                    <option value="ciudadano">Ciudadano</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="filtro-estado-usuario">
+                    <option value="">Todos los estados</option>
+                    <option value="activo">Activo</option>
+                    <option value="inactivo">Inactivo</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="row mb-2">
+            <div class="col-md-3 offset-md-9 d-flex justify-content-end">
+                <button class="btn btn-primary btn-new-user" id="btn-nuevo-usuario">
                     <i class="bi bi-person-plus"></i> Nuevo Usuario
                 </button>
             </div>
         </div>
 
-        <div class="card">
-            <div class="card-header">
-                <div class="row g-2">
-                    <div class="col-md-5">
-                        <input type="text" class="form-control" id="buscar-usuario" placeholder="Buscar por nombre, apellido, email o RUT">
-                    </div>
-                    <div class="col-md-3">
-                        <select class="form-select" id="filtro-rol-usuario">
-                            <option value="">Todos los roles</option>
-                            <option value="admin">Admin</option>
-                            <option value="funcionario">Funcionario</option>
-                            <option value="ciudadano">Ciudadano</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <select class="form-select" id="filtro-estado-usuario">
-                            <option value="">Todos los estados</option>
-                            <option value="activo">Activo</option>
-                            <option value="inactivo">Inactivo</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Nombre</th>
-                                <th>Email</th>
-                                <th>RUT</th>
-                                <th>Rol</th>
-                                <th>Departamento</th>
-                                <th>Estado</th>
-                                <th>Creado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tabla-usuarios"></tbody>
-                    </table>
-                </div>
-                <div class="d-flex justify-content-center mt-3" id="paginacion-usuarios"></div>
-            </div>
-        </div>
+        <table class="table table-striped table-hover align-middle table-fullwidth">
+                <thead>
+                    <tr>
+                        <th class="text-center">ID</th>
+                        <th>Nombre</th>
+                        <th>Email</th>
+                        <th class="text-nowrap">RUT</th>
+                        <th class="text-center">Rol</th>
+                        <th>Departamento</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-center">Creado</th>
+                        <th class="text-center col-actions">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-usuarios"></tbody>
+        </table>
+        <div class="d-flex justify-content-center mt-3" id="paginacion-usuarios"></div>
     `;
 
     document.getElementById('btn-nuevo-usuario').addEventListener('click', () => mostrarFormularioUsuario());
@@ -558,29 +557,29 @@ async function actualizarTablaUsuarios(page = 1) {
         } else {
             tbody.innerHTML = usuarios.map(u => `
                 <tr>
-                    <td>${u.id}</td>
-                    <td>${u.nombre || ''} ${u.apellido || ''}</td>
-                    <td>${u.email || ''}</td>
-                    <td>${u.rut || ''}</td>
-                    <td>${u.role || ''}</td>
-                    <td>${u.Departamento?.nombre || u.departamento?.nombre || 'N/A'}</td>
-                    <td><span class="estado-${u.estado}">${u.estado}</span></td>
-                    <td>${typeof formatearFecha === 'function' ? formatearFecha(u.createdAt) : ''}</td>
-                    <td>
-                        <button class="btn btn-sm btn-info" onclick="verDetalleUsuario(${u.id})" title="Ver">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                        <button class="btn btn-sm btn-edit" onclick="editarUsuario(${u.id})" title="Editar">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-sm ${u.estado === 'activo' ? 'btn-toggle' : 'btn-activate'}" 
-                                onclick="cambiarEstadoUsuario(${u.id}, '${u.estado === 'activo' ? 'inactivo' : 'activo'}')" 
-                                title="${u.estado === 'activo' ? 'Desactivar' : 'Activar'}">
-                            <i class="bi ${u.estado === 'activo' ? 'bi-person-x' : 'bi-person-check'}"></i>
-                        </button>
-                        <button class="btn btn-sm btn-danger" onclick="eliminarUsuario(${u.id})" title="Eliminar">
-                            <i class="bi bi-trash"></i>
-                        </button>
+                    <td class="text-center">${u.id}</td>
+                    <td class="cell-wrap">${(u.nombre || '')} ${(u.apellido || '')}</td>
+                    <td class="cell-wrap cell-email">${u.email || ''}</td>
+                    <td class="cell-nowrap">${u.rut || ''}</td>
+                    <td class="text-center">${u.role || ''}</td>
+                    <td class="cell-wrap">${u.Departamento?.nombre || u.departamento?.nombre || 'N/A'}</td>
+                    <td class="text-center"><span class="estado-${u.estado}">${u.estado}</span></td>
+                    <td class="text-center">${typeof formatearFecha === 'function' ? formatearFecha(u.createdAt) : ''}</td>
+                    <td class="text-center col-actions">
+                        <div class="btn-group btn-group-sm table-actions" role="group" aria-label="Acciones">
+                            <button class="btn btn-view" onclick="verDetalleUsuario(${u.id})" title="Ver">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-edit" onclick="editarUsuario(${u.id})" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn ${u.estado === 'activo' ? 'btn-toggle' : 'btn-toggle btn-activate'}" onclick="cambiarEstadoUsuario(${u.id}, '${u.estado === 'activo' ? 'inactivo' : 'activo'}')" title="${u.estado === 'activo' ? 'Desactivar' : 'Activar'}">
+                                <i class="bi ${u.estado === 'activo' ? 'bi-person-x' : 'bi-person-check'}"></i>
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="eliminarUsuario(${u.id})" title="Eliminar">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `).join('');

@@ -387,21 +387,24 @@ function cargarContenidoPagina(pagina) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Cargar Dashboard si hay token y el usuario es admin o funcionario
-    try {
-        const usuario = JSON.parse(localStorage.getItem('usuario'));
-        const rol = usuario && (usuario.rol || usuario.role);
-        const token = localStorage.getItem('token');
-        if (token && (rol === 'admin' || rol === 'funcionario')) {
-            if (typeof cargarDashboard === 'function') {
-                cargarDashboard();
-            } else {
-                cargarContenidoPagina('dashboard');
+    (async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
+            const rol = perfil && (perfil.rol || perfil.role);
+            if (perfil && (rol === 'admin' || rol === 'funcionario')) {
+                localStorage.setItem('usuario', JSON.stringify({ id: perfil.id, nombre: perfil.nombre || '', apellido: perfil.apellido || '', email: perfil.email, role: rol }));
+                if (typeof cargarDashboard === 'function') {
+                    cargarDashboard();
+                } else {
+                    cargarContenidoPagina('dashboard');
+                }
             }
+        } catch (_) {
+            // Mantener sesión en caso de error transitorio
         }
-    } catch (e) {
-        // Ignorar: no cargar dashboard por defecto si no hay sesión
-    }
+    })();
     
     // Agregar eventos a los enlaces del menú
     document.addEventListener('click', (e) => {

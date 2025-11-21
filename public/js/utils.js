@@ -30,7 +30,8 @@ async function fetchAPI(endpoint, options = {}) {
             headers: {
                 ...defaultOptions.headers,
                 ...(options.headers || {})
-            }
+            },
+            credentials: 'include'
         };
         
         // Si hay body y es un objeto, convertirlo a JSON

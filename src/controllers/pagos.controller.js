@@ -1,4 +1,5 @@
 const { Pago, Tramite, Usuario } = require('../models');
+const { sequelize } = require('../config/database');
 const { ApiError } = require('../middlewares/errorHandler');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');

@@ -131,20 +131,40 @@ body:has(#login-container:not(.d-none)) {
     padding-top: 80px;
     padding-bottom: 80px;
     background: transparent; /* Fondo se aplica al body para ocupar todo el viewport */
+    overflow-x: auto;
 }
 
-/* Fondo de login a pantalla completa con imagen contenida */
-body:has(#login-container.corex-login-bg:not(.d-none)) {
-    background-color: #f8f9fa; /* color base por si no carga imagen */
-    background-image: url('../images/fondo.png'); /* fallback universal */
-    background-image: image-set(
-        url('../images/fondo.webp') type('image/webp') 1x,
-        url('../images/fondo.png') type('image/png') 1x
-    );
+
+/* Ocultar footer cuando se muestra login o registro para evitar parpadeo */
+body:not(.auth-mode):has(#login-container:not(.d-none)) footer,
+body:not(.auth-mode):has(#register-container:not(.d-none)) footer {
+    display: none !important;
+}
+
+#login-bg,
+#login-bg2 {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-size: cover;
+    background-position: center;
     background-repeat: no-repeat;
-    background-position: center center;
-    background-size: cover; /* ocupa toda la pantalla manteniendo proporción */
-    min-height: 100vh;
+    opacity: 0;
+    transition: opacity 1.2s ease, transform 6s ease;
+    z-index: 0;
+}
+
+#login-bg.active,
+#login-bg2.active {
+    opacity: 1;
+    transform: scale(1.02);
+}
+
+#login-container.corex-login-bg {
+    position: relative;
+    z-index: 1;
 }
 /* Fondo responsive con preferencia WebP para menor consumo */
 
@@ -169,6 +189,114 @@ body:has(#login-container.corex-login-bg:not(.d-none)) {
     border: 1px solid rgba(19,97,227,0.12);
 }
 
+.corex-welcome-card {
+    position: relative;
+    border-radius: 20px;
+    box-shadow: 0 18px 36px rgba(0,0,0,0.25);
+    background: linear-gradient(180deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.16) 100%);
+    border: 1px solid rgba(255,255,255,0.75);
+    backdrop-filter: blur(20px) saturate(130%);
+    -webkit-backdrop-filter: blur(20px) saturate(130%);
+    color: #1f2937;
+}
+
+.password-group .input-group-text {
+    cursor: default;
+}
+
+.password-group { position: relative; }
+.password-group .form-control { padding-right: 44px; }
+.password-group .toggle-password-btn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(100% 100% at 50% 0%, rgba(255,255,255,0.95) 0%, rgba(240,244,255,0.92) 45%, rgba(226,234,255,0.9) 100%);
+    box-shadow: 0 6px 14px rgba(30,64,175,0.18);
+    color: #1f3b82;
+    z-index: 3;
+    pointer-events: auto;
+}
+.password-group .toggle-password-btn:focus { outline: none; box-shadow: none; }
+.password-group .form-control { padding-right: 52px; }
+.toggle-password-btn:hover { filter: brightness(1.05); }
+.toggle-password-btn i { font-size: 1.05rem; }
+.toggle-password-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: radial-gradient(100% 100% at 50% 0%, rgba(255,255,255,0.9) 0%, rgba(240,244,255,0.85) 40%, rgba(226,234,255,0.8) 100%);
+  box-shadow: 0 6px 14px rgba(30,64,175,0.15);
+  color: #1f3b82;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.toggle-password-btn:hover { filter: brightness(1.05); }
+.toggle-password-btn i { font-size: 1.05rem; }
+
+.corex-welcome-title {
+    font-family: var(--font-family-heading);
+    font-weight: var(--font-weight-extrabold);
+    letter-spacing: 0.02em;
+    color: #0b5ed7;
+}
+
+.corex-welcome-desc { color: #334155; }
+
+.corex-summary-tiles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-3);
+    margin-top: var(--spacing-4);
+}
+
+.corex-summary-tile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.42);
+    color: #1f2937;
+    padding: 12px 14px;
+    border: 1px solid rgba(255,255,255,0.7);
+    transition: all 0.2s ease;
+}
+
+.corex-summary-tile:hover {
+    background: rgba(255,255,255,0.26);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.28);
+    transform: translateY(-2px);
+}
+
+.corex-summary-tile i { color: #0b5ed7; }
+
+.corex-welcome-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(120% 100% at 0% 0%, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.0) 60%);
+    pointer-events: none;
+}
+
+.corex-summary-tile .title {
+    font-weight: var(--font-weight-semibold);
+}
+
+.corex-summary-tile .desc {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
 .corex-card-header {
     background: linear-gradient(90deg, rgba(0,153,255,0.18) 0%, rgba(0,89,255,0.15) 100%) !important;
     border-bottom: 1px solid rgba(19,97,227,0.12);
@@ -179,6 +307,8 @@ body:has(#login-container.corex-login-bg:not(.d-none)) {
 .corex-login-card .card-body {
     background: linear-gradient(135deg, rgba(0,153,255,0.10) 0%, rgba(0,89,255,0.08) 100%);
     border-radius: 0 0 16px 16px;
+    padding-top: 20px;
+    padding-bottom: 12px;
 }
 /* Wordmark Corex dentro de la tarjeta */
 .corex-wordmark-img {
@@ -212,7 +342,12 @@ body:has(#login-container.corex-login-bg:not(.d-none)) {
 #login-container .card-footer {
     background: transparent;
     border-top: none;
+    padding-top: 10px;
+    padding-bottom: 10px;
 }
+
+#login-container .card { height: auto; }
+#login-container .corex-login-card .card-body > form { margin-bottom: 0; }
 
 /* Layout principal */
 #app {
@@ -228,6 +363,16 @@ body:has(#login-container.corex-login-bg:not(.d-none)) {
     margin: 0 auto;
     width: 100%;
 }
+
+.full-width {
+    max-width: none !important;
+    padding-left: var(--spacing-2);
+    padding-right: var(--spacing-2);
+}
+
+.section-title { text-align: center; display: inline-block; position: relative; padding-bottom: 8px; margin: 0 auto 12px; font-weight: 700; }
+.section-title::after { content: ''; position: absolute; left: 50%; transform: translateX(-50%); bottom: 0; width: 180px; height: 4px; border-radius: 4px; background: linear-gradient(90deg, var(--primary-color), var(--accent-color)); box-shadow: 0 6px 14px rgba(30,64,175,0.25); }
+.search-narrow { max-width: 520px; }
 
 /* Header institucional con azul oscuro */
 .header {
@@ -401,11 +546,13 @@ body:has(#login-container.corex-login-bg:not(.d-none)) {
     z-index: 998;
     opacity: 0;
     transition: opacity 0.3s ease;
+    pointer-events: none;
 }
 
 .nav-overlay.active {
     display: block;
     opacity: 1;
+    pointer-events: auto;
 }
 
 /* Header del menú móvil */
@@ -505,7 +652,7 @@ body:has(#login-container.corex-login-bg:not(.d-none)) {
     flex: 1;
     display: flex;
     flex-direction: column;
-}
+    }
 
 /* Tarjetas compactas para reducir uso de pantalla en vistas de detalle */
 .compact-card .card-header {
@@ -809,6 +956,14 @@ body:has(#login-container.corex-login-bg:not(.d-none)) {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(231, 76, 60, 0.2);
 }
+
+.table-fullwidth { width: 100%; table-layout: auto; }
+.table-fullwidth th, .table-fullwidth td { vertical-align: middle; }
+.cell-wrap { white-space: normal; word-break: break-word; }
+.cell-nowrap { white-space: nowrap; }
+.cell-email { word-break: break-all; }
+.table-actions .btn { padding: 6px 10px; }
+.col-actions { min-width: 220px; }
 
 /* Espaciado entre botones */
 .btn + .btn {
@@ -1207,38 +1362,22 @@ td .btn:last-child {
 }
 
 /* Modales institucionales modernos */
-.modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+.corex-modal {
     background: rgba(30, 58, 138, 0.1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1060;
     padding: var(--spacing-4);
     box-sizing: border-box;
     backdrop-filter: blur(10px);
 }
 
-.modal-content {
+.corex-modal .modal-content {
     background: linear-gradient(145deg, #ffffff 0%, var(--gray-50) 100%);
     border-radius: var(--border-radius-lg);
     box-shadow: 0 16px 40px var(--shadow-color), 0 8px 20px var(--shadow-light);
-    width: 100%;
-    max-width: 600px;
-    max-height: 90vh;
-    overflow-y: auto;
-    position: relative;
     border: 2px solid var(--secondary-color);
     backdrop-filter: blur(10px);
 }
 
-
-
-.modal-header {
+.corex-modal .modal-header {
     padding: var(--spacing-6);
     border-bottom: 1px solid var(--border-color);
     display: flex;
@@ -1502,7 +1641,7 @@ td .btn:last-child {
     border: 3px solid var(--gray-200);
     border-top: 3px solid var(--primary-color);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: spin 2s linear infinite;
 }
 
 @keyframes spin {
@@ -2261,9 +2400,10 @@ td .btn:last-child {
      
      .table-responsive::-webkit-scrollbar-thumb:hover {
          background: var(--gray-500);
-     }
-    
-    /* Navegación móvil */
+}
+
+/* Navegación móvil (solo aplica en pantallas pequeñas) */
+@media (max-width: 991px) {
     .nav {
         position: fixed;
         top: 0;
@@ -2321,6 +2461,7 @@ td .btn:last-child {
     .nav-link:hover {
         background-color: var(--gray-50);
     }
+}
     
     .nav-link.active:hover {
         background-color: var(--primary-dark);
@@ -3179,3 +3320,46 @@ td .btn:last-child {
 #modal-detalle-tramite .badge[class*="estado-"] {
   text-transform: capitalize;
 }
+.card.corex-welcome-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.16) 100%);
+    border: 1px solid rgba(255,255,255,0.75);
+    backdrop-filter: blur(20px) saturate(130%);
+    -webkit-backdrop-filter: blur(20px) saturate(130%);
+}
+.corex-welcome-card .card-body { background: transparent; }
+.chart-container { position: relative; width: 100%; height: 220px; }
+.chart-container.chart-mini { height: 140px; }
+.donut-row .chart-container { min-height: 140px; }
+.auth-mode #login-container,
+.auth-mode #register-container {
+    display: none !important;
+}
+.full-width #usuarios-list .table-responsive { overflow-x: visible; }
+.full-width #usuarios-list table { table-layout: fixed; width: 100%; }
+.full-width #usuarios-list th, .full-width #usuarios-list td { white-space: normal; word-break: break-word; }
+.full-width #usuarios-list th:nth-child(1), .full-width #usuarios-list td:nth-child(1) { width: 60px; }
+.full-width #usuarios-list th:nth-child(5), .full-width #usuarios-list td:nth-child(5) { width: 100px; }
+.full-width #usuarios-list th:nth-child(6), .full-width #usuarios-list td:nth-child(6) { width: 160px; }
+.full-width #usuarios-list th:nth-child(7), .full-width #usuarios-list td:nth-child(7) { width: 100px; }
+.full-width #usuarios-list th:nth-child(8), .full-width #usuarios-list td:nth-child(8) { width: 130px; }
+.full-width #usuarios-list th:nth-child(9), .full-width #usuarios-list td:nth-child(9) { width: 200px; }
+.full-width #usuarios-list .table th, .full-width #usuarios-list .table td { padding: 0.5rem; font-size: 0.95rem; }
+
+.btn-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-wrap: nowrap; }
+.btn-actions .btn { width: 36px; height: 36px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
+.login-grid { display: flex; flex-wrap: nowrap; gap: 24px; align-items: stretch; justify-content: center; }
+.login-grid .login-left { flex: 0 0 58%; min-width: 520px; }
+.login-grid .login-right { flex: 0 0 42%; min-width: 420px; }
+@media (max-width: 992px) {
+  .login-grid .login-left { flex-basis: 60%; min-width: 480px; }
+  .login-grid .login-right { flex-basis: 40%; min-width: 380px; }
+}
+@media (max-width: 768px) {
+  .login-grid { gap: 16px; }
+  .login-grid .login-left { min-width: 420px; }
+  .login-grid .login-right { min-width: 340px; }
+}
+.nav-row { display: flex; align-items: center; justify-content: space-between; }
+.nav-actions { margin-left: auto; display: flex; align-items: center; }
+.nav-actions .btn { min-height: 38px; padding: 8px 14px; border-radius: 10px; }
+.nav-actions .btn i { font-size: 1rem; }

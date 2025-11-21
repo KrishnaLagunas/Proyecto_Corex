@@ -36,15 +36,45 @@ const usuariosPrueba = [
 
 // Inicializar el módulo de autenticación
 document.addEventListener('DOMContentLoaded', () => {
-    // Verificar sesión válida: requiere usuario y token
-    const usuarioActual = obtenerUsuario();
+    const cookieToken = getCookie('corex_session');
+    if (cookieToken && !localStorage.getItem('token')) localStorage.setItem('token', cookieToken);
     const token = localStorage.getItem('token');
-    
-    if (usuarioActual && token) {
-        // Si hay sesión válida, redirigir según su rol
-        redirigirSegunRol(usuarioActual);
+    const localUser = obtenerUsuario();
+    if (token && localUser && localUser.role) {
+        redirigirSegunRol(localUser);
+        (async () => {
+            try {
+                const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
+                if (perfil && perfil.id) {
+                    const s = (perfil.role || perfil.rol || '').toString().toLowerCase();
+                    const role = s.includes('admin') ? 'admin' : s.includes('func') ? 'funcionario' : s.includes('ciud') || s === 'user' || s === 'usuario' ? 'ciudadano' : (s || 'ciudadano');
+                    const usuarioInfo = { id: perfil.id, nombre: perfil.nombre || perfil.primer_nombre || '', apellido: perfil.apellido || perfil.apellido_paterno || '', email: perfil.email, role };
+                    localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
+                }
+            } catch (_) { }
+        })();
+    } else if (token) {
+        (async () => {
+            try {
+                const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
+                if (perfil && perfil.id) {
+                    const s = (perfil.role || perfil.rol || '').toString().toLowerCase();
+                    const role = s.includes('admin') ? 'admin' : s.includes('func') ? 'funcionario' : s.includes('ciud') || s === 'user' || s === 'usuario' ? 'ciudadano' : (s || 'ciudadano');
+                    const usuarioInfo = { id: perfil.id, nombre: perfil.nombre || perfil.primer_nombre || '', apellido: perfil.apellido || perfil.apellido_paterno || '', email: perfil.email, role };
+                    localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
+                    redirigirSegunRol(usuarioInfo);
+                } else {
+                    const usuarioInfo = { id: 'session', nombre: '', apellido: '', email: '', role: 'admin' };
+                    localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
+                    redirigirSegunRol(usuarioInfo);
+                }
+            } catch (_) {
+                const usuarioInfo = { id: 'session', nombre: '', apellido: '', email: '', role: 'admin' };
+                localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
+                redirigirSegunRol(usuarioInfo);
+            }
+        })();
     } else {
-        // Si no hay sesión válida, mostrar el formulario de login
         mostrarFormularioLogin();
     }
     
@@ -53,12 +83,52 @@ document.addEventListener('DOMContentLoaded', () => {
     if (loginForm) {
         loginForm.addEventListener('submit', manejarLogin);
     }
+    const toggleBtn = document.getElementById('toggle-password');
+    const passwordInput = document.getElementById('password');
+    if (toggleBtn && passwordInput) {
+        toggleBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const show = passwordInput.type === 'password';
+            passwordInput.type = show ? 'text' : 'password';
+            toggleBtn.innerHTML = show ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
+        });
+    }
     
     // Configurar el evento de submit del formulario de registro
     const registerForm = document.getElementById('register-form');
     if (registerForm) {
         registerForm.addEventListener('submit', manejarRegistro);
     }
+
+    // Asegurar evento del botón Cerrar sesión en la barra blanca
+    const btnLogoutNavStatic = document.getElementById('btn-logout-nav');
+    if (btnLogoutNavStatic) {
+        btnLogoutNavStatic.addEventListener('click', confirmarCerrarSesion);
+    }
+    document.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest && e.target.closest('#btn-logout-nav');
+        if (btn) {
+            e.preventDefault();
+            confirmarCerrarSesion();
+        }
+    });
+
+    // Delegación para el ojito de contraseña en caso de re-render
+    document.addEventListener('click', (e) => {
+        const toggle = e.target && e.target.closest && e.target.closest('#toggle-password');
+        if (toggle) {
+            e.preventDefault();
+            const input = document.getElementById('password');
+            if (!input) return;
+            const toShow = input.type === 'password';
+            input.type = toShow ? 'text' : 'password';
+            const icon = toggle.querySelector('i');
+            if (icon) {
+                icon.classList.toggle('bi-eye', toShow);
+                icon.classList.toggle('bi-eye-slash', !toShow);
+            }
+        }
+    });
 
     // Normalización y validación en tiempo real para campo RUT del registro
     const rutInput = document.getElementById('rut');
@@ -230,17 +300,24 @@ async function manejarLogin(e) {
 
         // Normalizar datos de usuario para ambos tipos de respuesta
         const user = response.user || response.data || {};
+        const normalizarRol = (r) => {
+            const s = (r || '').toString().toLowerCase();
+            if (s.includes('admin')) return 'admin';
+            if (s.includes('func')) return 'funcionario';
+            if (s.includes('ciud') || s === 'user' || s === 'usuario') return 'ciudadano';
+            return s || 'ciudadano';
+        };
         const usuarioInfo = {
             id: user.id,
             nombre: user.nombre || user.primer_nombre || '',
             apellido: user.apellido || user.apellido_paterno || '',
             email: user.email,
-            role: user.role || 'ciudadano',
+            role: normalizarRol(user.role),
             nombre_completo: user.nombre_completo || `${user.nombre || user.primer_nombre || ''} ${user.apellido || user.apellido_paterno || ''}`.trim()
         };
 
         // Guardar el token y usuario
-        localStorage.setItem('token', token);
+        setSessionToken(token);
         localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
 
         // Redirigir según el rol del usuario
@@ -277,6 +354,7 @@ document.addEventListener('input', (e) => {
  * @param {Object} usuario - Información del usuario
  */
 function redirigirSegunRol(usuario) {
+    limpiarFondoLogin();
     // Ocultar el formulario de login
     const loginContainer = document.getElementById('login-container');
     if (loginContainer) {
@@ -287,7 +365,7 @@ function redirigirSegunRol(usuario) {
     const header = document.querySelector('.header');
     const footer = document.querySelector('footer');
     
-    if (header) header.classList.remove('d-none');
+    if (header) header.classList.add('d-none');
     if (footer) footer.classList.remove('d-none');
     
     // Configurar información del usuario en la barra de navegación
@@ -309,7 +387,7 @@ function redirigirSegunRol(usuario) {
         // Agregar evento al botón de logout
         const btnLogout = document.getElementById('btn-logout');
         if (btnLogout) {
-            btnLogout.addEventListener('click', cerrarSesion);
+            btnLogout.addEventListener('click', confirmarCerrarSesion);
         }
     }
     
@@ -325,8 +403,8 @@ function redirigirSegunRol(usuario) {
             cargarPortalCiudadano(usuario);
             break;
         default:
-            console.error('Rol no reconocido:', usuario.role);
-            cerrarSesion();
+            console.error('Rol no reconocido:', usuario.role, '— mostrando interfaz de administrador por defecto');
+            cargarInterfazAdmin(usuario);
     }
 }
 
@@ -335,36 +413,42 @@ function redirigirSegunRol(usuario) {
  * @param {Object} usuario - Información del usuario
  */
 async function cargarInterfazAdmin(usuario) {
-    console.log('Cargando interfaz de administrador para:', usuario.nombre);
-    
-    // Mostrar el menú de navegación
-    const navbar = document.getElementById('main-navbar');
-    if (navbar) navbar.classList.remove('d-none');
-    
-    // Generar menú para administradores
-    generarMenu('admin');
-    
-    // Mostrar el contenido principal
-    const mainContent = document.getElementById('main-content');
-    if (mainContent) {
-        mainContent.classList.remove('d-none');
-        if (typeof cargarDashboard === 'function') {
-            cargarDashboard();
-        } else {
+    try {
+        console.log('Cargando interfaz de administrador para:', usuario.nombre);
+        const navbar = document.getElementById('main-navbar');
+        if (navbar) navbar.classList.remove('d-none');
+        try { generarMenu('admin'); } catch (e) { console.warn('Error generando menú admin', e); }
+        const mainContent = document.getElementById('main-content');
+        if (mainContent) {
+            mainContent.classList.remove('d-none');
+            // Render inmediato de un skeleton para evitar pantalla en blanco
             mainContent.innerHTML = `
-                <div class="container-fluid py-4">
-                    <div class="row">
-                        <div class="col-12">
-                            <h2 class="mb-4">Dashboard Administrativo</h2>
-                            <div class="alert alert-info">
-                                <i class="bi bi-info-circle-fill me-2"></i>
-                                Cargando módulo de dashboard...
-                            </div>
+                <div class="container-fluid py-3">
+                    <div class="row justify-content-center mb-3">
+                        <div class="col-12 text-center">
+                            <h2 class="mb-2">Dashboard Administrativo</h2>
+                            <span class="time-badge" id="dashboard-datetime"></span>
                         </div>
                     </div>
-                </div>
-            `;
+                </div>`;
+            // Intentar cargar el dashboard completo
+            try {
+                if (typeof cargarDashboard === 'function') {
+                    cargarDashboard();
+                }
+            } catch (e) {
+                console.error('Error al cargar dashboard inicial:', e);
+            }
         }
+    } catch (err) {
+        console.error('Error en cargarInterfazAdmin:', err);
+        try {
+            const mc = document.getElementById('main-content');
+            if (mc) {
+                mc.classList.remove('d-none');
+                mc.innerHTML = '<div class="container py-4"><div class="alert alert-warning">No se pudo cargar la interfaz administrativa. Intente actualizar.</div></div>';
+            }
+        } catch (_) {}
     }
 }
 
@@ -628,6 +712,72 @@ function mostrarFormularioLogin() {
     if (header) header.classList.add('d-none');
     if (navbar) navbar.classList.add('d-none');
     if (mainContent) mainContent.classList.add('d-none');
+    try {
+        const c1 = document.getElementById('login-chart-tramites');
+        const c2 = document.getElementById('login-chart-pagos');
+        const c3 = document.getElementById('login-chart-usuarios');
+        const c4 = document.getElementById('login-chart-departamentos');
+        if (window.Chart && (c1 || c2 || c3 || c4)) {
+            const mkDonut = (el, vals, colors) => {
+                const ctx = el.getContext('2d');
+                return new Chart(ctx, { type: 'doughnut', data: { labels: vals.map((_, i) => 'v' + i), datasets: [{ data: vals, backgroundColor: colors }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } } });
+            };
+            const mkBar = (el, labels, vals, color) => {
+                const ctx = el.getContext('2d');
+                return new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ data: vals, backgroundColor: color }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } } });
+            };
+            if (c1) mkDonut(c1, [3, 5, 2], ['#1E3A8A', '#FF9800', '#2E7D32']);
+            if (c2) mkDonut(c2, [4, 3, 1], ['#2E7D32', '#FF9800', '#e74c3c']);
+            if (c3) mkBar(c3, ['Activos', 'Inactivos'], [18, 6], 'rgba(78,115,223,0.8)');
+            if (c4) mkBar(c4, ['Activos', 'Inactivos'], [7, 2], 'rgba(30,64,175,0.8)');
+        }
+        const pickExisting = async (base) => {
+            const exts = ['webp','jpg','png'];
+            for (let i = 0; i < exts.length; i++) {
+                const url = `/imagenes/${base}.${exts[i]}`;
+                try {
+                    await new Promise((resolve, reject) => { const img = new Image(); img.onload = resolve; img.onerror = reject; img.src = url; });
+                    return url;
+                } catch (_) {}
+            }
+            return null;
+        };
+        const urls = ['/images/muni1.jpg','/images/muni2.jpg','/images/muni3.jpg','/images/muni4.jpg','/images/muni5.jpg'];
+        const bg1 = document.getElementById('login-bg');
+        const bg2 = document.getElementById('login-bg2');
+        if (bg1 && bg2) {
+            let idx = 0;
+            let cur = bg1, next = bg2;
+            const apply = (el, url) => { el.style.backgroundImage = `url('${url}')`; };
+            apply(cur, urls[idx]);
+            cur.classList.add('active');
+            next.classList.remove('active');
+            if (window.__loginBgInterval) { try { clearInterval(window.__loginBgInterval); } catch (_) {} }
+            window.__loginBgInterval = setInterval(() => {
+                idx = (idx + 1) % urls.length;
+                apply(next, urls[idx]);
+                next.classList.add('active');
+                cur.classList.remove('active');
+                const tmp = cur; cur = next; next = tmp;
+            }, 8000);
+        } else {
+            const bgUrl = urls[0];
+            document.body.style.backgroundImage = `url('${bgUrl}')`;
+            document.body.style.backgroundRepeat = 'no-repeat';
+            document.body.style.backgroundPosition = 'center center';
+            document.body.style.backgroundSize = 'cover';
+        }
+    } catch (_) {}
+    const toggleBtn = document.getElementById('toggle-password');
+    const passwordInput = document.getElementById('password');
+    if (toggleBtn && passwordInput) {
+        toggleBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const show = passwordInput.type === 'password';
+            passwordInput.type = show ? 'text' : 'password';
+            toggleBtn.innerHTML = show ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
+        });
+    }
 }
 
 /**
@@ -971,6 +1121,7 @@ function cerrarSesion() {
     // Eliminar información de sesión
     localStorage.removeItem('token');
     localStorage.removeItem('usuario');
+    deleteCookie('corex_session');
     
     // Recargar la página para mostrar el login
     window.location.reload();
@@ -2425,4 +2576,72 @@ async function mostrarDetalleTramiteModal(tramiteId) {
             errorBox.classList.remove('d-none');
         }
     }
+}
+function limpiarFondoLogin() {
+    try {
+        if (window.__loginBgInterval) { clearInterval(window.__loginBgInterval); window.__loginBgInterval = null; }
+        const bg1 = document.getElementById('login-bg');
+        const bg2 = document.getElementById('login-bg2');
+        if (bg1) { bg1.classList.remove('active'); bg1.style.backgroundImage = ''; }
+        if (bg2) { bg2.classList.remove('active'); bg2.style.backgroundImage = ''; }
+        document.body.style.backgroundImage = '';
+        document.body.style.backgroundRepeat = '';
+        document.body.style.backgroundPosition = '';
+        document.body.style.backgroundSize = '';
+    } catch (_) {}
+}
+
+function confirmarCerrarSesion() {
+    try {
+        const modalEl = document.getElementById('logoutModal');
+        if (!modalEl) { cerrarSesion(); return; }
+        const txt = document.getElementById('logoutModalText');
+        const user = obtenerUsuario();
+        if (txt && user) {
+            const nombre = `${user.nombre || ''} ${user.apellido || ''}`.trim();
+            const correo = user.email || '';
+            txt.innerHTML = `¿Deseas cerrar sesión de <strong>${nombre || 'usuario'}</strong> <span class="text-muted">${correo}</span>?`;
+        }
+        const modal = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(modalEl) : null;
+        if (modal) modal.show();
+        const confirmBtn = document.getElementById('confirm-logout');
+        if (confirmBtn) {
+            confirmBtn.onclick = () => cerrarSesion();
+        }
+    } catch (_) { cerrarSesion(); }
+}
+
+function setSessionToken(token) {
+    try {
+        localStorage.setItem('token', token);
+        setCookie('corex_session', token, { days: 7, path: '/' });
+    } catch (_) {}
+}
+
+function setCookie(name, value, { days = 7, path = '/' } = {}) {
+    try {
+        const d = new Date();
+        d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+        const expires = `expires=${d.toUTCString()}`;
+        document.cookie = `${name}=${encodeURIComponent(value)}; ${expires}; path=${path}`;
+    } catch (_) {}
+}
+
+function getCookie(name) {
+    try {
+        const nameEQ = name + '=';
+        const ca = document.cookie.split(';');
+        for (let i = 0; i < ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+            if (c.indexOf(nameEQ) === 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
+        }
+        return null;
+    } catch (_) { return null; }
+}
+
+function deleteCookie(name, path = '/') {
+    try {
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=${path}`;
+    } catch (_) {}
 }

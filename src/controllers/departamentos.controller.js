@@ -402,10 +402,20 @@ const departamentosController = {
         ],
         order: [[sequelize.literal('total_funcionarios'), 'DESC']]
       });
+
+      // Contar departamentos por estado (activo/inactivo)
+      const estadoPorDepartamento = await Departamento.findAll({
+        attributes: [
+          'estado',
+          [sequelize.fn('COUNT', sequelize.col('id')), 'total']
+        ],
+        group: ['estado']
+      });
       
       res.json({
         proyectosPorDepartamento,
-        funcionariosPorDepartamento
+        funcionariosPorDepartamento,
+        estadoPorDepartamento
       });
     } catch (error) {
       next(error);

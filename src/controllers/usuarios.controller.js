@@ -645,7 +645,7 @@ const usuariosController = {
       const departamentoStats = await Usuario.findAll({
         attributes: [
           'departamento_id',
-          [sequelize.fn('COUNT', sequelize.col('id')), 'total']
+          [sequelize.fn('COUNT', sequelize.col('Usuario.id')), 'total']
         ],
         include: [{
           model: Departamento,

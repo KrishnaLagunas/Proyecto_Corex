@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+    <div id="login-bg"></div>
+    <div id="login-bg2"></div>
     <div id="app">
         <!-- Contenedor principal de la aplicación -->
         <div id="loading" class="d-none">
@@ -123,16 +125,64 @@
 
         <!-- Contenedor de login -->
         <div id="login-container" class="container mt-5 corex-login-bg">
-            <div class="row justify-content-center">
-
-                <div class="col-md-6 col-lg-5">
-                    <div class="card shadow corex-login-card">
-                        <div class="card-header text-center py-3 corex-card-header">
-                            <picture>
-                                <source srcset="images/corex2.png" type="image/png" />
-                                <img src="images/corex2.png" alt="Corex" class="corex-wordmark-img" />
-                            </picture>
+            <div class="login-grid">
+                <div class="login-left">
+                    <div class="card corex-welcome-card shadow">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between mb-3">
+                                <h3 class="mb-0">Corex</h3>
+                                <span class="badge bg-primary">Vista previa</span>
+                            </div>
+                            <p class="mb-4">Plataforma ERP Municipal para la gestión de usuarios, departamentos, trámites y pagos, con reportes y herramientas administrativas.</p>
+                            <div class="corex-summary-tiles">
+                                <div class="corex-summary-tile">
+                                    <i class="bi bi-speedometer2 fs-4"></i>
+                                    <div>
+                                        <div class="title">Dashboard</div>
+                                        <div class="desc">Vista general y métricas</div>
+                                    </div>
+                                </div>
+                                <div class="corex-summary-tile">
+                                    <i class="bi bi-people fs-4"></i>
+                                    <div>
+                                        <div class="title">Usuarios</div>
+                                        <div class="desc">Administración y estados</div>
+                                    </div>
+                                </div>
+                                <div class="corex-summary-tile">
+                                    <i class="bi bi-building fs-4"></i>
+                                    <div>
+                                        <div class="title">Departamentos</div>
+                                        <div class="desc">Estructura municipal</div>
+                                    </div>
+                                </div>
+                                <div class="corex-summary-tile">
+                                    <i class="bi bi-file-earmark-text fs-4"></i>
+                                    <div>
+                                        <div class="title">Trámites</div>
+                                        <div class="desc">Seguimiento y estados</div>
+                                    </div>
+                                </div>
+                                <div class="corex-summary-tile">
+                                    <i class="bi bi-cash-coin fs-4"></i>
+                                    <div>
+                                        <div class="title">Pagos</div>
+                                        <div class="desc">Gestión y comprobantes</div>
+                                    </div>
+                                </div>
+                                <div class="corex-summary-tile">
+                                    <i class="bi bi-bar-chart fs-4"></i>
+                                    <div>
+                                        <div class="title">Reportes</div>
+                                        <div class="desc">Indicadores y análisis</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+                </div>
+                <div class="login-right">
+                    <div class="card shadow corex-login-card">
                         <div class="card-body">
                             <h4 class="text-center mb-4">Iniciar Sesión</h4>
                             <form id="login-form">
@@ -145,9 +195,10 @@
                                 </div>
                                 <div class="mb-3">
                                     <label for="password" class="form-label">Contraseña</label>
-                                    <div class="input-group">
+                                    <div class="input-group password-group">
                                         <span class="input-group-text"><i class="bi bi-lock"></i></span>
                                         <input type="password" class="form-control" id="password" name="password" required>
+                                        <button type="button" id="toggle-password" class="toggle-password-btn" aria-label="Mostrar contraseña"><i class="bi bi-eye-slash"></i></button>
                                     </div>
                                     <div id="password-error" class="invalid-feedback d-none">Contraseña incorrecta</div>
                                 </div>
@@ -196,9 +247,16 @@
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
-                <ul class="nav-list" id="menu-items">
-                    <!-- Los elementos del menú se cargarán dinámicamente según el rol del usuario -->
-                </ul>
+                <div class="nav-row">
+                    <ul class="nav-list" id="menu-items">
+                        <!-- Los elementos del menú se cargarán dinámicamente según el rol del usuario -->
+                    </ul>
+                    <div class="nav-actions">
+                        <button class="btn btn-outline-secondary" id="btn-logout-nav" onclick="confirmarCerrarSesion()">
+                            <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+                        </button>
+                    </div>
+                </div>
             </div>
         </nav>
 
@@ -213,8 +271,28 @@
         </footer>
     </div>
 
+    <!-- Modal Cerrar Sesión -->
+    <div class="modal fade" id="logoutModal" tabindex="-1" aria-labelledby="logoutModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="logoutModalLabel"><i class="bi bi-box-arrow-right"></i> Confirmar cierre de sesión</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <div id="logoutModalText">¿Deseas cerrar sesión?</div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="button" class="btn btn-danger" id="confirm-logout"><i class="bi bi-check-circle"></i> Sí, cerrar sesión</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="js/config.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/mobile-nav.js"></script>
