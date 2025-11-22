@@ -424,10 +424,19 @@ async function cargarInterfazAdmin(usuario) {
             // Render inmediato de un skeleton para evitar pantalla en blanco
             mainContent.innerHTML = `
                 <div class="container-fluid py-3">
-                    <div class="row justify-content-center mb-3">
-                        <div class="col-12 text-center">
-                            <h2 class="mb-2">Dashboard Administrativo</h2>
-                            <span class="time-badge" id="dashboard-datetime"></span>
+                    <div class="row mb-3 align-items-center">
+                        <div class="col-4"></div>
+                        <div class="col-4 text-center">
+                            <h2 class="section-title">Panel Administrativo</h2>
+                        </div>
+                        <div class="col-4 text-end">
+                            <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded border bg-light" id="dashboard-datetime-container">
+                                <i class="bi bi-calendar3"></i>
+                                <span id="dashboard-date"></span>
+                                <span class="vr mx-1"></span>
+                                <i class="bi bi-clock"></i>
+                                <span id="dashboard-time"></span>
+                            </div>
                         </div>
                     </div>
                 </div>`;
@@ -1012,7 +1021,7 @@ function generarMenu(rol) {
         menuHTML = `
             <li class="nav-item">
                 <a href="#" class="nav-link active" data-page="dashboard">
-                    <i class="bi bi-speedometer2"></i> Dashboard
+                    <i class="bi bi-speedometer2"></i> Panel
                 </a>
             </li>
             <li class="nav-item">
@@ -1046,7 +1055,7 @@ function generarMenu(rol) {
         menuHTML = `
             <li class="nav-item">
                 <a href="#" class="nav-link active" data-page="dashboard">
-                    <i class="bi bi-speedometer2"></i> Dashboard
+                    <i class="bi bi-speedometer2"></i> Panel
                 </a>
             </li>
             <li class="nav-item">

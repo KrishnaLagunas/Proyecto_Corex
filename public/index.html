@@ -241,6 +241,7 @@
         <nav class="nav d-none" id="main-navbar">
             <div class="nav-overlay" id="nav-overlay"></div>
             <div class="nav-container">
+                <a class="nav-brand" href="#" onclick="cargarContenidoPagina('dashboard')">Corex</a>
                 <div class="nav-header d-lg-none">
                     <h3 class="nav-title">Menú</h3>
                     <button class="btn-nav-close" id="nav-close" aria-label="Cerrar menú">
@@ -264,7 +265,8 @@
             <!-- El contenido principal se cargará dinámicamente -->
         </div>
 
-        <footer style="background: var(--gray-800); color: white; padding: var(--spacing-4) var(--spacing-6); text-align: center; border-top: 3px solid var(--secondary-color); margin-top: auto;">
+        <div id="footer-hover-zone"></div>
+        <footer class="footer-slide" style="background: var(--gray-800); color: white; padding: var(--spacing-4) var(--spacing-6); text-align: center; border-top: 3px solid var(--secondary-color); margin-top: auto;">
             <div style="color: white;">
                 <i class="bi bi-shield-check"></i> © 2025 Sistema ERP Municipal - Krishna Lagunas - Ingeniera en Informática
             </div>

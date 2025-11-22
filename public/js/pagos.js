@@ -29,20 +29,22 @@ async function cargarPagos(filtros = {}) {
         
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-md-8">
-                    <h2>Gestión de Pagos</h2>
+            <div class="row mb-3">
+                <div class="col-12 text-center">
+                    <h2 class="section-title">Gestión de Pagos</h2>
                 </div>
-                <div class="col-md-4 text-end">
+            </div>
+            <div class="row mb-2">
+                <div class="col-12 text-end">
                     ${puedeCrearPago ? `
-                    <button class="btn btn-primary" onclick="mostrarFormularioPago()">
+                    <button class="btn btn-primary btn-new-user" onclick="mostrarFormularioPago()">
                         <i class="bi bi-plus-circle"></i> Nuevo Pago
                     </button>
                     ` : ''}
                 </div>
             </div>
             
-            <div class="card mb-4">
+            <div class="card no-hover mb-4">
                 <div class="card-header">
                     <h5>Filtros</h5>
                 </div>
@@ -70,7 +72,7 @@ async function cargarPagos(filtros = {}) {
                             <input type="text" class="form-control" id="filtro-concepto" value="${filtros.concepto || ''}">
                         </div>
                         <div class="col-12 text-end">
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-outline-primary">
                                 <i class="bi bi-search"></i> Buscar
                             </button>
                             <button type="button" class="btn btn-outline-secondary" onclick="limpiarFiltrosPagos()">
@@ -81,7 +83,7 @@ async function cargarPagos(filtros = {}) {
                 </div>
             </div>
             
-            <div class="card">
+            <div class="card no-hover">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5>Listado de Pagos</h5>
                     <button class="btn btn-sm btn-outline-secondary" onclick="exportarPagos()">
@@ -207,18 +209,21 @@ async function mostrarFormularioPago(ciudadanoId = null, tramiteId = null) {
         
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-12">
-                    <button class="btn btn-outline-secondary mb-3" onclick="cargarPagos()">
-                        <i class="bi bi-arrow-left"></i> Volver a pagos
+            <div class="row mb-3 align-items-center">
+                <div class="col-4">
+                    <button class="btn btn-outline-secondary" onclick="cargarPagos()">
+                        <i class="bi bi-arrow-left"></i> Volver
                     </button>
-                    <h2>Nuevo Pago</h2>
                 </div>
+                <div class="col-4 text-center">
+                    <h2 class="section-title">Nuevo Pago</h2>
+                </div>
+                <div class="col-4"></div>
             </div>
             
             <div class="row">
                 <div class="col-md-8 offset-md-2">
-                    <div class="card">
+                    <div class="card no-hover">
                         <div class="card-body">
                             <form id="form-pago">
                                 ${!ciudadanoId ? `
@@ -310,8 +315,8 @@ async function mostrarFormularioPago(ciudadanoId = null, tramiteId = null) {
                                     <textarea class="form-control" id="notas" rows="3"></textarea>
                                 </div>
                                 
-                                <div class="d-grid gap-2">
-                                    <button type="submit" class="btn btn-primary">
+                                <div class="d-flex justify-content-center gap-2">
+                                    <button type="submit" class="btn btn-primary btn-new-user">
                                         <i class="bi bi-save"></i> Guardar Pago
                                     </button>
                                     <button type="button" class="btn btn-outline-secondary" onclick="cargarPagos()">

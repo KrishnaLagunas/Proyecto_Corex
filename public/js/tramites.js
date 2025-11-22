@@ -9,77 +9,81 @@ async function cargarTiposTramites() {
         
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-12 d-flex justify-content-between align-items-center">
-                    <h2>Tipos de Trámites</h2>
-                    <button class="btn btn-primary" onclick="mostrarFormularioTipoTramite()">
+            <div class="row mb-3 align-items-center">
+                <div class="col-4">
+                    <button class="btn btn-outline-secondary" onclick="cargarTramites()">
+                        <i class="bi bi-arrow-left"></i> Volver
+                    </button>
+                </div>
+                <div class="col-4 text-center">
+                    <h2 class="section-title">Tipos de Trámites</h2>
+                </div>
+                <div class="col-4"></div>
+            </div>
+
+            <div class="row g-2 align-items-end mb-2">
+                <div class="col-md-6">
+                    <input type="text" class="form-control" id="buscar-tipo-tramite" placeholder="Buscar tipo de trámite...">
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" id="filtro-estado">
+                        <option value="">Todos los estados</option>
+                        <option value="activo">Activo</option>
+                        <option value="inactivo">Inactivo</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex justify-content-end">
+                    <button class="btn btn-report" onclick="generarReporteTiposTramites()">
+                        <i class="bi bi-file-earmark-text"></i> Reporte
+                    </button>
+                </div>
+            </div>
+
+            <div class="row mb-2">
+                <div class="col-md-3 offset-md-9 d-flex justify-content-end">
+                    <button class="btn btn-primary btn-new-user" onclick="mostrarFormularioTipoTramite()">
                         <i class="bi bi-plus-circle"></i> Nuevo Tipo de Trámite
                     </button>
                 </div>
             </div>
-            
-            <div class="card">
-                <div class="card-header">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <input type="text" class="form-control" id="buscar-tipo-tramite" placeholder="Buscar tipo de trámite...">
-                        </div>
-                        <div class="col-md-4">
-                            <select class="form-select" id="filtro-estado">
-                                <option value="">Todos los estados</option>
-                                <option value="activo">Activo</option>
-                                <option value="inactivo">Inactivo</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <button class="btn btn-outline-secondary w-100" onclick="generarReporteTiposTramites()">
-                                <i class="bi bi-file-earmark-text"></i> Reporte
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-striped table-hover">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Nombre</th>
-                                    <th>Descripción</th>
-                                    <th>Costo</th>
-                                    <th>Tiempo Estimado</th>
-                                    <th>Estado</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tabla-tipos-tramites">
-                                ${tiposTramites.map(tipo => `
-                                    <tr>
-                                        <td>${tipo.id}</td>
-                                        <td class="text-uppercase">${tipo.nombre}</td>
-                                        <td>${tipo.descripcion.substring(0, 50)}${tipo.descripcion.length > 50 ? '...' : ''}</td>
-                                        <td>${formatearMoneda(tipo.costo)}</td>
-                                        <td>${tipo.tiempo_estimado} días</td>
-                                        <td><span class="estado-${tipo.estado}">${tipo.estado}</span></td>
-                                        <td>
-                                            <button class="btn btn-sm btn-info" onclick="verDetalleTipoTramite(${tipo.id})">
-                                                <i class="bi bi-eye"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-primary" onclick="editarTipoTramite(${tipo.id})">
-                                                <i class="bi bi-pencil"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-${tipo.estado === 'activo' ? 'warning' : 'success'}" 
-                                                    onclick="cambiarEstadoTipoTramite(${tipo.id}, '${tipo.estado === 'activo' ? 'inactivo' : 'activo'}')">
-                                                <i class="bi bi-${tipo.estado === 'activo' ? 'x-circle' : 'check-circle'}"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+
+            <table class="table table-striped table-hover align-middle table-fullwidth">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Descripción</th>
+                        <th>Costo</th>
+                        <th>Tiempo Estimado</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-tipos-tramites">
+                    ${tiposTramites.map(tipo => `
+                        <tr>
+                            <td>${tipo.id}</td>
+                            <td class="text-uppercase">${tipo.nombre}</td>
+                            <td>${tipo.descripcion.substring(0, 50)}${tipo.descripcion.length > 50 ? '...' : ''}</td>
+                            <td>${formatearMoneda(tipo.costo)}</td>
+                            <td>${tipo.tiempo_estimado} días</td>
+                            <td><span class="estado-${tipo.estado}">${tipo.estado}</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-info" onclick="verDetalleTipoTramite(${tipo.id})">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <button class="btn btn-sm btn-edit" onclick="editarTipoTramite(${tipo.id})">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-${tipo.estado === 'activo' ? 'warning' : 'success'}" 
+                                        onclick="cambiarEstadoTipoTramite(${tipo.id}, '${tipo.estado === 'activo' ? 'inactivo' : 'activo'}')">
+                                    <i class="bi bi-${tipo.estado === 'activo' ? 'x-circle' : 'check-circle'}"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
         `;
         
         // Agregar eventos para filtros
@@ -556,40 +560,45 @@ async function cargarTramites() {
     try {
         mostrarCargando(true);
         
-        const respTramites = await fetchAPI('/tramites?limit=100');
-        const tramites = Array.isArray(respTramites) ? respTramites : (respTramites.tramites || []);
-        const tiposTramites = await fetchAPI('/tramites/tipos');
+        let tramites = [];
+        let tiposTramites = [];
+        try {
+            const respTramites = await fetchAPI('/tramites?limit=100');
+            tramites = Array.isArray(respTramites) ? respTramites : (respTramites.tramites || []);
+        } catch (e) {
+            console.warn('Error obteniendo trámites, mostrando lista vacía:', e?.message || e);
+        }
+        try {
+            const respTipos = await fetchAPI('/tramites/tipos');
+            tiposTramites = Array.isArray(respTipos) ? respTipos : (respTipos.tipos || respTipos || []);
+        } catch (e) {
+            console.warn('Error obteniendo tipos de trámites, selector sin opciones:', e?.message || e);
+        }
         // Detectar rol actual para controlar acciones disponibles
         const usuarioActual = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
         const rolActual = (usuarioActual && (usuarioActual.role || usuarioActual.rol)) || null;
         const puedeGestionarTipos = rolActual === 'admin';
         const puedeCrearTramite = rolActual === 'admin';
-        let accionesHTML = '';
-        if (puedeGestionarTipos) {
-            accionesHTML += `
-                <button class="btn btn-outline-secondary me-2" onclick="cargarTiposTramites()">
-                    <i class="bi bi-gear"></i> Gestionar Tipos de Trámites
-                </button>
-            `;
-        }
-        if (puedeCrearTramite) {
-            accionesHTML += `
-                <button class="btn btn-primary" onclick="mostrarFormularioTramite()">
-                    <i class="bi bi-plus-circle"></i> Nuevo Trámite
-                </button>
-            `;
-        }
+        const btnGestionTipos = puedeGestionarTipos ? `
+            <button class="btn btn-ghost-secondary me-2" onclick="cargarTiposTramites()">
+                <i class="bi bi-gear"></i> Gestionar Tipos de Trámites
+            </button>
+        ` : '';
+        const btnNuevoTramite = puedeCrearTramite ? `
+            <button class="btn btn-primary btn-new-user" onclick="mostrarFormularioTramite()">
+                <i class="bi bi-plus-circle"></i> Nuevo Trámite
+            </button>
+        ` : '';
         
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-12 d-flex justify-content-between align-items-center">
-                    <h2>Gestión de Trámites</h2>
-                    <div>${accionesHTML}</div>
+            <div class="row mb-3">
+                <div class="col-12 text-center">
+                    <h2 class="section-title">Gestión de Trámites</h2>
                 </div>
             </div>
-            
-            <div class="card">
+
+            <div class="card no-hover">
                 <div class="card-header">
                     <div class="row">
                         <div class="col-md-3">
@@ -615,14 +624,20 @@ async function cargarTramites() {
                         <div class="col-md-2">
                             <input type="date" class="form-control" id="filtro-fecha" placeholder="Fecha">
                         </div>
-                        <div class="col-md-2">
-                            <button class="btn btn-outline-secondary w-100" onclick="generarReporteTramites()">
-                                <i class="bi bi-file-earmark-text"></i> Reporte
-                            </button>
-                        </div>
+                <div class="col-md-2">
+                    <button class="btn btn-report w-100" onclick="generarReporteTramites()">
+                        <i class="bi bi-file-earmark-text"></i> Reporte
+                    </button>
+                </div>
                     </div>
                 </div>
                 <div class="card-body">
+                    <div class="row mb-2">
+                        <div class="col-12 d-flex justify-content-end">
+                            ${btnGestionTipos}
+                            ${btnNuevoTramite}
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-striped table-hover">
                             <thead>
@@ -737,18 +752,21 @@ async function mostrarFormularioTramite() {
         
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-12">
-                    <button class="btn btn-outline-secondary mb-3" onclick="cargarTramites()">
-                        <i class="bi bi-arrow-left"></i> Volver a la lista
+            <div class="row mb-3 align-items-center">
+                <div class="col-4">
+                    <button class="btn btn-outline-secondary" onclick="cargarTramites()">
+                        <i class="bi bi-arrow-left"></i> Volver
                     </button>
-                    <h2>Nuevo Trámite</h2>
                 </div>
+                <div class="col-4 text-center">
+                    <h2 class="section-title">Nuevo Trámite</h2>
+                </div>
+                <div class="col-4"></div>
             </div>
             
             <div class="row">
                 <div class="col-md-10 offset-md-1">
-                    <div class="card">
+                    <div class="card no-hover">
                         <div class="card-body">
                             <form id="form-tramite">
                                 <div class="row mb-3">
@@ -843,8 +861,8 @@ async function mostrarFormularioTramite() {
                                     <div id="info-tipo-tramite-contenido"></div>
                                 </div>
                                 
-                                <div class="d-grid gap-2">
-                                    <button type="submit" class="btn btn-primary">
+                                <div class="d-flex justify-content-center gap-2">
+                                    <button type="submit" class="btn btn-primary btn-new-user">
                                         <i class="bi bi-save"></i> Crear Trámite
                                     </button>
                                     <button type="button" class="btn btn-outline-secondary" onclick="cargarTramites()">
@@ -863,7 +881,7 @@ async function mostrarFormularioTramite() {
         formTramite.addEventListener('submit', guardarTramite);
         
         // Agregar evento para mostrar información del tipo de trámite seleccionado
-        const selectTipoTramite = document.getElementById('tipo-tramite');
+        const selectTipoTramite = document.getElementById('tipo');
         selectTipoTramite.addEventListener('change', async function() {
             const tipoTramiteId = this.value;
             if (tipoTramiteId) {

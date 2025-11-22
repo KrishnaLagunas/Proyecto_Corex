@@ -666,19 +666,21 @@ async function mostrarFormularioUsuario(usuarioId = null) {
         if (!mainContent) return;
         mainContent.classList.remove('d-none');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-12">
-                    <button class="btn btn-outline-secondary mb-3" onclick="cargarUsuarios()">
-                        <i class="bi bi-arrow-left"></i> Volver a la lista
+            <div class="row mb-3 align-items-center">
+                <div class="col-4">
+                    <button class="btn btn-outline-secondary" onclick="cargarUsuarios()">
+                        <i class="bi bi-arrow-left"></i> Volver
                     </button>
-                    <h2>${titulo}</h2>
                 </div>
+                <div class="col-4 text-center">
+                    <h2 class="section-title">${titulo}</h2>
+                </div>
+                <div class="col-4"></div>
             </div>
 
             <div class="row">
                 <div class="col-md-8 offset-md-2">
-                    <div class="card">
-                        <div class="card-header"><h5>${titulo}</h5></div>
+                    <div class="card no-hover">
                         <div class="card-body">
                             <form id="form-usuario" data-accion="${accion}" data-id="${usuarioId || ''}">
                                 <div class="row">
@@ -787,8 +789,8 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                         </div>
                                     </div>
                                 </div>`}
-                                <div class="d-grid gap-2">
-                                    <button type="submit" class="btn btn-primary">
+                                <div class="d-flex justify-content-center gap-2">
+                                    <button type="submit" class="btn btn-primary btn-new-user">
                                         <i class="bi bi-save"></i> Guardar
                                     </button>
                                     <button type="button" class="btn btn-outline-secondary" onclick="cargarUsuarios()">Cancelar</button>

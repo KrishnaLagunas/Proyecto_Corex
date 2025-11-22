@@ -23,55 +23,53 @@ async function cargarDepartamentos() {
         
         // Crear la estructura inicial si no existe
         if (!document.getElementById('tabla-departamentos')) {
+            mainContent.classList.remove('d-none');
+            mainContent.classList.add('full-width');
             mainContent.innerHTML = `
-                <div class="row mb-4">
-                    <div class="col-12 d-flex justify-content-between align-items-center">
-                        <h2>Gestión de Departamentos</h2>
-                        <button class="btn btn-new-dept" onclick="mostrarFormularioDepartamento()">
+                <div class="row mb-3">
+                    <div class="col-12 text-center">
+                        <h2 class="section-title">Gestión de Departamentos</h2>
+                    </div>
+                </div>
+
+                <div class="row g-2 align-items-end mb-2">
+                    <div class="col-md-6">
+                        <input type="text" class="form-control" id="buscar-departamento" placeholder="Buscar departamento...">
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="filtro-estado-departamento">
+                            <option value="">Todos los estados</option>
+                            <option value="activo">Activo</option>
+                            <option value="inactivo">Inactivo</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row mb-2">
+                    <div class="col-md-3 offset-md-9 d-flex justify-content-end">
+                        <button class="btn btn-primary btn-new-user" onclick="mostrarFormularioDepartamento()">
                             <i class="bi bi-building-add"></i> Nuevo Departamento
                         </button>
                     </div>
                 </div>
-                
-                <div class="card">
-                    <div class="card-header">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <input type="text" class="form-control" id="buscar-departamento" placeholder="Buscar departamento...">
-                            </div>
-                            
-                            <div class="col-md-3">
-                                <select class="form-select" id="filtro-estado-departamento">
-                                    <option value="">Todos los estados</option>
-                                    <option value="activo">Activo</option>
-                                    <option value="inactivo">Inactivo</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-striped table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Nombre</th>
-                                        <th>RUT</th>
-                                        <th>Teléfono</th>
-                                        <th>Email</th>
-                                        <th>Región</th>
-                                        <th>Comuna</th>
-                                        <th>Estado</th>
-                                        <th>Fecha creación</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tabla-departamentos">
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+
+                <table class="table table-striped table-hover align-middle table-fullwidth">
+                    <thead>
+                        <tr>
+                            <th class="text-center">ID</th>
+                            <th>Nombre</th>
+                            <th class="text-nowrap">RUT</th>
+                            <th class="text-nowrap">Teléfono</th>
+                            <th>Email</th>
+                            <th>Región</th>
+                            <th>Comuna</th>
+                            <th class="text-center">Estado</th>
+                            <th class="text-center">Fecha creación</th>
+                            <th class="text-center col-actions">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-departamentos"></tbody>
+                </table>
             `;
         }
         
@@ -88,27 +86,27 @@ async function cargarDepartamentos() {
         
         tablaDepartamentos.innerHTML = departamentos.map(departamento => `
             <tr>
-                <td>${departamento.id}</td>
-                <td>${departamento.nombre}</td>
-                <td>${departamento.rut || 'Sin RUT'}</td>
-                <td>${departamento.telefono || 'Sin teléfono'}</td>
-                <td>${departamento.email || 'Sin email'}</td>
-                <td>${departamento.region || 'Sin región'}</td>
-                <td>${departamento.comuna || 'Sin comuna'}</td>
-                <td><span class="estado-${departamento.estado}">${departamento.estado}</span></td>
-                <td>${typeof formatearFecha === 'function' ? formatearFecha(departamento.createdAt) : (new Date(departamento.createdAt)).toLocaleDateString('es-CL')}</td>
-                <td>
-                    <button class="btn btn-sm btn-view" onclick="verDetalleDepartamento(${departamento.id})" title="Ver detalles">
-                        <i class="bi bi-eye"></i>
-                    </button>
-                    <button class="btn btn-sm btn-edit" onclick="editarDepartamento(${departamento.id})" title="Editar departamento">
-                        <i class="bi bi-pencil"></i>
-                    </button>
-                    <button class="btn btn-sm btn-toggle ${departamento.estado === 'activo' ? '' : 'btn-activate'}" 
-                            onclick="cambiarEstadoDepartamento(${departamento.id}, '${departamento.estado === 'activo' ? 'inactivo' : 'activo'}')" 
-                            title="${departamento.estado === 'activo' ? 'Desactivar' : 'Activar'} departamento">
-                        <i class="bi ${departamento.estado === 'activo' ? 'bi-building-x' : 'bi-building-check'}"></i>
-                    </button>
+                <td class="text-center">${departamento.id}</td>
+                <td class="cell-wrap">${departamento.nombre}</td>
+                <td class="cell-nowrap">${departamento.rut || 'Sin RUT'}</td>
+                <td class="cell-nowrap">${departamento.telefono || 'Sin teléfono'}</td>
+                <td class="cell-wrap cell-email">${departamento.email || 'Sin email'}</td>
+                <td class="cell-wrap">${departamento.region || 'Sin región'}</td>
+                <td class="cell-wrap">${departamento.comuna || 'Sin comuna'}</td>
+                <td class="text-center"><span class="estado-${departamento.estado}">${departamento.estado}</span></td>
+                <td class="text-center">${typeof formatearFecha === 'function' ? formatearFecha(departamento.createdAt) : (new Date(departamento.createdAt)).toLocaleDateString('es-CL')}</td>
+                <td class="text-center col-actions">
+                    <div class="btn-group btn-group-sm table-actions" role="group" aria-label="Acciones">
+                        <button class="btn btn-view" onclick="verDetalleDepartamento(${departamento.id})" title="Ver detalles">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-edit" onclick="editarDepartamento(${departamento.id})" title="Editar departamento">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn ${departamento.estado === 'activo' ? 'btn-toggle' : 'btn-toggle btn-activate'}" onclick="cambiarEstadoDepartamento(${departamento.id}, '${departamento.estado === 'activo' ? 'inactivo' : 'activo'}')" title="${departamento.estado === 'activo' ? 'Desactivar' : 'Activar'} departamento">
+                            <i class="bi ${departamento.estado === 'activo' ? 'bi-building-x' : 'bi-building-check'}"></i>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `).join('');
@@ -175,21 +173,21 @@ async function mostrarFormularioDepartamento(departamentoId = null) {
         
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-12">
-                    <button class="btn btn-outline-secondary mb-3" onclick="cargarGestionDepartamentos()">
-                        <i class="bi bi-arrow-left"></i> Volver a la lista
+            <div class="row mb-3 align-items-center">
+                <div class="col-4">
+                    <button class="btn btn-outline-secondary" onclick="cargarGestionDepartamentos()">
+                        <i class="bi bi-arrow-left"></i> Volver
                     </button>
-                    <h2>${titulo}</h2>
                 </div>
+                <div class="col-4 text-center">
+                    <h2 class="section-title">${titulo}</h2>
+                </div>
+                <div class="col-4"></div>
             </div>
             
             <div class="row">
                 <div class="col-md-8 offset-md-2">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5>${titulo}</h5>
-                        </div>
+                    <div class="card no-hover">
                         <div class="card-body">
                             <form id="form-departamento" data-accion="${accion}" data-id="${departamentoId || ''}">
                                 <div class="row">
@@ -246,8 +244,8 @@ async function mostrarFormularioDepartamento(departamentoId = null) {
                                     </div>
                                 </div>
                                 
-                                <div class="d-grid gap-2">
-                                    <button type="submit" class="btn btn-primary">
+                                <div class="d-flex justify-content-center gap-2">
+                                    <button type="submit" class="btn btn-primary btn-new-user">
                                         <i class="bi bi-save"></i> ${accion === 'crear' ? 'Crear' : 'Actualizar'} Departamento
                                     </button>
                                     <button type="button" class="btn btn-outline-secondary" onclick="cargarGestionDepartamentos()">

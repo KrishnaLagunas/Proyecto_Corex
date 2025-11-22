@@ -59,7 +59,7 @@ async function cargarDashboard() {
     mainContent.classList.remove('d-none');
 
     // Título y mensaje según rol
-    const headerTitle = esFuncionario ? 'Dashboard de Funcionario' : 'Dashboard Administrativo';
+    const headerTitle = esFuncionario ? 'Panel de Funcionario' : 'Panel Administrativo';
     const headerInfo = '';
 
     // Tarjetas según rol
@@ -138,10 +138,19 @@ async function cargarDashboard() {
 
     mainContent.innerHTML = `
       <div class="container-fluid py-3">
-        <div class="row justify-content-center mb-3">
-          <div class="col-12 text-center">
-            <h2 class="mb-2">${headerTitle}</h2>
-            <span class="time-badge" id="dashboard-datetime"></span>
+        <div class="row mb-3 align-items-center">
+          <div class="col-4"></div>
+          <div class="col-4 text-center">
+            <h2 class="section-title">${headerTitle}</h2>
+          </div>
+          <div class="col-4 text-end">
+            <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded border bg-light" id="dashboard-datetime-container">
+              <i class="bi bi-calendar3"></i>
+              <span id="dashboard-date"></span>
+              <span class="vr mx-1"></span>
+              <i class="bi bi-clock"></i>
+              <span id="dashboard-time"></span>
+            </div>
           </div>
         </div>
         <div class="row mt-2">
@@ -269,13 +278,18 @@ async function cargarDashboard() {
     if (window.dashboardIntervalId) {
       clearInterval(window.dashboardIntervalId);
     }
-    const timeEl = document.getElementById('dashboard-datetime');
+    const dateEl = document.getElementById('dashboard-date');
+    const timeEl = document.getElementById('dashboard-time');
+    const legacyEl = document.getElementById('dashboard-datetime');
     const updateTime = () => {
-      if (!timeEl) return;
       try {
-        timeEl.textContent = new Date().toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'medium', timeZone: 'America/Santiago' });
+        if (dateEl) dateEl.textContent = new Date().toLocaleDateString('es-CL', { dateStyle: 'full', timeZone: 'America/Santiago' });
+        if (timeEl) timeEl.textContent = new Date().toLocaleTimeString('es-CL', { timeStyle: 'short', timeZone: 'America/Santiago' });
+        if (!dateEl && !timeEl && legacyEl) legacyEl.textContent = new Date().toLocaleString('es-CL', { dateStyle: 'full', timeStyle: 'medium', timeZone: 'America/Santiago' });
       } catch (_) {
-        timeEl.textContent = new Date().toLocaleString();
+        if (dateEl) dateEl.textContent = new Date().toLocaleDateString();
+        if (timeEl) timeEl.textContent = new Date().toLocaleTimeString();
+        if (!dateEl && !timeEl && legacyEl) legacyEl.textContent = new Date().toLocaleString();
       }
     };
     updateTime();
@@ -309,6 +323,27 @@ async function cargarDashboard() {
       const cProceso = document.getElementById('count-tram-proceso'); if (cProceso) cProceso.textContent = getCount('en_proceso');
       const cPend = document.getElementById('count-tram-pendiente'); if (cPend) cPend.textContent = getCount('pendiente');
       const cFin = document.getElementById('count-tram-finalizado'); if (cFin) cFin.textContent = getCount('finalizado');
+      const labelForDonut = (id) => {
+        switch (id) {
+          case 'chart-pagos-completado': return 'Completado';
+          case 'chart-pagos-pendiente': return 'Pendiente';
+          case 'chart-pagos-rechazado': return 'Rechazado';
+          case 'chart-tramites-proceso': return 'En proceso';
+          case 'chart-tramites-pendiente': return 'Pendiente';
+          case 'chart-tramites-finalizado': return 'Finalizado';
+          default: return 'Valor';
+        }
+      };
+      const donutOptions = (id) => ({
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '70%',
+        animation: { duration: 0 },
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false }
+        }
+      });
       const chartInitDonut = (id, val, color) => {
         const el = document.getElementById(id);
         if (!el || !el.getContext) return;
@@ -316,12 +351,26 @@ async function cargarDashboard() {
         window.dashboardCharts[id] = new Chart(ctx, {
           type: 'doughnut',
           data: { labels: ['Valor', 'Resto'], datasets: [{ data: [val, Math.max(totalTramites - val, 0)], backgroundColor: [color, '#E0E0E0'] }] },
-          options: { responsive: true, maintainAspectRatio: false, cutout: '70%', animation: { duration: 0 }, plugins: { legend: { display: false } } }
+          options: donutOptions(id)
         });
       };
       chartInitDonut('chart-tramites-proceso', getCount('en_proceso'), '#1E3A8A');
       chartInitDonut('chart-tramites-pendiente', getCount('pendiente'), '#FF9800');
       chartInitDonut('chart-tramites-finalizado', getCount('finalizado'), '#2E7D32');
+
+      const chartInitPagosDonut = (id, val, color) => {
+        const el = document.getElementById(id);
+        if (!el || !el.getContext) return;
+        const ctx = el.getContext('2d');
+        window.dashboardCharts[id] = new Chart(ctx, {
+          type: 'doughnut',
+          data: { labels: ['Valor', 'Resto'], datasets: [{ data: [val, Math.max(totalPagosCount - val, 0)], backgroundColor: [color, '#E0E0E0'] }] },
+          options: donutOptions(id)
+        });
+      };
+      chartInitPagosDonut('chart-pagos-completado', 0, '#2E7D32');
+      chartInitPagosDonut('chart-pagos-pendiente', 0, '#FF9800');
+      chartInitPagosDonut('chart-pagos-rechazado', 0, '#e74c3c');
 
     } catch (_) { /* opcional */ }
 
@@ -342,7 +391,7 @@ async function cargarDashboard() {
       window.dashboardCharts.usuariosEstado = new Chart(ctxU, {
         type: 'bar',
         data: { labels: ['Activos', 'Inactivos'], datasets: [{ data: [0, 0], backgroundColor: ['#2196F3', '#E53935'] }] },
-        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, suggestedMax: 8 } }, plugins: { legend: { display: false } }, animation: { duration: 0 } }
+        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, suggestedMax: 8 } }, plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 0 } }
       });
       window.dashboardCharts.usuariosEstado.update('none');
       if (typeof window.dashboardCharts.usuariosEstado.resize === 'function') window.dashboardCharts.usuariosEstado.resize();
@@ -433,7 +482,7 @@ async function cargarDashboard() {
             window.dashboardCharts.usuariosEstado = new Chart(ctx3, {
               type: 'bar',
               data: { labels: ['Activos', 'Inactivos'], datasets: [{ data: [0, 0], backgroundColor: ['#2196F3', '#E53935'] }] },
-              options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, suggestedMax: 8 } }, plugins: { legend: { display: false } } }
+              options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, suggestedMax: 8 } }, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
             });
             console.log('[Dashboard] Gráfico usuarios creado (refresh)', !!window.dashboardCharts.usuariosEstado);
           }
@@ -474,7 +523,7 @@ async function cargarDashboard() {
           if (!el || !el.getContext) return;
           const ds = { labels: ['Valor', 'Resto'], datasets: [{ data: [val, Math.max(totalTram - val, 0)], backgroundColor: [color, '#E0E0E0'] }] };
           if (!window.dashboardCharts[id]) {
-            window.dashboardCharts[id] = new Chart(el.getContext('2d'), { type: 'doughnut', data: ds, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', animation: { duration: 0 }, plugins: { legend: { display: false } } } });
+            window.dashboardCharts[id] = new Chart(el.getContext('2d'), { type: 'doughnut', data: ds, options: donutOptions(id) });
           } else {
             window.dashboardCharts[id].data = ds;
             window.dashboardCharts[id].update('none');
@@ -498,7 +547,7 @@ async function cargarDashboard() {
             window.dashboardCharts.departamentosEstado = new Chart(ctx5, {
               type: 'bar',
               data: { labels: ['Activos', 'Inactivos'], datasets: [{ data: [activosD, inactivosD], backgroundColor: ['#4CAF50', '#FF7043'] }] },
-              options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, suggestedMax: suggestedD } }, plugins: { legend: { display: false } } }
+              options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, suggestedMax: suggestedD } }, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
             });
           } else {
             window.dashboardCharts.departamentosEstado.data.labels = ['Activos', 'Inactivos'];
@@ -556,7 +605,7 @@ async function cargarDashboard() {
           if (!el || !el.getContext) return;
           const ds = { labels: ['Valor', 'Resto'], datasets: [{ data: totalPag > 0 ? [val, Math.max(totalPag - val, 0)] : [0, 1], backgroundColor: [color, '#E0E0E0'] }] };
           if (!window.dashboardCharts[id]) {
-            window.dashboardCharts[id] = new Chart(el.getContext('2d'), { type: 'doughnut', data: ds, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', animation: { duration: 0 }, plugins: { legend: { display: false } } } });
+            window.dashboardCharts[id] = new Chart(el.getContext('2d'), { type: 'doughnut', data: ds, options: donutOptions(id) });
           } else {
             window.dashboardCharts[id].data = ds;
             window.dashboardCharts[id].update('none');
@@ -577,13 +626,19 @@ async function cargarDashboard() {
     console.error('Error cargando dashboard:', error);
     const currentUser = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
     const currentRole = currentUser?.role || null;
-    const headerTitle = currentRole === 'funcionario' ? 'Dashboard de Funcionario' : 'Dashboard Administrativo';
+    const headerTitle = currentRole === 'funcionario' ? 'Panel de Funcionario' : 'Panel Administrativo';
     mainContent.innerHTML = `
       <div class="container-fluid py-3">
-        <div class="row justify-content-center mb-3">
-          <div class="col-12 text-center">
-            <h2 class="mb-2">${headerTitle}</h2>
-            <div class="alert alert-warning mt-3">No se pudieron cargar los datos del dashboard. Intenta nuevamente en unos segundos.</div>
+        <div class="row mb-3 align-items-center">
+          <div class="col-4"></div>
+          <div class="col-4 text-center">
+            <h2 class="section-title">${headerTitle}</h2>
+          </div>
+          <div class="col-4"></div>
+        </div>
+        <div class="row">
+          <div class="col-12">
+            <div class="alert alert-warning mt-3">No se pudieron cargar los datos del panel. Intenta nuevamente en unos segundos.</div>
           </div>
         </div>
       </div>
