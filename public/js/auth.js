@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const token = localStorage.getItem('token');
     const localUser = obtenerUsuario();
     if (token && localUser && localUser.role) {
+        cancelarMostrarLogin();
         redirigirSegunRol(localUser);
         (async () => {
             try {
@@ -62,20 +63,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     const role = s.includes('admin') ? 'admin' : s.includes('func') ? 'funcionario' : s.includes('ciud') || s === 'user' || s === 'usuario' ? 'ciudadano' : (s || 'ciudadano');
                     const usuarioInfo = { id: perfil.id, nombre: perfil.nombre || perfil.primer_nombre || '', apellido: perfil.apellido || perfil.apellido_paterno || '', email: perfil.email, role };
                     localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
+                    cancelarMostrarLogin();
                     redirigirSegunRol(usuarioInfo);
                 } else {
                     const usuarioInfo = { id: 'session', nombre: '', apellido: '', email: '', role: 'admin' };
                     localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
+                    cancelarMostrarLogin();
                     redirigirSegunRol(usuarioInfo);
                 }
             } catch (_) {
                 const usuarioInfo = { id: 'session', nombre: '', apellido: '', email: '', role: 'admin' };
                 localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
+                cancelarMostrarLogin();
                 redirigirSegunRol(usuarioInfo);
             }
         })();
     } else {
-        mostrarFormularioLogin();
+        programarMostrarLogin(600);
     }
     
     // Configurar el evento de submit del formulario de login
@@ -200,6 +204,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+function programarMostrarLogin(delay) {
+    try { if (window._loginRenderTimeoutId) clearTimeout(window._loginRenderTimeoutId); } catch (_) {}
+    window._loginRenderTimeoutId = setTimeout(() => {
+        try {
+            const t = localStorage.getItem('token') || (typeof getCookie === 'function' ? getCookie('corex_session') : null);
+            if (!t) mostrarFormularioLogin();
+        } catch (_) { mostrarFormularioLogin(); }
+        window._loginRenderTimeoutId = null;
+    }, typeof delay === 'number' ? delay : 600);
+}
+
+function cancelarMostrarLogin() {
+    try { if (window._loginRenderTimeoutId) { clearTimeout(window._loginRenderTimeoutId); window._loginRenderTimeoutId = null; } } catch (_) {}
+}
 
 /**
  * Maneja el evento de submit del formulario de login
@@ -354,6 +373,7 @@ document.addEventListener('input', (e) => {
  * @param {Object} usuario - Información del usuario
  */
 function redirigirSegunRol(usuario) {
+    cancelarMostrarLogin();
     limpiarFondoLogin();
     // Ocultar el formulario de login
     const loginContainer = document.getElementById('login-container');
@@ -421,32 +441,15 @@ async function cargarInterfazAdmin(usuario) {
         const mainContent = document.getElementById('main-content');
         if (mainContent) {
             mainContent.classList.remove('d-none');
-            // Render inmediato de un skeleton para evitar pantalla en blanco
-            mainContent.innerHTML = `
-                <div class="container-fluid py-3">
-                    <div class="row mb-3 align-items-center">
-                        <div class="col-4"></div>
-                        <div class="col-4 text-center">
-                            <h2 class="section-title">Panel Administrativo</h2>
-                        </div>
-                        <div class="col-4 text-end">
-                            <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded border bg-light" id="dashboard-datetime-container">
-                                <i class="bi bi-calendar3"></i>
-                                <span id="dashboard-date"></span>
-                                <span class="vr mx-1"></span>
-                                <i class="bi bi-clock"></i>
-                                <span id="dashboard-time"></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>`;
-            // Intentar cargar el dashboard completo
+            const lastPage = (typeof localStorage !== 'undefined' && localStorage.getItem('currentPage')) || 'dashboard';
             try {
-                if (typeof cargarDashboard === 'function') {
+                if (typeof cargarContenidoPagina === 'function') {
+                    cargarContenidoPagina(lastPage);
+                } else if (typeof cargarDashboard === 'function') {
                     cargarDashboard();
                 }
             } catch (e) {
-                console.error('Error al cargar dashboard inicial:', e);
+                console.error('Error al cargar sección inicial:', e);
             }
         }
     } catch (err) {
@@ -480,11 +483,13 @@ function cargarInterfazFuncionario(usuario) {
     if (mainContent) {
         mainContent.classList.remove('d-none');
         
-        // Cargar Dashboard desde menú dedicado
-        if (typeof cargarDashboard === 'function') {
+        const lastPage = (typeof localStorage !== 'undefined' && localStorage.getItem('currentPage')) || 'dashboard';
+        if (typeof cargarContenidoPagina === 'function') {
+            cargarContenidoPagina(lastPage);
+        } else if (typeof cargarDashboard === 'function') {
             cargarDashboard();
         } else {
-            mainContent.innerHTML = '<div class="alert alert-info">Dashboard no disponible.</div>';
+            mainContent.innerHTML = '<div class="alert alert-info">Sección inicial no disponible.</div>';
         }
     }
 }
@@ -1013,39 +1018,39 @@ function mostrarFormularioRecuperarPassword() {
 function generarMenu(rol) {
     const menuItems = document.getElementById('menu-items');
     if (!menuItems) return;
-    
+    const currentPage = (typeof localStorage !== 'undefined' && localStorage.getItem('currentPage')) || 'dashboard';
     let menuHTML = '';
     
     // Menú para administradores
     if (rol === 'admin') {
         menuHTML = `
             <li class="nav-item">
-                <a href="#" class="nav-link active" data-page="dashboard">
+                <a href="#" class="nav-link ${currentPage==='dashboard'?'active':''}" data-page="dashboard">
                     <i class="bi bi-speedometer2"></i> Panel
                 </a>
             </li>
             <li class="nav-item">
-                <a href="#" class="nav-link" data-page="usuarios">
+                <a href="#" class="nav-link ${currentPage==='usuarios'?'active':''}" data-page="usuarios">
                     <i class="bi bi-people"></i> Usuarios
                 </a>
             </li>
             <li class="nav-item">
-                <a href="#" class="nav-link" data-page="departamentos">
+                <a href="#" class="nav-link ${currentPage==='departamentos'?'active':''}" data-page="departamentos">
                     <i class="bi bi-building"></i> Departamentos
                 </a>
             </li>
             <li class="nav-item">
-                <a href="#" class="nav-link" data-page="tramites">
+                <a href="#" class="nav-link ${currentPage==='tramites'?'active':''}" data-page="tramites">
                     <i class="bi bi-file-earmark-text"></i> Trámites
                 </a>
             </li>
             <li class="nav-item">
-                <a href="#" class="nav-link" data-page="pagos">
+                <a href="#" class="nav-link ${currentPage==='pagos'?'active':''}" data-page="pagos">
                     <i class="bi bi-cash-coin"></i> Pagos
                 </a>
             </li>
             <li class="nav-item">
-                <a href="#" class="nav-link" data-page="reportes">
+                <a href="#" class="nav-link ${currentPage==='reportes'?'active':''}" data-page="reportes">
                     <i class="bi bi-bar-chart"></i> Reportes
                 </a>
             </li>
@@ -1054,17 +1059,17 @@ function generarMenu(rol) {
         // Menú para funcionarios con Dashboard propio
         menuHTML = `
             <li class="nav-item">
-                <a href="#" class="nav-link active" data-page="dashboard">
+                <a href="#" class="nav-link ${currentPage==='dashboard'?'active':''}" data-page="dashboard">
                     <i class="bi bi-speedometer2"></i> Panel
                 </a>
             </li>
             <li class="nav-item">
-                <a href="#" class="nav-link" data-page="tramites">
+                <a href="#" class="nav-link ${currentPage==='tramites'?'active':''}" data-page="tramites">
                     <i class="bi bi-file-earmark-text"></i> Trámites
                 </a>
             </li>
             <li class="nav-item">
-                <a href="#" class="nav-link" data-page="pagos">
+                <a href="#" class="nav-link ${currentPage==='pagos'?'active':''}" data-page="pagos">
                     <i class="bi bi-cash-coin"></i> Pagos
                 </a>
             </li>
@@ -1079,14 +1084,12 @@ function generarMenu(rol) {
         enlace.addEventListener('click', (e) => {
             e.preventDefault();
             
-            // Quitar la clase active de todos los enlaces
             enlaces.forEach(e => e.classList.remove('active'));
-            
-            // Agregar la clase active al enlace clickeado
             enlace.classList.add('active');
             
             // Cargar la página correspondiente
             const pagina = enlace.getAttribute('data-page');
+            try { localStorage.setItem('currentPage', pagina); } catch (_) {}
             if (pagina && typeof window[`cargar${pagina.charAt(0).toUpperCase() + pagina.slice(1)}`] === 'function') {
                 window[`cargar${pagina.charAt(0).toUpperCase() + pagina.slice(1)}`]();
             } else {

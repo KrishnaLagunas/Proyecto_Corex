@@ -15,10 +15,7 @@ function cargarContenidoPagina(pagina) {
 
             // Validar sesión
             if (!token) {
-                mostrarNotificacion('Sesión expirada. Inicia sesión nuevamente.', 'warning');
-                if (typeof mostrarFormularioLogin === 'function') {
-                    mostrarFormularioLogin();
-                }
+                // Evitar flicker del login: no renderizar login aquí, dejar que auth.js lo gestione
                 break;
             }
 
@@ -397,10 +394,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const rol = perfil && (perfil.rol || perfil.role);
             if (perfil && (rol === 'admin' || rol === 'funcionario')) {
                 localStorage.setItem('usuario', JSON.stringify({ id: perfil.id, nombre: perfil.nombre || '', apellido: perfil.apellido || '', email: perfil.email, role: rol }));
-                if (typeof cargarDashboard === 'function') {
-                    cargarDashboard();
-                } else {
-                    cargarContenidoPagina('dashboard');
+                const lastPage = localStorage.getItem('currentPage') || 'dashboard';
+                if (typeof cargarContenidoPagina === 'function') {
+                    cargarContenidoPagina(lastPage);
+                    try {
+                        const menu = document.getElementById('menu-items');
+                        if (menu) {
+                            const links = menu.querySelectorAll('.nav-link');
+                            links.forEach(l => l.classList.remove('active'));
+                            const active = menu.querySelector(`.nav-link[data-page="${lastPage}"]`);
+                            if (active) active.classList.add('active');
+                        }
+                    } catch (_) {}
                 }
             }
         } catch (_) {
@@ -416,6 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const pagina = enlace.getAttribute('data-page');
             document.querySelectorAll('#menu-items .nav-link').forEach(el => el.classList.remove('active'));
             enlace.classList.add('active');
+            try { localStorage.setItem('currentPage', pagina); } catch (_) {}
             if (typeof cargarContenidoPagina === 'function') {
                 cargarContenidoPagina(pagina);
             }
