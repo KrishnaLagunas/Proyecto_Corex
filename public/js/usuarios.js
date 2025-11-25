@@ -476,7 +476,7 @@ async function mostrarListaUsuarios() {
             <div class="col-md-3">
                 <select class="form-select" id="filtro-rol-usuario">
                     <option value="">Todos los roles</option>
-                    <option value="admin">Admin</option>
+                    <option value="superadmin">Superadmin</option>
                     <option value="funcionario">Funcionario</option>
                     <option value="ciudadano">Ciudadano</option>
                 </select>
@@ -763,7 +763,7 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                             <label for="role" class="form-label">Rol</label>
                                             <select class="form-select" id="role" required>
                                                 <option value="">Selecciona rol</option>
-                                                <option value="admin" ${usuario?.role === 'admin' ? 'selected' : ''}>Admin</option>
+                                                <option value="superadmin" ${usuario?.role === 'superadmin' ? 'selected' : ''}>Superadmin</option>
                                                 <option value="funcionario" ${usuario?.role === 'funcionario' ? 'selected' : ''}>Funcionario</option>
                                                 <option value="ciudadano" ${usuario?.role === 'ciudadano' ? 'selected' : ''}>Ciudadano</option>
                                             </select>

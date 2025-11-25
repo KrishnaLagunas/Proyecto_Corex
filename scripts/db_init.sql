@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   segundo_apellido VARCHAR(100),
   email VARCHAR(100) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
-  role ENUM('admin', 'funcionario', 'ciudadano') NOT NULL DEFAULT 'ciudadano',
+  role ENUM('superadmin', 'funcionario', 'ciudadano') NOT NULL DEFAULT 'ciudadano',
   rut VARCHAR(12) UNIQUE,
   telefono VARCHAR(20),
   direccion VARCHAR(200),
@@ -292,9 +292,9 @@ CREATE TABLE IF NOT EXISTS contratos (
   INDEX idx_proyecto (proyecto_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Insertar usuario administrador por defecto
+-- Insertar usuario superadministrador por defecto
 INSERT INTO usuarios (nombre, apellido, email, password, role, estado)
-VALUES ('Admin', 'Sistema', 'admin@municipalidad.cl', '$2a$10$XgzYRVnrXefxQDYLHAECnOQp.RQlYUU3AEPeQA9vOHWRQXCGY1w.i', 'admin', 'activo');
+VALUES ('Superadmin', 'Sistema', 'admin@municipalidad.cl', '$2a$10$XgzYRVnrXefxQDYLHAECnOQp.RQlYUU3AEPeQA9vOHWRQXCGY1w.i', 'superadmin', 'activo');
 -- Nota: La contraseña es 'admin123' hasheada con bcrypt
 
 -- Insertar departamentos iniciales

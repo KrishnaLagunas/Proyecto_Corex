@@ -42,7 +42,7 @@ router.get(
 router.post(
   '/',
   isAuthenticated,
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   validateSchema(createProyectoSchema),
   proyectosController.createProyecto
 );
@@ -55,7 +55,7 @@ router.post(
 router.put(
   '/:id',
   isAuthenticated,
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   validateParams(idSchema),
   validateSchema(updateProyectoSchema),
   proyectosController.updateProyecto
@@ -69,7 +69,7 @@ router.put(
 router.delete(
   '/:id',
   isAuthenticated,
-  hasRole(['admin']),
+  hasRole(['superadmin']),
   validateParams(idSchema),
   proyectosController.deleteProyecto
 );
@@ -94,7 +94,7 @@ router.get(
 router.get(
   '/stats/general',
   isAuthenticated,
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   proyectosController.getProyectosStats
 );
 

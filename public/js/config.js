@@ -17,7 +17,7 @@ const CONFIG = {
     
     // Roles de usuario
     ROLES: {
-        ADMIN: 'admin',
+        ADMIN: 'superadmin',
         FUNCIONARIO: 'funcionario',
         CIUDADANO: 'ciudadano'
     },

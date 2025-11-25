@@ -252,7 +252,7 @@ const proveedoresController = {
       if (contacto_id) proveedor.contacto_id = contacto_id;
       
       // Solo admin y funcionario pueden cambiar el estado
-      if (estado && ['admin', 'funcionario'].includes(req.user.role)) {
+      if (estado && ['superadmin', 'funcionario'].includes(req.user.role)) {
         proveedor.estado = estado;
       }
       
@@ -292,7 +292,7 @@ const proveedoresController = {
       const { id } = req.params;
       
       // Solo los administradores pueden eliminar proveedores
-      if (req.user.role !== 'admin') {
+      if (req.user.role !== 'superadmin') {
         throw new ApiError('No tienes permiso para eliminar proveedores', 403);
       }
       

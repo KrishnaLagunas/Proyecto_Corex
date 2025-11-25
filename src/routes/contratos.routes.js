@@ -42,7 +42,7 @@ router.get(
 router.post(
   '/',
   isAuthenticated,
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   validateSchema(createContratoSchema),
   contratosController.createContrato
 );
@@ -55,7 +55,7 @@ router.post(
 router.put(
   '/:id',
   isAuthenticated,
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   validateParams(contratoIdSchema),
   validateSchema(updateContratoSchema),
   contratosController.updateContrato
@@ -69,7 +69,7 @@ router.put(
 router.delete(
   '/:id',
   isAuthenticated,
-  hasRole(['admin']),
+  hasRole(['superadmin']),
   validateParams(contratoIdSchema),
   contratosController.deleteContrato
 );
@@ -94,7 +94,7 @@ router.get(
 router.get(
   '/stats/general',
   isAuthenticated,
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   contratosController.getContratosStats
 );
 

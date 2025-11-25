@@ -68,7 +68,7 @@ describe('Auth Controller', () => {
         nombre: 'Test',
         apellido: 'User',
         email: 'test@example.com',
-        role: 'admin',
+        role: 'superadmin',
         estado: 'activo'
       };
       
@@ -90,7 +90,7 @@ describe('Auth Controller', () => {
           nombre: 'Test',
           apellido: 'User',
           email: 'test@example.com',
-          role: 'admin'
+          role: 'superadmin'
         })
       }));
     });

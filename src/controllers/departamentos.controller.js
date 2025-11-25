@@ -103,7 +103,7 @@ const departamentosController = {
   createDepartamento: async (req, res, next) => {
     try {
       // Solo los administradores pueden crear departamentos
-      if (req.user.role !== 'admin') {
+      if (req.user.role !== 'superadmin') {
         throw new ApiError('No tienes permiso para crear departamentos', 403);
       }
       
@@ -168,7 +168,7 @@ const departamentosController = {
   updateDepartamento: async (req, res, next) => {
     try {
       // Solo los administradores pueden actualizar departamentos
-      if (req.user.role !== 'admin') {
+      if (req.user.role !== 'superadmin') {
         throw new ApiError('No tienes permiso para actualizar departamentos', 403);
       }
       
@@ -256,7 +256,7 @@ const departamentosController = {
   deleteDepartamento: async (req, res, next) => {
     try {
       // Solo los administradores pueden eliminar departamentos
-      if (req.user.role !== 'admin') {
+      if (req.user.role !== 'superadmin') {
         throw new ApiError('No tienes permiso para eliminar departamentos', 403);
       }
       
@@ -317,7 +317,7 @@ const departamentosController = {
   asignarFuncionarios: async (req, res, next) => {
     try {
       // Solo los administradores pueden asignar funcionarios
-      if (req.user.role !== 'admin') {
+      if (req.user.role !== 'superadmin') {
         throw new ApiError('No tienes permiso para asignar funcionarios', 403);
       }
       
@@ -377,7 +377,7 @@ const departamentosController = {
   getDepartamentosStats: async (req, res, next) => {
     try {
       // Solo administradores pueden ver estadísticas
-      if (req.user.role !== 'admin') {
+      if (req.user.role !== 'superadmin') {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
       

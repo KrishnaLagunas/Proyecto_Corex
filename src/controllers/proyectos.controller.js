@@ -225,7 +225,7 @@ const proyectosController = {
       const responsable = await Usuario.findOne({
         where: { 
           id: responsable_id, 
-          role: { [Op.in]: ['funcionario', 'admin'] }
+          role: { [Op.in]: ['funcionario', 'superadmin'] }
         }
       });
       
@@ -358,7 +358,7 @@ const proyectosController = {
       if (fecha_fin) proyecto.fecha_fin = fecha_fin;
       
       // Solo admin puede modificar presupuesto asignado
-      if (presupuesto_asignado !== undefined && req.user.role === 'admin') {
+      if (presupuesto_asignado !== undefined && req.user.role === 'superadmin') {
         // Verificar que hay fondos suficientes en el presupuesto
         if (proyecto.presupuesto_id) {
           const presupuesto = proyecto.Presupuesto;
@@ -414,11 +414,11 @@ const proyectosController = {
       }
       
       // Actualizar responsable (solo admin)
-      if (responsable_id && req.user.role === 'admin') {
+      if (responsable_id && req.user.role === 'superadmin') {
         const responsable = await Usuario.findOne({
           where: { 
             id: responsable_id, 
-            role: { [Op.in]: ['funcionario', 'admin'] }
+            role: { [Op.in]: ['funcionario', 'superadmin'] }
           }
         });
         
@@ -468,7 +468,7 @@ const proyectosController = {
       const { id } = req.params;
       
       // Solo los administradores pueden eliminar proyectos
-      if (req.user.role !== 'admin') {
+      if (req.user.role !== 'superadmin') {
         throw new ApiError('No tienes permiso para eliminar proyectos', 403);
       }
       

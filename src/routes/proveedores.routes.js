@@ -42,7 +42,7 @@ router.get(
 router.post(
   '/',
   isAuthenticated,
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   validateSchema(createProveedorSchema),
   proveedoresController.createProveedor
 );
@@ -55,7 +55,7 @@ router.post(
 router.put(
   '/:id',
   isAuthenticated,
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   validateParams(proveedorIdSchema),
   validateSchema(updateProveedorSchema),
   proveedoresController.updateProveedor
@@ -69,7 +69,7 @@ router.put(
 router.delete(
   '/:id',
   isAuthenticated,
-  hasRole(['admin']),
+  hasRole(['superadmin']),
   validateParams(proveedorIdSchema),
   proveedoresController.deleteProveedor
 );
@@ -82,7 +82,7 @@ router.delete(
 router.get(
   '/stats/general',
   isAuthenticated,
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   proveedoresController.getProveedoresStats
 );
 

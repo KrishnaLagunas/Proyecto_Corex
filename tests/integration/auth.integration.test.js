@@ -24,7 +24,7 @@ describe('Auth Integration Tests', () => {
       apellido: 'User',
       email: 'test@example.com',
       password: hashedPassword,
-      role: 'admin',
+      role: 'superadmin',
       estado: 'activo'
     });
   });
@@ -48,7 +48,7 @@ describe('Auth Integration Tests', () => {
       expect(response.body).toHaveProperty('user');
       expect(response.body.user).toHaveProperty('id', testUser.id);
       expect(response.body.user).toHaveProperty('email', 'test@example.com');
-      expect(response.body.user).toHaveProperty('role', 'admin');
+      expect(response.body.user).toHaveProperty('role', 'superadmin');
       expect(response.body.user).not.toHaveProperty('password');
     });
     
@@ -115,7 +115,7 @@ describe('Auth Integration Tests', () => {
       expect(response.body).toHaveProperty('id', testUser.id);
       expect(response.body).toHaveProperty('email', 'test@example.com');
       expect(response.body).toHaveProperty('nombre', 'Test');
-      expect(response.body).toHaveProperty('role', 'admin');
+      expect(response.body).toHaveProperty('role', 'superadmin');
       expect(response.body).not.toHaveProperty('password');
     });
     

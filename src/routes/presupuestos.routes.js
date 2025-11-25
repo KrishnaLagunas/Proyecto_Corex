@@ -18,7 +18,7 @@ const {
 router.get(
   '/',
   isAuthenticated,
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   validateSchema(presupuestoQuerySchema, 'query'),
   presupuestosController.getAllPresupuestos
 );
@@ -31,7 +31,7 @@ router.get(
 router.get(
   '/:id',
   isAuthenticated,
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   validateParams(presupuestoIdSchema),
   presupuestosController.getPresupuestoById
 );
@@ -44,7 +44,7 @@ router.get(
 router.post(
   '/',
   isAuthenticated,
-  hasRole(['admin']),
+  hasRole(['superadmin']),
   validateSchema(createPresupuestoSchema),
   presupuestosController.createPresupuesto
 );
@@ -57,7 +57,7 @@ router.post(
 router.put(
   '/:id',
   isAuthenticated,
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   validateParams(presupuestoIdSchema),
   validateSchema(updatePresupuestoSchema),
   presupuestosController.updatePresupuesto
@@ -84,7 +84,7 @@ router.delete(
 router.get(
   '/stats/general',
   isAuthenticated,
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   presupuestosController.getPresupuestosStats
 );
 

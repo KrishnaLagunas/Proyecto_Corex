@@ -45,7 +45,7 @@ router.post('/',
  */
 router.put('/:id', 
   isAuthenticated, 
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   validateParams(pagoSchemas.idParam),
   validateSchema(pagoSchemas.updatePago), 
   pagosController.updatePago
@@ -88,7 +88,7 @@ router.post('/:id/procesar',
  */
 router.get('/stats/general', 
   isAuthenticated, 
-  hasRole(['admin', 'funcionario']),
+  hasRole(['superadmin', 'funcionario']),
   pagosController.getPagosStats
 );
 

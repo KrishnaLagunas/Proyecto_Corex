@@ -243,7 +243,7 @@ const contratosController = {
       const responsable = await Usuario.findOne({
         where: { 
           id: responsable_id, 
-          role: { [Op.in]: ['funcionario', 'admin'] }
+          role: { [Op.in]: ['funcionario', 'superadmin'] }
         }
       });
       
@@ -352,7 +352,7 @@ const contratosController = {
       if (fecha_fin) contrato.fecha_fin = fecha_fin;
       
       // Solo admin puede modificar montos
-      if (req.user.role === 'admin') {
+      if (req.user.role === 'superadmin') {
         if (monto_total !== undefined) contrato.monto_total = monto_total;
       }
       
@@ -382,11 +382,11 @@ const contratosController = {
       }
       
       // Actualizar responsable (solo admin)
-      if (responsable_id && req.user.role === 'admin') {
+      if (responsable_id && req.user.role === 'superadmin') {
         const responsable = await Usuario.findOne({
           where: { 
             id: responsable_id, 
-            role: { [Op.in]: ['funcionario', 'admin'] }
+            role: { [Op.in]: ['funcionario', 'superadmin'] }
           }
         });
         
@@ -436,7 +436,7 @@ const contratosController = {
       const { id } = req.params;
       
       // Solo los administradores pueden eliminar contratos
-      if (req.user.role !== 'admin') {
+      if (req.user.role !== 'superadmin') {
         throw new ApiError('No tienes permiso para eliminar contratos', 403);
       }
       

@@ -208,7 +208,7 @@ const presupuestosController = {
       const responsable = await Usuario.findOne({
         where: { 
           id: responsable_id, 
-          role: { [Op.in]: ['funcionario', 'admin'] }
+          role: { [Op.in]: ['funcionario', 'superadmin'] }
         }
       });
       
@@ -310,7 +310,7 @@ const presupuestosController = {
       if (descripcion) presupuesto.descripcion = descripcion;
       
       // Solo admin puede modificar montos
-      if (req.user.role === 'admin') {
+      if (req.user.role === 'superadmin') {
         if (monto_total !== undefined) presupuesto.monto_total = monto_total;
       }
       
@@ -343,11 +343,11 @@ const presupuestosController = {
       }
       
       // Actualizar responsable (solo admin)
-      if (responsable_id && req.user.role === 'admin') {
+      if (responsable_id && req.user.role === 'superadmin') {
         const responsable = await Usuario.findOne({
           where: { 
             id: responsable_id, 
-            role: { [Op.in]: ['funcionario', 'admin'] }
+            role: { [Op.in]: ['funcionario', 'superadmin'] }
           }
         });
         
@@ -391,7 +391,7 @@ const presupuestosController = {
       const { id } = req.params;
       
       // Solo los administradores pueden eliminar presupuestos
-      if (req.user.role !== 'admin') {
+      if (req.user.role !== 'superadmin') {
         throw new ApiError('No tienes permiso para eliminar presupuestos', 403);
       }
       

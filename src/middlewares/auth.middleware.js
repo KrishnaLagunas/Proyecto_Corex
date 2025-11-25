@@ -21,10 +21,10 @@ const isAuthenticated = (req, res, next) => {
       // Configurar un usuario administrador por defecto
       req.user = {
         id: 1,
-        nombre: 'Administrador',
+        nombre: 'Superadministrador',
         apellido: 'Sistema',
         email: 'admin@sistema.com',
-        role: 'admin'
+        role: 'superadmin'
       };
       return next();
     }
@@ -44,10 +44,10 @@ const isAuthenticated = (req, res, next) => {
       // Configurar un usuario administrador por defecto en lugar de rechazar
       req.user = {
         id: 1,
-        nombre: 'Administrador',
+        nombre: 'Superadministrador',
         apellido: 'Sistema',
         email: 'admin@sistema.com',
-        role: 'admin'
+        role: 'superadmin'
       };
       return next();
     }
@@ -64,10 +64,10 @@ const isAuthenticated = (req, res, next) => {
     // En caso de error, también permitir acceso como administrador
     req.user = {
       id: 1,
-      nombre: 'Administrador',
+      nombre: 'Superadministrador',
       apellido: 'Sistema',
       email: 'admin@sistema.com',
-      role: 'admin'
+      role: 'superadmin'
     };
     return next();
   }
@@ -109,7 +109,7 @@ const hasRole = (roles) => {
 
 // Roles disponibles en el sistema
 const ROLES = {
-  ADMIN: 'admin',
+  ADMIN: 'superadmin',
   FUNCIONARIO: 'funcionario',
   CIUDADANO: 'ciudadano'
 };

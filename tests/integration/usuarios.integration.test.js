@@ -25,16 +25,16 @@ describe('Usuarios Integration Tests', () => {
       descripcion: 'Departamento para pruebas de integración'
     });
     
-    // Crear un usuario administrador
+    // Crear un usuario superadministrador
     const salt = await bcrypt.genSalt(10);
     const adminPassword = await bcrypt.hash('admin123', salt);
     
     adminUser = await Usuario.create({
-      nombre: 'Admin',
+      nombre: 'Superadmin',
       apellido: 'User',
       email: 'admin@example.com',
       password: adminPassword,
-      role: 'admin',
+      role: 'superadmin',
       departamento_id: departamento.id,
       estado: 'activo'
     });
@@ -78,7 +78,7 @@ describe('Usuarios Integration Tests', () => {
   });
   
   describe('GET /api/usuarios', () => {
-    it('debería permitir a un administrador obtener todos los usuarios', async () => {
+    it('debería permitir a un superadministrador obtener todos los usuarios', async () => {
       const response = await request(app)
         .get('/api/usuarios')
         .set('x-access-token', adminToken);
@@ -90,7 +90,7 @@ describe('Usuarios Integration Tests', () => {
       expect(response.body.some(user => user.email === 'user@example.com')).toBe(true);
     });
     
-    it('debería rechazar a usuarios no administradores', async () => {
+    it('debería rechazar a usuarios no superadministradores', async () => {
       const response = await request(app)
         .get('/api/usuarios')
         .set('x-access-token', usuarioToken);
@@ -109,7 +109,7 @@ describe('Usuarios Integration Tests', () => {
   });
   
   describe('GET /api/usuarios/:id', () => {
-    it('debería permitir a un administrador obtener un usuario por ID', async () => {
+    it('debería permitir a un superadministrador obtener un usuario por ID', async () => {
       const response = await request(app)
         .get(`/api/usuarios/${regularUser.id}`)
         .set('x-access-token', adminToken);
@@ -274,7 +274,7 @@ describe('Usuarios Integration Tests', () => {
     
     it('debería rechazar la actualización de un rol por un usuario no administrador', async () => {
       const updateData = {
-        role: 'admin' // Intento de escalada de privilegios
+        role: 'superadmin' // Intento de escalada de privilegios
       };
       
       const response = await request(app)

@@ -122,11 +122,11 @@ async function seedData() {
     
     const usuarios = await Usuario.bulkCreate([
       {
-        nombre: 'Admin',
+        nombre: 'Superadmin',
         apellido: 'Sistema',
         email: 'admin@municipalidad.cl',
         password: adminPassword,
-        role: 'admin',
+        role: 'superadmin',
         rut: '11111111-1',
         telefono: '912345678',
         direccion: 'Calle Administración 123',

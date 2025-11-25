@@ -89,7 +89,7 @@ const idSchema = Joi.object({
 const usuarioQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).messages(mensajesError),
   limit: Joi.number().integer().min(1).max(100).messages(mensajesError),
-  role: Joi.string().valid('admin', 'funcionario', 'ciudadano').messages(mensajesError),
+  role: Joi.string().valid('superadmin', 'funcionario', 'ciudadano').messages(mensajesError),
   departamento_id: Joi.number().integer().min(1).messages(mensajesError),
   estado: Joi.string().valid('activo', 'inactivo', 'bloqueado').messages(mensajesError),
   search: Joi.string().min(1).max(100).messages(mensajesError),
@@ -114,7 +114,7 @@ const createUsuarioSchema = Joi.object({
   rut: rutValidation.required(),
   telefono: Joi.string().min(7).max(20).required().messages(mensajesError),
   direccion: Joi.string().min(5).max(200).required().messages(mensajesError),
-  role: Joi.string().valid('admin', 'funcionario', 'ciudadano').required().messages(mensajesError),
+  role: Joi.string().valid('superadmin', 'funcionario', 'ciudadano').required().messages(mensajesError),
   departamento_id: Joi.number().integer().min(1)
     .when('role', {
       is: 'funcionario',
@@ -136,7 +136,7 @@ const updateUsuarioSchema = Joi.object({
   email: Joi.string().email().max(100).messages(mensajesError),
   telefono: Joi.string().min(7).max(20).messages(mensajesError),
   direccion: Joi.string().min(5).max(200).messages(mensajesError),
-  role: Joi.string().valid('admin', 'funcionario', 'ciudadano').messages(mensajesError),
+  role: Joi.string().valid('superadmin', 'funcionario', 'ciudadano').messages(mensajesError),
   departamento_id: Joi.number().integer().min(1).allow(null).messages(mensajesError),
   estado: Joi.string().valid('activo', 'inactivo', 'bloqueado').messages(mensajesError)
 }).min(1).messages(mensajesError);

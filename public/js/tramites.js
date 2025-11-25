@@ -577,8 +577,8 @@ async function cargarTramites() {
         // Detectar rol actual para controlar acciones disponibles
         const usuarioActual = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
         const rolActual = (usuarioActual && (usuarioActual.role || usuarioActual.rol)) || null;
-        const puedeGestionarTipos = rolActual === 'admin';
-        const puedeCrearTramite = rolActual === 'admin';
+        const puedeGestionarTipos = rolActual === 'superadmin';
+        const puedeCrearTramite = rolActual === 'superadmin';
         const btnGestionTipos = puedeGestionarTipos ? `
             <button class="btn btn-ghost-secondary me-2" onclick="cargarTiposTramites()">
                 <i class="bi bi-gear"></i> Gestionar Tipos de Trámites
@@ -738,7 +738,7 @@ async function mostrarFormularioTramite() {
         // Restringir creación de trámites a administradores
         const usuarioActual = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
         const rolActual = (usuarioActual && (usuarioActual.role || usuarioActual.rol)) || null;
-        if (rolActual !== 'admin') {
+        if (rolActual !== 'superadmin') {
             mostrarNotificacion('No tienes permisos para crear trámites.', 'warning');
             if (typeof cargarTramites === 'function') cargarTramites();
             return;
