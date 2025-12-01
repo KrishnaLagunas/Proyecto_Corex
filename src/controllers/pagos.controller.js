@@ -243,7 +243,7 @@ const pagosController = {
       
       // Asignar funcionario si es funcionario o admin
       let funcionarioId = null;
-      if (req.user.role === 'funcionario' || req.user.role === 'superadmin') {
+      if (req.user.role === 'funcionario' || req.user.role === 'admin') {
         funcionarioId = req.user.id;
       }
       
@@ -389,7 +389,7 @@ const pagosController = {
       pago.fecha_confirmacion = fechaPago ? new Date(fechaPago) : new Date();
 
       // Asignar funcionario si aplica
-      if (req.user.role === 'funcionario' || req.user.role === 'superadmin') {
+      if (req.user.role === 'funcionario' || req.user.role === 'admin') {
         pago.funcionario_id = req.user.id;
       }
 

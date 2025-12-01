@@ -411,7 +411,7 @@ const tramitesController = {
       const { id } = req.params;
       
       // Solo los administradores pueden eliminar trámites
-      if (req.user.role !== 'superadmin') {
+      if (req.user.role !== 'admin') {
         throw new ApiError('No tienes permiso para eliminar trámites', 403);
       }
       
@@ -706,7 +706,7 @@ tramitesController.updateTramiteEstado = async (req, res, next) => {
     const { estado, observaciones } = req.body || {};
 
     // Solo funcionarios y administradores pueden cambiar estado
-    if (!['funcionario', 'superadmin'].includes(req.user.role)) {
+    if (!['funcionario', 'admin'].includes(req.user.role)) {
       throw new ApiError('No tienes permiso para actualizar el estado del trámite', 403);
     }
 

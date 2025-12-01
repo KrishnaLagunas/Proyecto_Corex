@@ -60,7 +60,7 @@ describe('Auth Middleware', () => {
         nombre: 'Test',
         apellido: 'User',
         email: 'test@example.com',
-        role: 'superadmin',
+        role: 'admin',
         estado: 'activo'
       };
       
@@ -73,7 +73,7 @@ describe('Auth Middleware', () => {
       expect(jwt.verify).toHaveBeenCalledWith('valid-token', 'test-secret', expect.any(Function));
       expect(Usuario.findByPk).toHaveBeenCalledWith(1);
       expect(req.userId).toBe(1);
-      expect(req.userRole).toBe('superadmin');
+      expect(req.userRole).toBe('admin');
       expect(mockNext).toHaveBeenCalledTimes(1);
       expect(mockNext).toHaveBeenCalledWith();
     });
@@ -157,7 +157,7 @@ describe('Auth Middleware', () => {
         nombre: 'Test',
         apellido: 'User',
         email: 'test@example.com',
-        role: 'superadmin',
+        role: 'admin',
         estado: 'inactivo'
       };
       
@@ -177,12 +177,12 @@ describe('Auth Middleware', () => {
     });
   });
 
-  describe('isSuperadmin', () => {
-    it('debería permitir el acceso a usuarios con rol de superadministrador', () => {
+  describe('isAdmin', () => {
+    it('debería permitir el acceso a usuarios con rol de administrador', () => {
       // Arrange
       const req = mockRequest();
       const res = mockResponse();
-      req.userRole = 'superadmin';
+      req.userRole = 'admin';
       
       // Act
       authMiddleware.isAdmin(req, res, mockNext);
@@ -192,7 +192,7 @@ describe('Auth Middleware', () => {
       expect(mockNext).toHaveBeenCalledWith();
     });
     
-    it('debería rechazar el acceso a usuarios sin rol de superadministrador', () => {
+    it('debería rechazar el acceso a usuarios sin rol de administrador', () => {
       // Arrange
       const req = mockRequest();
       const res = mockResponse();

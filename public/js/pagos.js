@@ -13,7 +13,7 @@ async function cargarPagos(filtros = {}) {
         // Detectar rol actual para controlar visibilidad de acciones
         const usuarioActual = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
         const rolActual = (usuarioActual && (usuarioActual.role || usuarioActual.rol)) || null;
-        const puedeCrearPago = rolActual === 'superadmin';
+        const puedeCrearPago = rolActual === 'admin';
         
         // Construir query string para filtros
         const queryParams = new URLSearchParams();
@@ -186,7 +186,7 @@ async function mostrarFormularioPago(ciudadanoId = null, tramiteId = null) {
         // Restringir creación de pagos a administradores
         const usuarioActual = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
         const rolActual = (usuarioActual && (usuarioActual.role || usuarioActual.rol)) || null;
-        if (rolActual !== 'superadmin') {
+        if (rolActual !== 'admin') {
             mostrarNotificacion('No tienes permisos para crear pagos.', 'warning');
             if (typeof cargarPagos === 'function') cargarPagos();
             return;

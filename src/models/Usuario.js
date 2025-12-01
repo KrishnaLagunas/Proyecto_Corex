@@ -51,7 +51,7 @@ const Usuario = sequelize.define('Usuario', {
     allowNull: false
   },
   role: {
-    type: DataTypes.ENUM('superadmin', 'funcionario', 'ciudadano'),
+    type: DataTypes.ENUM('admin', 'funcionario', 'ciudadano'),
     allowNull: true
   },
   rut: {

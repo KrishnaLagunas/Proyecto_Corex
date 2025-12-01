@@ -21,7 +21,7 @@ const usuariosController = {
   getAllUsuarios: async (req, res, next) => {
     try {
       // Solo los administradores pueden ver todos los usuarios
-      if (req.user.role !== 'superadmin') {
+      if (req.user.role !== 'admin') {
         throw new ApiError('No tienes permiso para ver todos los usuarios', 403);
       }
       
@@ -117,7 +117,7 @@ const usuariosController = {
       const { id } = req.params;
       
       // Verificar permisos
-      if (req.user.role !== 'superadmin' && req.user.id !== parseInt(id)) {
+      if (req.user.role !== 'admin' && req.user.id !== parseInt(id)) {
         throw new ApiError('No tienes permiso para ver este usuario', 403);
       }
       
@@ -150,7 +150,7 @@ const usuariosController = {
   createUsuario: async (req, res, next) => {
     try {
       // Solo los administradores pueden crear usuarios
-      if (req.user.role !== 'superadmin') {
+      if (req.user.role !== 'admin') {
         throw new ApiError('No tienes permiso para crear usuarios', 403);
       }
       // Contexto de intento de creación
@@ -300,7 +300,7 @@ const usuariosController = {
       } = req.body;
       
       // Verificar permisos
-      const esAdmin = req.user.role === 'superadmin';
+      const esAdmin = req.user.role === 'admin';
       const esMismoUsuario = req.user.id === parseInt(id);
       
       if (!esAdmin && !esMismoUsuario) {
@@ -424,7 +424,7 @@ const usuariosController = {
   deleteUsuario: async (req, res, next) => {
     try {
       // Solo los administradores pueden eliminar usuarios
-      if (req.user.role !== 'superadmin') {
+      if (req.user.role !== 'admin') {
         throw new ApiError('No tienes permiso para eliminar usuarios', 403);
       }
       
@@ -522,7 +522,7 @@ const usuariosController = {
       const { currentPassword, newPassword } = req.body;
       
       // Verificar permisos
-      const esAdmin = req.user.role === 'superadmin';
+      const esAdmin = req.user.role === 'admin';
       const esMismoUsuario = req.user.id === parseInt(id);
       
       if (!esAdmin && !esMismoUsuario) {
@@ -569,7 +569,7 @@ const usuariosController = {
       const { estado } = req.body;
       
       // Solo administradores pueden cambiar el estado
-      if (req.user.role !== 'superadmin') {
+      if (req.user.role !== 'admin') {
         throw new ApiError('No tienes permiso para cambiar el estado de usuarios', 403);
       }
       
@@ -619,7 +619,7 @@ const usuariosController = {
   getUsuariosStats: async (req, res, next) => {
     try {
       // Solo administradores pueden ver estadísticas
-      if (req.user.role !== 'superadmin') {
+      if (req.user.role !== 'admin') {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
       

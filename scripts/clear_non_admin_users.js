@@ -1,5 +1,5 @@
 /**
- * Script para eliminar todos los usuarios excepto el superadministrador principal.
+ * Script para eliminar todos los usuarios excepto el administrador principal.
  * Conserva al usuario con email 'admin@municipalidad.cl' y elimina el resto.
  */
 
@@ -15,10 +15,10 @@ async function clearNonAdminUsers() {
 
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@municipalidad.cl';
 
-    // Verificar que el superadmin existe
+    // Verificar que el admin existe
     const admin = await Usuario.findOne({ where: { email: adminEmail } });
     if (!admin) {
-      throw new Error(`No se encontró el usuario superadmin con email: ${adminEmail}`);
+      throw new Error(`No se encontró el usuario admin con email: ${adminEmail}`);
     }
 
     // Eliminar todos los usuarios cuyo email sea distinto al admin
@@ -28,16 +28,16 @@ async function clearNonAdminUsers() {
       }
     });
 
-    logger.info(`Usuarios eliminados (no superadmin): ${deletedCount}`);
+    logger.info(`Usuarios eliminados (no admin): ${deletedCount}`);
 
-    // Opcional: asegurar que el superadmin quede activo y rol superadmin
+    // Opcional: asegurar que el admin quede activo y rol admin
     admin.estado = 'activo';
-    admin.role = 'superadmin';
+    admin.role = 'admin';
     await admin.save();
 
-    logger.info(`Superadmin preservado: ${admin.email} (id: ${admin.id})`);
+    logger.info(`Admin preservado: ${admin.email} (id: ${admin.id})`);
   } catch (error) {
-    logger.error(`Error al limpiar usuarios no superadmin: ${error.message}`);
+    logger.error(`Error al limpiar usuarios no admin: ${error.message}`);
     logger.error(error.stack);
     process.exit(1);
   } finally {
@@ -47,7 +47,7 @@ async function clearNonAdminUsers() {
 
 clearNonAdminUsers()
   .then(() => {
-    logger.info('Limpieza de usuarios no superadmin finalizada.');
+    logger.info('Limpieza de usuarios no admin finalizada.');
     process.exit(0);
   })
   .catch((err) => {

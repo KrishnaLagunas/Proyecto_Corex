@@ -31,14 +31,14 @@ describe('Proveedores Integration Tests', () => {
     // Crear usuarios de prueba
     const salt = await bcrypt.genSalt(10);
     
-    // Usuario superadministrador
+    // Usuario administrador
     const adminPassword = await bcrypt.hash('admin123', salt);
     adminUser = await Usuario.create({
-      nombre: 'Superadmin',
+      nombre: 'Admin',
       apellido: 'Proveedores',
       email: 'admin.proveedores@example.com',
       password: adminPassword,
-      role: 'superadmin',
+      role: 'admin',
       departamento_id: departamento.id,
       estado: 'activo'
     });
@@ -113,7 +113,7 @@ describe('Proveedores Integration Tests', () => {
   });
   
   describe('GET /api/proveedores', () => {
-    it('debería permitir a un superadministrador obtener todos los proveedores', async () => {
+    it('debería permitir a un administrador obtener todos los proveedores', async () => {
       const response = await request(app)
         .get('/api/proveedores')
         .set('x-access-token', adminToken);

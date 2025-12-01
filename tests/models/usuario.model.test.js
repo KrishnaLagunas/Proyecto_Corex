@@ -71,7 +71,7 @@ describe('Usuario Model', () => {
         apellido: 'User',
         email: 'test@example.com',
         password: 'password123',
-        role: 'superadmin',
+        role: 'admin',
         departamento_id: 1,
         estado: 'activo'
       };
@@ -91,7 +91,7 @@ describe('Usuario Model', () => {
       expect(usuario).toHaveProperty('id', 1);
       expect(usuario).toHaveProperty('nombre', 'Test');
       expect(usuario).toHaveProperty('email', 'test@example.com');
-      expect(usuario).toHaveProperty('role', 'superadmin');
+      expect(usuario).toHaveProperty('role', 'admin');
     });
     
     it('debería hashear la contraseña antes de crear el usuario', async () => {
@@ -101,7 +101,7 @@ describe('Usuario Model', () => {
         apellido: 'User',
         email: 'test@example.com',
         password: 'password123',
-        role: 'superadmin'
+        role: 'admin'
       };
       
       // Simular el hook beforeCreate
@@ -123,7 +123,7 @@ describe('Usuario Model', () => {
         apellido: 'User',
         email: 'test@example.com',
         password: 'hashed-password',
-        role: 'superadmin'
+        role: 'admin'
       });
       
       // Act
@@ -141,7 +141,7 @@ describe('Usuario Model', () => {
         apellido: 'User',
         email: 'test@example.com',
         password: 'hashed-password',
-        role: 'superadmin'
+        role: 'admin'
       });
       
       // Act
@@ -160,7 +160,7 @@ describe('Usuario Model', () => {
         nombre: 'Test',
         apellido: 'User',
         email: 'test@example.com',
-        role: 'superadmin'
+        role: 'admin'
       };
       
       Usuario.findOne.mockResolvedValue(mockUser);

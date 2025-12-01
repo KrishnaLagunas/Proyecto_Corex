@@ -43,14 +43,14 @@ describe('Portal Ciudadano Integration Tests', () => {
       estado: 'activo'
     });
     
-    // Usuario superadministrador
+    // Usuario administrador
     const adminPassword = await bcrypt.hash('admin123', salt);
     adminUser = await Usuario.create({
-      nombre: 'Superadmin',
+      nombre: 'Admin',
       apellido: 'Portal',
       email: 'admin.portal@example.com',
       password: adminPassword,
-      role: 'superadmin',
+      role: 'admin',
       departamento_id: departamento.id,
       estado: 'activo'
     });

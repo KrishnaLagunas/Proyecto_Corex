@@ -34,14 +34,14 @@ describe('Presupuestos Integration Tests', () => {
     // Crear usuarios de prueba
     const salt = await bcrypt.genSalt(10);
     
-    // Usuario superadministrador
+    // Usuario administrador
     const adminPassword = await bcrypt.hash('admin123', salt);
     adminUser = await Usuario.create({
-      nombre: 'Superadmin',
+      nombre: 'Admin',
       apellido: 'Finanzas',
       email: 'admin.finanzas@example.com',
       password: adminPassword,
-      role: 'superadmin',
+      role: 'admin',
       departamento_id: departamento.id,
       estado: 'activo'
     });

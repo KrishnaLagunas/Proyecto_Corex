@@ -7,11 +7,11 @@
 const usuariosPrueba = [
     {
         id: 1,
-        nombre: 'Superadmin',
+        nombre: 'Admin',
         apellido: 'Sistema',
         email: 'admin@municipalidad.cl',
         password: 'admin123',
-        role: 'superadmin',
+        role: 'admin',
         estado: 'activo'
     },
     {
@@ -36,10 +36,51 @@ const usuariosPrueba = [
 
 // Inicializar el módulo de autenticación
 document.addEventListener('DOMContentLoaded', () => {
-    try { localStorage.removeItem('token'); } catch (_) {}
-    try { localStorage.removeItem('usuario'); } catch (_) {}
-    try { deleteCookie('corex_session'); } catch (_) {}
-    mostrarFormularioLogin();
+    const cookieToken = getCookie('corex_session');
+    if (cookieToken && !localStorage.getItem('token')) localStorage.setItem('token', cookieToken);
+    const token = localStorage.getItem('token');
+    const localUser = obtenerUsuario();
+    if (token && localUser && localUser.role) {
+        cancelarMostrarLogin();
+        redirigirSegunRol(localUser);
+        (async () => {
+            try {
+                const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
+                if (perfil && perfil.id) {
+                    const s = (perfil.role || perfil.rol || '').toString().toLowerCase();
+                    const role = s.includes('admin') ? 'admin' : s.includes('func') ? 'funcionario' : s.includes('ciud') || s === 'user' || s === 'usuario' ? 'ciudadano' : (s || 'ciudadano');
+                    const usuarioInfo = { id: perfil.id, nombre: perfil.nombre || perfil.primer_nombre || '', apellido: perfil.apellido || perfil.apellido_paterno || '', email: perfil.email, role };
+                    localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
+                }
+            } catch (_) { }
+        })();
+    } else if (token) {
+        (async () => {
+            try {
+                const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
+                if (perfil && perfil.id) {
+                    const s = (perfil.role || perfil.rol || '').toString().toLowerCase();
+                    const role = s.includes('admin') ? 'admin' : s.includes('func') ? 'funcionario' : s.includes('ciud') || s === 'user' || s === 'usuario' ? 'ciudadano' : (s || 'ciudadano');
+                    const usuarioInfo = { id: perfil.id, nombre: perfil.nombre || perfil.primer_nombre || '', apellido: perfil.apellido || perfil.apellido_paterno || '', email: perfil.email, role };
+                    localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
+                    cancelarMostrarLogin();
+                    redirigirSegunRol(usuarioInfo);
+                } else {
+                    const usuarioInfo = { id: 'session', nombre: '', apellido: '', email: '', role: 'admin' };
+                    localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
+                    cancelarMostrarLogin();
+                    redirigirSegunRol(usuarioInfo);
+                }
+            } catch (_) {
+                const usuarioInfo = { id: 'session', nombre: '', apellido: '', email: '', role: 'admin' };
+                localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
+                cancelarMostrarLogin();
+                redirigirSegunRol(usuarioInfo);
+            }
+        })();
+    } else {
+        programarMostrarLogin(600);
+    }
     
     // Configurar el evento de submit del formulario de login
     const loginForm = document.getElementById('login-form');
@@ -167,7 +208,10 @@ document.addEventListener('DOMContentLoaded', () => {
 function programarMostrarLogin(delay) {
     try { if (window._loginRenderTimeoutId) clearTimeout(window._loginRenderTimeoutId); } catch (_) {}
     window._loginRenderTimeoutId = setTimeout(() => {
-        try { mostrarFormularioLogin(); } catch (_) { mostrarFormularioLogin(); }
+        try {
+            const t = localStorage.getItem('token') || (typeof getCookie === 'function' ? getCookie('corex_session') : null);
+            if (!t) mostrarFormularioLogin();
+        } catch (_) { mostrarFormularioLogin(); }
         window._loginRenderTimeoutId = null;
     }, typeof delay === 'number' ? delay : 600);
 }
@@ -277,7 +321,7 @@ async function manejarLogin(e) {
         const user = response.user || response.data || {};
         const normalizarRol = (r) => {
             const s = (r || '').toString().toLowerCase();
-            if (s.includes('superadmin') || s.includes('admin')) return 'superadmin';
+            if (s.includes('admin')) return 'admin';
             if (s.includes('func')) return 'funcionario';
             if (s.includes('ciud') || s === 'user' || s === 'usuario') return 'ciudadano';
             return s || 'ciudadano';
@@ -369,7 +413,7 @@ function redirigirSegunRol(usuario) {
     
     // Redirigir según el rol
     switch (usuario.role) {
-        case 'superadmin':
+        case 'admin':
             cargarInterfazAdmin(usuario);
             break;
         case 'funcionario':
@@ -379,7 +423,7 @@ function redirigirSegunRol(usuario) {
             cargarPortalCiudadano(usuario);
             break;
         default:
-            console.error('Rol no reconocido:', usuario.role, '— mostrando interfaz de superadministrador por defecto');
+            console.error('Rol no reconocido:', usuario.role, '— mostrando interfaz de administrador por defecto');
             cargarInterfazAdmin(usuario);
     }
 }
@@ -393,7 +437,7 @@ async function cargarInterfazAdmin(usuario) {
         console.log('Cargando interfaz de administrador para:', usuario.nombre);
         const navbar = document.getElementById('main-navbar');
         if (navbar) navbar.classList.remove('d-none');
-        try { generarMenu('superadmin'); } catch (e) { console.warn('Error generando menú superadmin', e); }
+        try { generarMenu('admin'); } catch (e) { console.warn('Error generando menú admin', e); }
         const mainContent = document.getElementById('main-content');
         if (mainContent) {
             mainContent.classList.remove('d-none');
@@ -977,8 +1021,8 @@ function generarMenu(rol) {
     const currentPage = (typeof localStorage !== 'undefined' && localStorage.getItem('currentPage')) || 'dashboard';
     let menuHTML = '';
     
-    // Menú para superadministradores
-    if (rol === 'superadmin') {
+    // Menú para administradores
+    if (rol === 'admin') {
         menuHTML = `
             <li class="nav-item">
                 <a href="#" class="nav-link ${currentPage==='dashboard'?'active':''}" data-page="dashboard">
@@ -1043,17 +1087,11 @@ function generarMenu(rol) {
             enlaces.forEach(e => e.classList.remove('active'));
             enlace.classList.add('active');
             
-            // Cargar la página correspondiente usando el router central si está disponible
+            // Cargar la página correspondiente
             const pagina = enlace.getAttribute('data-page');
             try { localStorage.setItem('currentPage', pagina); } catch (_) {}
-            if (pagina && typeof cargarContenidoPagina === 'function') {
-                cargarContenidoPagina(pagina);
-                return;
-            }
-            // Fallback a función específica si existe
-            const fn = pagina && window[`cargar${pagina.charAt(0).toUpperCase() + pagina.slice(1)}`];
-            if (typeof fn === 'function') {
-                fn();
+            if (pagina && typeof window[`cargar${pagina.charAt(0).toUpperCase() + pagina.slice(1)}`] === 'function') {
+                window[`cargar${pagina.charAt(0).toUpperCase() + pagina.slice(1)}`]();
             } else {
                 console.log(`Función para cargar ${pagina} no encontrada`);
             }
@@ -1068,8 +1106,8 @@ function generarMenu(rol) {
  */
 function obtenerNombreRol(role) {
     switch (role) {
-        case 'superadmin':
-            return 'Superadministrador';
+        case 'admin':
+            return 'Administrador';
         case 'funcionario':
             return 'Funcionario Municipal';
         case 'ciudadano':
@@ -1389,7 +1427,7 @@ function cargarFormularioNuevoTramite(usuario) {
                     });
 
                     if (!departamentos.length) {
-                        console.warn('No hay departamentos disponibles. Verifique en el superadmin.');
+                        console.warn('No hay departamentos disponibles. Verifique en el admin.');
                     }
                 } catch (error) {
                     console.error('Error al cargar departamentos:', error);

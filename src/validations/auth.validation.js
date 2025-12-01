@@ -168,9 +168,9 @@ const authSchemas = {
       ...customMessages,
       'string.pattern.base': 'La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial'
     }),
-    role: Joi.string().valid('superadmin', 'funcionario', 'ciudadano').required().messages({
+    role: Joi.string().valid('admin', 'funcionario', 'ciudadano').required().messages({
       ...customMessages,
-      'any.only': 'El rol debe ser superadmin, funcionario o ciudadano'
+      'any.only': 'El rol debe ser admin, funcionario o ciudadano'
     }),
     rut: rutValidation.required(),
     telefono: Joi.string().min(8).max(15).required().messages(customMessages),

@@ -21,7 +21,7 @@ const {
 router.get(
   '/',
   isAuthenticated,
-  hasRole(['superadmin']),
+  hasRole(['admin']),
   validateQuery(usuarioQuerySchema),
   usuariosController.getAllUsuarios
 );
@@ -46,7 +46,7 @@ router.get(
 router.post(
   '/',
   isAuthenticated,
-  hasRole(['superadmin']),
+  hasRole(['admin']),
   validateSchema(createUsuarioSchema),
   usuariosController.createUsuario
 );
@@ -72,7 +72,7 @@ router.put(
 router.delete(
   '/:id',
   isAuthenticated,
-  hasRole(['superadmin']),
+  hasRole(['admin']),
   validateParams(idSchema),
   usuariosController.deleteUsuario
 );
@@ -98,7 +98,7 @@ router.put(
 router.put(
   '/:id/estado',
   isAuthenticated,
-  hasRole(['superadmin']),
+  hasRole(['admin']),
   validateParams(idSchema),
   validateSchema(changeEstadoSchema),
   usuariosController.changeEstado

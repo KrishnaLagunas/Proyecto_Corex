@@ -84,7 +84,7 @@ router.post('/logout', isAuthenticated, authController.logout);
 // Ruta para crear usuario por admin - pendiente de implementar
 // router.post('/admin/create-user', 
 //   isAuthenticated, 
-//   hasRole(['superadmin']), 
+//   hasRole(['admin']), 
 //   validateSchema(authSchemas.createUser), 
 //   authController.createUser
 // );

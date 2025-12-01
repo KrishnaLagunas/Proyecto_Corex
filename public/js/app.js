@@ -5,7 +5,7 @@ function cargarContenidoPagina(pagina) {
     
     switch (pagina) {
         case 'dashboard': {
-            // Permitir dashboard para 'superadmin' y 'funcionario' con sesión válida
+            // Permitir dashboard para 'admin' y 'funcionario' con sesión válida
             let rol, token;
             try {
                 const usuario = JSON.parse(localStorage.getItem('usuario'));
@@ -20,7 +20,7 @@ function cargarContenidoPagina(pagina) {
             }
 
             // Restringir solo a roles no autorizados
-            if (rol !== 'superadmin' && rol !== 'funcionario') {
+            if (rol !== 'admin' && rol !== 'funcionario') {
                 mostrarNotificacion('Acceso denegado: tu rol no puede ver el panel de control', 'warning');
                 if (typeof cargarPortalCiudadano === 'function') {
                     try { const u = JSON.parse(localStorage.getItem('usuario')); cargarPortalCiudadano(u); } catch { cargarPortalCiudadano(); }
@@ -30,7 +30,7 @@ function cargarContenidoPagina(pagina) {
                 break;
             }
 
-            // Cargar dashboard completo (superadmin)
+            // Cargar dashboard completo (admin)
             if (typeof cargarDashboard === 'function') {
                 cargarDashboard();
             } else {
@@ -392,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!token) return;
             const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
             const rol = perfil && (perfil.rol || perfil.role);
-            if (perfil && (rol === 'superadmin' || rol === 'funcionario')) {
+            if (perfil && (rol === 'admin' || rol === 'funcionario')) {
                 localStorage.setItem('usuario', JSON.stringify({ id: perfil.id, nombre: perfil.nombre || '', apellido: perfil.apellido || '', email: perfil.email, role: rol }));
                 const lastPage = localStorage.getItem('currentPage') || 'dashboard';
                 if (typeof cargarContenidoPagina === 'function') {

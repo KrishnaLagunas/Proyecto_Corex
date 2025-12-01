@@ -10,7 +10,7 @@ const { isAuthenticated, hasRole } = require('../middlewares/auth.middleware');
  */
 router.get('/resumen', 
   isAuthenticated, 
-  hasRole(['superadmin', 'funcionario']),
+  hasRole(['admin', 'funcionario']),
   dashboardController.getResumenGeneral
 );
 
@@ -21,7 +21,7 @@ router.get('/resumen',
  */
 router.get('/departamento/:departamento_id?', 
   isAuthenticated, 
-  hasRole(['superadmin', 'funcionario']),
+  hasRole(['admin', 'funcionario']),
   dashboardController.getResumenDepartamento
 );
 
