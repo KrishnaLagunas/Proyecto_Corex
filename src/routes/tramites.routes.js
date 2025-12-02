@@ -24,7 +24,7 @@ router.get('/',
 // Rutas específicas deben declararse antes de rutas paramétricas para evitar colisiones
 router.get('/stats/general', 
   isAuthenticated, 
-  hasRole(['admin', 'funcionario']),
+  hasRole(['administrador', 'superadministrador', 'secretaria comunitaria']),
   tramitesController.getTramitesStats
 );
 
@@ -42,7 +42,7 @@ router.get('/configuracion-pago',
 
 router.post('/tipos', 
   isAuthenticated,
-  hasRole(['admin', 'supervisor']),
+  hasRole(['administrador', 'superadministrador']),
   tramitesController.createTipoTramite
 );
 
@@ -126,7 +126,7 @@ router.put('/:id',
  */
 router.delete('/:id', 
   isAuthenticated, 
-  hasRole(['admin']),
+  hasRole(['administrador', 'superadministrador']),
   validateParams(tramiteSchemas.idParam), 
   tramitesController.deleteTramite
 );

@@ -84,7 +84,7 @@ const authSchemas = {
     celular: Joi.string().min(8).max(15).allow(null, '').messages(customMessages),
     fecha_nacimiento: Joi.date().iso().allow(null).messages(customMessages),
     fechaNacimiento: Joi.date().iso().allow(null).messages(customMessages),
-    departamento_id: Joi.number().integer().positive().allow(null).messages(customMessages)
+    municipalidad_id: Joi.number().integer().positive().allow(null).messages(customMessages)
   })
   .or('nombre', 'primer_nombre')
   .or('apellido', 'primer_apellido', 'segundo_apellido'),
@@ -168,10 +168,7 @@ const authSchemas = {
       ...customMessages,
       'string.pattern.base': 'La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial'
     }),
-    role: Joi.string().valid('admin', 'funcionario', 'ciudadano').required().messages({
-      ...customMessages,
-      'any.only': 'El rol debe ser admin, funcionario o ciudadano'
-    }),
+    id_rol: Joi.number().integer().min(1).required().messages(customMessages),
     rut: rutValidation.required(),
     telefono: Joi.string().min(8).max(15).required().messages(customMessages),
     direccion: Joi.string().min(5).max(200).required().messages(customMessages),

@@ -15,7 +15,8 @@ const {
   Proveedor, 
   Proyecto, 
   Contrato,
-  ConfiguracionPago
+  ConfiguracionPago,
+  Rol
 } = require('../src/models');
 
 // Función para hashear contraseñas
@@ -31,6 +32,22 @@ async function seedData() {
     
     // Sincronizar modelos con la base de datos (sin forzar)
     await sequelize.sync({ force: false });
+
+    // Sembrar roles básicos
+    try {
+      const rolesBasicos = [
+        'superadministrador',
+        'administrador',
+        'funcionario',
+        'ciudadano',
+        'secretaria comunitaria',
+        'secretaria partes',
+        'secretaria de obras',
+        'secretaria de transito',
+        'tesoreria municipal'
+      ];
+      await Rol.bulkCreate(rolesBasicos.map(nombre => ({ nombre })), { ignoreDuplicates: true });
+    } catch (_) {}
 
     // Sembrar configuraciones de pago (independiente del resto de datos)
     try {
@@ -52,7 +69,41 @@ async function seedData() {
     } catch (cfgErr) {
       console.warn('Advertencia al sembrar ConfiguracionPago:', cfgErr.message);
     }
+    try {
+      const rolAdmin = await Rol.findOne({ where: { nombre: 'administrador' } });
+      const rolFunc = await Rol.findOne({ where: { nombre: 'funcionario' } });
+      const rolCiudadano = await Rol.findOne({ where: { nombre: 'ciudadano' } });
+      if (rolAdmin) {
+        await Usuario.update({ id_rol: rolAdmin.id }, { where: { email: 'admin@municipalidad.cl' } });
+      }
+      if (rolFunc) {
+        await Usuario.update({ id_rol: rolFunc.id }, { where: { email: 'juan.perez@municipalidad.cl' } });
+        await Usuario.update({ id_rol: rolFunc.id }, { where: { email: 'maria.gonzalez@municipalidad.cl' } });
+      }
+      if (rolCiudadano) {
+        await Usuario.update({ id_rol: rolCiudadano.id }, { where: { email: 'pedro.soto@gmail.com' } });
+        await Usuario.update({ id_rol: rolCiudadano.id }, { where: { email: 'ana.munoz@gmail.com' } });
+      }
+    } catch (_) {}
     
+    // Asegurar usuario superadministrador
+    try {
+      const rolSuper = await Rol.findOne({ where: { nombre: 'superadministrador' } });
+      if (rolSuper) {
+        await Usuario.findOrCreate({
+          where: { email: 'superadmin@municipalidad.cl' },
+          defaults: {
+            nombre: 'Super',
+            apellido: 'Administrador',
+            email: 'superadmin@municipalidad.cl',
+            password: 'super123',
+            id_rol: rolSuper.id,
+            estado: 'activo'
+          }
+        });
+      }
+    } catch (_) {}
+
     // Verificar si ya existen datos para evitar duplicados
     const usuariosCount = await Usuario.count();
     if (usuariosCount > 1) {
@@ -179,6 +230,42 @@ async function seedData() {
         estado: 'activo'
       }
     ], { ignoreDuplicates: true });
+
+    // Crear usuario superadministrador si no existe
+    try {
+      const rolSuper = await Rol.findOne({ where: { nombre: 'superadministrador' } });
+      if (rolSuper) {
+        const [superUser, created] = await Usuario.findOrCreate({
+          where: { email: 'superadmin@municipalidad.cl' },
+          defaults: {
+            nombre: 'Super',
+            apellido: 'Administrador',
+            email: 'superadmin@municipalidad.cl',
+            password: 'super123',
+            id_rol: rolSuper.id,
+            estado: 'activo'
+          }
+        });
+      }
+    } catch (_) {}
+
+    // Asegurar id_rol para usuarios sembrados
+    try {
+      const rolAdmin = await Rol.findOne({ where: { nombre: 'administrador' } });
+      const rolFunc = await Rol.findOne({ where: { nombre: 'funcionario' } });
+      const rolCiudadano = await Rol.findOne({ where: { nombre: 'ciudadano' } });
+      if (rolAdmin) {
+        await Usuario.update({ id_rol: rolAdmin.id }, { where: { email: 'admin@municipalidad.cl' } });
+      }
+      if (rolFunc) {
+        await Usuario.update({ id_rol: rolFunc.id }, { where: { email: 'juan.perez@municipalidad.cl' } });
+        await Usuario.update({ id_rol: rolFunc.id }, { where: { email: 'maria.gonzalez@municipalidad.cl' } });
+      }
+      if (rolCiudadano) {
+        await Usuario.update({ id_rol: rolCiudadano.id }, { where: { email: 'pedro.soto@gmail.com' } });
+        await Usuario.update({ id_rol: rolCiudadano.id }, { where: { email: 'ana.munoz@gmail.com' } });
+      }
+    } catch (_) {}
     
     // Actualizar responsables de departamentos
     await Departamento.update(

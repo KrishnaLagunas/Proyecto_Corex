@@ -1,4 +1,4 @@
-const { Usuario, Departamento, Tramite, Pago, Documento, Presupuesto, Contrato, Proyecto } = require('../models');
+const { Usuario, Municipalidad, Tramite, Pago, Documento, Presupuesto, Contrato, Proyecto } = require('../models');
 const { ApiError } = require('../middlewares/errorHandler');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
@@ -21,15 +21,15 @@ const usuariosController = {
   getAllUsuarios: async (req, res, next) => {
     try {
       // Solo los administradores pueden ver todos los usuarios
-      if (req.user.role !== 'admin') {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para ver todos los usuarios', 403);
       }
       
       const { 
         page = 1, 
         limit = 10, 
-        role,
-        departamento_id,
+        id_rol,
+        municipalidad_id,
         search,
         sort = 'createdAt',
         order = 'DESC',
@@ -40,13 +40,21 @@ const usuariosController = {
       const where = {};
       
       // Filtro por rol
-      if (role) {
-        where.role = role;
+      if (id_rol) {
+        where.id_rol = id_rol;
       }
       
-      // Filtro por departamento
-      if (departamento_id) {
-        where.departamento_id = departamento_id;
+      // Filtro por municipalidad
+      if (municipalidad_id) {
+        where.municipalidad_id = municipalidad_id;
+      }
+      // Si el solicitante es administrador y no especifica municipalidad,
+      // restringir automáticamente al ámbito de su municipalidad
+      if (req.user.rol_nombre === 'administrador' && !municipalidad_id) {
+        if (!req.user.municipalidad_id) {
+          throw new ApiError('El administrador no tiene municipalidad asignada', 403);
+        }
+        where.municipalidad_id = req.user.municipalidad_id;
       }
       
       // Filtro por estado
@@ -68,7 +76,7 @@ const usuariosController = {
       const offset = (page - 1) * limit;
       
       // Validar campo de ordenamiento
-      const validSortFields = ['createdAt', 'nombre', 'apellido', 'email', 'role', 'estado'];
+      const validSortFields = ['createdAt', 'nombre', 'apellido', 'email', 'id_rol', 'estado'];
       const sortField = validSortFields.includes(sort) ? sort : 'createdAt';
       
       // Validar dirección de ordenamiento
@@ -80,8 +88,12 @@ const usuariosController = {
         attributes: { exclude: ['password'] },
         include: [
           { 
-            model: Departamento,
+            model: Municipalidad,
             attributes: ['id', 'nombre'] 
+          },
+          {
+            model: require('../models').Rol,
+            attributes: ['id', 'nombre']
           }
         ],
         order: [[sortField, sortOrder]],
@@ -117,7 +129,7 @@ const usuariosController = {
       const { id } = req.params;
       
       // Verificar permisos
-      if (req.user.role !== 'admin' && req.user.id !== parseInt(id)) {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre) && req.user.id !== parseInt(id)) {
         throw new ApiError('No tienes permiso para ver este usuario', 403);
       }
       
@@ -125,8 +137,12 @@ const usuariosController = {
         attributes: { exclude: ['password'] },
         include: [
           { 
-            model: Departamento,
+            model: Municipalidad,
             attributes: ['id', 'nombre'] 
+          },
+          {
+            model: require('../models').Rol,
+            attributes: ['id', 'nombre']
           }
         ]
       });
@@ -150,11 +166,11 @@ const usuariosController = {
   createUsuario: async (req, res, next) => {
     try {
       // Solo los administradores pueden crear usuarios
-      if (req.user.role !== 'admin') {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para crear usuarios', 403);
       }
       // Contexto de intento de creación
-      logger.info(`[Usuarios] Intento de creación por ${req.user?.email || 'desconocido'} (rol: ${req.user?.role || 'N/A'})`);
+      logger.info(`[Usuarios] Intento de creación por ${req.user?.email || 'desconocido'} (rol: ${req.user?.rol_nombre || 'N/A'})`);
       
       const { 
         nombre, 
@@ -168,14 +184,14 @@ const usuariosController = {
         rut,
         telefono,
         direccion,
-        role,
-        departamento_id
+        id_rol,
+        municipalidad_id
       } = req.body;
 
       // Payload recibido (sin contraseña)
       const payloadLog = {
         primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
-        nombre, apellido, email, rut, telefono, direccion, role, departamento_id
+        nombre, apellido, email, rut, telefono, direccion, id_rol, municipalidad_id
       };
       logger.info(`[Usuarios] Payload recibido para crear: ${JSON.stringify(payloadLog)}`);
       
@@ -193,19 +209,60 @@ const usuariosController = {
         throw new ApiError('El RUT ya está registrado', 400);
       }
       
-      // Verificar que el departamento existe si se proporciona
-      if (departamento_id) {
-        const departamento = await Departamento.findByPk(departamento_id);
-        if (!departamento) {
-          logger.warn(`[Usuarios] Departamento inexistente: ${departamento_id}`);
-          throw new ApiError('El departamento seleccionado no existe', 400);
+      // Verificar que la municipalidad existe si se proporciona
+      if (municipalidad_id) {
+        const municipalidad = await Municipalidad.findByPk(municipalidad_id);
+        if (!municipalidad) {
+          logger.warn(`[Usuarios] Municipalidad inexistente: ${municipalidad_id}`);
+          throw new ApiError('La municipalidad seleccionada no existe', 400);
         }
       }
 
-      // Reglas de negocio: funcionarios deben tener departamento
-      if (role === 'funcionario' && (departamento_id === null || departamento_id === undefined)) {
-        logger.warn('[Usuarios] Falta departamento para rol funcionario');
-        throw new ApiError('El departamento es obligatorio para usuarios con rol funcionario', 400);
+      // Reglas de negocio: secretaria comunitaria debe tener municipalidad
+      if (id_rol) {
+        const rolRegla = await require('../models').Rol.findByPk(id_rol);
+        if (rolRegla && rolRegla.nombre === 'secretaria comunitaria' && (municipalidad_id === null || municipalidad_id === undefined)) {
+          logger.warn('[Usuarios] Falta municipalidad para rol secretaria comunitaria');
+          throw new ApiError('La municipalidad es obligatoria para usuarios con rol secretaria comunitaria', 400);
+        }
+      }
+
+      // Restricciones por rol del creador
+      const rolCreador = req.user.rol_nombre;
+      const rolDestino = await require('../models').Rol.findByPk(id_rol);
+      if (!rolDestino) {
+        throw new ApiError('El rol especificado no existe', 400);
+      }
+
+      if (rolCreador === 'superadministrador') {
+        // Superadministrador: solo crea administradores y debe asignar municipalidad
+        if (rolDestino.nombre !== 'administrador') {
+          throw new ApiError('El superadministrador solo puede crear usuarios administradores', 403);
+        }
+        if (!municipalidad_id) {
+          throw new ApiError('Debe especificar la municipalidad para el administrador', 400);
+        }
+        const muni = await Municipalidad.findByPk(municipalidad_id);
+        if (!muni) {
+          throw new ApiError('La municipalidad especificada no existe', 400);
+        }
+      }
+
+      if (rolCreador === 'administrador') {
+        // Administrador: solo puede crear funcionarios/secretarías en su municipalidad
+        const allowedRoles = [
+          'secretaria de obras',
+          'secretaria de transito',
+          'tesoreria municipal',
+          'secretaria partes',
+          'secretaria comunitaria'
+        ];
+        if (!allowedRoles.includes(rolDestino.nombre)) {
+          throw new ApiError('El administrador solo puede crear funcionarios/secretarías', 403);
+        }
+        if (!req.user.municipalidad_id) {
+          throw new ApiError('El administrador no tiene municipalidad asignada', 403);
+        }
       }
       
       // Concatenar nombre/apellido si vienen separadamente
@@ -218,6 +275,8 @@ const usuariosController = {
       logger.info(`[Usuarios] Nombre compuesto: "${nombreConcatenado}" | Apellido compuesto: "${apellidoConcatenado}"`);
 
       // Crear el usuario (el hash se aplica en el hook del modelo)
+      const muniAsignada = (rolCreador === 'administrador') ? req.user.municipalidad_id : municipalidad_id;
+
       const datosPersistir = {
         nombre: nombreNormalizado,
         apellido: apellidoNormalizado,
@@ -230,8 +289,8 @@ const usuariosController = {
         rut,
         telefono,
         direccion,
-        role,
-        departamento_id,
+        id_rol,
+        municipalidad_id: muniAsignada,
         estado: 'activo'
       };
       logger.info(`[Usuarios] Datos a persistir: ${JSON.stringify(datosPersistir)}`);
@@ -247,19 +306,19 @@ const usuariosController = {
         rut,
         telefono,
         direccion,
-        role,
-        departamento_id,
+        id_rol,
+        municipalidad_id: muniAsignada,
         estado: 'activo' // Por defecto, el usuario se crea activo
       });
       
-      logger.info(`Nuevo usuario creado: ${email} (${role})`);
+      logger.info(`Nuevo usuario creado: ${email} (id_rol=${id_rol || 'N/A'})`);
       
       // Obtener el usuario creado (sin la contraseña)
       const usuarioCreado = await Usuario.findByPk(nuevoUsuario.id, {
         attributes: { exclude: ['password'] },
         include: [
           { 
-            model: Departamento,
+            model: Municipalidad,
             attributes: ['id', 'nombre'] 
           }
         ]
@@ -294,13 +353,13 @@ const usuariosController = {
         email,
         telefono,
         direccion,
-        role,
-        departamento_id,
+        id_rol,
+        municipalidad_id,
         estado
       } = req.body;
       
       // Verificar permisos
-      const esAdmin = req.user.role === 'admin';
+      const esAdmin = ['administrador','superadministrador'].includes(req.user.rol_nombre);
       const esMismoUsuario = req.user.id === parseInt(id);
       
       if (!esAdmin && !esMismoUsuario) {
@@ -327,24 +386,24 @@ const usuariosController = {
         }
       }
       
-      // Verificar que el departamento existe si se proporciona
-      if (departamento_id && departamento_id !== usuario.departamento_id) {
-        const departamento = await Departamento.findByPk(departamento_id);
-        if (!departamento) {
-          throw new ApiError('El departamento seleccionado no existe', 400);
+      // Verificar que la municipalidad existe si se proporciona
+      if (municipalidad_id && municipalidad_id !== usuario.municipalidad_id) {
+        const municipalidad = await Municipalidad.findByPk(municipalidad_id);
+        if (!municipalidad) {
+          throw new ApiError('La municipalidad seleccionada no existe', 400);
         }
       }
       
       // Restricciones para usuarios no administradores
       if (!esAdmin) {
         // No permitir cambiar el rol
-        if (role && role !== usuario.role) {
+        if (id_rol && id_rol !== usuario.id_rol) {
           throw new ApiError('No tienes permiso para cambiar el rol', 403);
         }
         
-        // No permitir cambiar el departamento
-        if (departamento_id && departamento_id !== usuario.departamento_id) {
-          throw new ApiError('No tienes permiso para cambiar el departamento', 403);
+        // No permitir cambiar la municipalidad
+        if (municipalidad_id && municipalidad_id !== usuario.municipalidad_id) {
+          throw new ApiError('No tienes permiso para cambiar la municipalidad', 403);
         }
         
         // No permitir cambiar el estado
@@ -378,16 +437,19 @@ const usuariosController = {
       
       // Campos que solo puede actualizar un administrador
       if (esAdmin) {
-        if (role) usuario.role = role;
-        if (departamento_id) usuario.departamento_id = departamento_id;
+        if (id_rol) usuario.id_rol = id_rol;
+        if (municipalidad_id) usuario.municipalidad_id = municipalidad_id;
         if (estado) usuario.estado = estado;
       }
 
-      // Regla de negocio: si es (o será) funcionario, debe tener departamento
-      const nextRole = role || usuario.role;
-      const nextDepartamentoId = (departamento_id !== undefined) ? departamento_id : usuario.departamento_id;
-      if (nextRole === 'funcionario' && (nextDepartamentoId === null || nextDepartamentoId === undefined)) {
-        throw new ApiError('El departamento es obligatorio para usuarios con rol funcionario', 400);
+      // Regla de negocio: si es (o será) funcionario, debe tener municipalidad
+      const nextRolId = (id_rol !== undefined) ? id_rol : usuario.id_rol;
+      const nextMunicipalidadId = (municipalidad_id !== undefined) ? municipalidad_id : usuario.municipalidad_id;
+      if (nextRolId) {
+        const rolActual = await require('../models').Rol.findByPk(nextRolId);
+        if (rolActual && rolActual.nombre === 'secretaria comunitaria' && (nextMunicipalidadId === null || nextMunicipalidadId === undefined)) {
+          throw new ApiError('La municipalidad es obligatoria para usuarios con rol secretaria comunitaria', 400);
+        }
       }
       
       // Guardar los cambios
@@ -400,7 +462,7 @@ const usuariosController = {
         attributes: { exclude: ['password'] },
         include: [
           { 
-            model: Departamento,
+            model: Municipalidad,
             attributes: ['id', 'nombre'] 
           }
         ]
@@ -424,7 +486,7 @@ const usuariosController = {
   deleteUsuario: async (req, res, next) => {
     try {
       // Solo los administradores pueden eliminar usuarios
-      if (req.user.role !== 'admin') {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para eliminar usuarios', 403);
       }
       
@@ -522,7 +584,7 @@ const usuariosController = {
       const { currentPassword, newPassword } = req.body;
       
       // Verificar permisos
-      const esAdmin = req.user.role === 'admin';
+      const esAdmin = ['administrador','superadministrador'].includes(req.user.rol_nombre);
       const esMismoUsuario = req.user.id === parseInt(id);
       
       if (!esAdmin && !esMismoUsuario) {
@@ -569,7 +631,7 @@ const usuariosController = {
       const { estado } = req.body;
       
       // Solo administradores pueden cambiar el estado
-      if (req.user.role !== 'admin') {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para cambiar el estado de usuarios', 403);
       }
       
@@ -595,7 +657,7 @@ const usuariosController = {
         attributes: { exclude: ['password'] },
         include: [
           { 
-            model: Departamento,
+            model: Municipalidad,
             attributes: ['id', 'nombre'] 
           }
         ]
@@ -619,17 +681,19 @@ const usuariosController = {
   getUsuariosStats: async (req, res, next) => {
     try {
       // Solo administradores pueden ver estadísticas
-      if (req.user.role !== 'admin') {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
       
       // Estadísticas por rol
+      const { Rol } = require('../models');
       const rolStats = await Usuario.findAll({
         attributes: [
-          'role',
-          [sequelize.fn('COUNT', sequelize.col('id')), 'total']
+          'id_rol',
+          [sequelize.fn('COUNT', sequelize.col('Usuario.id')), 'total']
         ],
-        group: ['role']
+        include: [{ model: Rol, attributes: ['nombre'] }],
+        group: ['id_rol', 'Rol.id', 'Rol.nombre']
       });
       
       // Estadísticas por estado
@@ -641,17 +705,17 @@ const usuariosController = {
         group: ['estado']
       });
       
-      // Estadísticas por departamento
-      const departamentoStats = await Usuario.findAll({
+      // Estadísticas por municipalidad
+      const municipalidadStats = await Usuario.findAll({
         attributes: [
-          'departamento_id',
+          'municipalidad_id',
           [sequelize.fn('COUNT', sequelize.col('Usuario.id')), 'total']
         ],
         include: [{
-          model: Departamento,
+          model: Municipalidad,
           attributes: ['nombre']
         }],
-        group: ['departamento_id', 'Departamento.id', 'Departamento.nombre']
+        group: ['municipalidad_id', 'Municipalidad.id', 'Municipalidad.nombre']
       });
       
       // Usuarios más recientes
@@ -664,7 +728,7 @@ const usuariosController = {
       res.json({
         rolPorUsuario: rolStats,
         estadoPorUsuario: estadoStats,
-        departamentoPorUsuario: departamentoStats,
+        municipalidadPorUsuario: municipalidadStats,
         usuariosRecientes
       });
     } catch (error) {

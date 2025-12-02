@@ -103,11 +103,11 @@ const Tramite = sequelize.define('Tramite', {
       key: 'id'
     }
   },
-  departamento_id: {
+  municipalidad_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
     references: {
-      model: 'departamentos',
+      model: 'municipalidades',
       key: 'id'
     }
   }

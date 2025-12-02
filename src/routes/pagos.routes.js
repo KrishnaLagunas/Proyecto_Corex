@@ -88,7 +88,7 @@ router.post('/:id/procesar',
  */
 router.get('/stats/general', 
   isAuthenticated, 
-  hasRole(['admin', 'funcionario']),
+  hasRole(['administrador', 'superadministrador', 'secretaria comunitaria']),
   pagosController.getPagosStats
 );
 

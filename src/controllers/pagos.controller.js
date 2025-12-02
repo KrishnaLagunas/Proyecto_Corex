@@ -73,16 +73,18 @@ const pagosController = {
       }
       
       // Restricción por rol de usuario
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         // Los ciudadanos solo pueden ver sus propios pagos
         where.ciudadano_id = req.user.id;
-      } else if (req.user.role === 'funcionario') {
+      } else if (req.user.rol_nombre === 'secretaria comunitaria') {
         // Los funcionarios pueden ver todos los pagos
         // No aplicar restricción por funcionario_id
       }
+      // Administrador: restringir a su municipalidad (a través del trámite)
+      const adminMuniId = (req.user.rol_nombre === 'administrador') ? req.user.municipalidad_id : null;
       // Filtro opcional por ciudadano cuando lo solicita admin/funcionario
       const ciudadanoIdParam = req.query.ciudadanoId || req.query.ciudadano_id;
-      if (ciudadanoIdParam && req.user.role !== 'ciudadano') {
+      if (ciudadanoIdParam && req.user.rol_nombre !== 'ciudadano') {
         where.ciudadano_id = ciudadanoIdParam;
       }
       // Los administradores pueden ver todos los pagos (no se aplica filtro adicional)
@@ -98,15 +100,23 @@ const pagosController = {
       const sortOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
       
       // Ejecutar consulta de conteo sin includes para evitar problemas de asociaciones múltiples
-      const count = await Pago.count({ where });
+      const countOptions = { where };
+      if (adminMuniId) {
+        if (!adminMuniId) {
+          throw new ApiError('El administrador no tiene municipalidad asignada', 403);
+        }
+        countOptions.include = [{ model: Tramite, required: true, where: { municipalidad_id: adminMuniId } }];
+      }
+      const count = await Pago.count(countOptions);
       
       // Ejecutar consulta de datos con includes
-      const rows = await Pago.findAll({
+      const findOptions = {
         where,
         include: [
           { 
             model: Tramite,
-            attributes: ['id', 'codigo', 'titulo', 'tipo'] 
+            attributes: ['id', 'codigo', 'titulo', 'tipo'],
+            ...(adminMuniId ? { required: true, where: { municipalidad_id: adminMuniId } } : {})
           },
           { 
             model: Usuario, 
@@ -122,7 +132,8 @@ const pagosController = {
         order: [[sortField, sortOrder]],
         limit: parseInt(limit),
         offset: offset
-      });
+      };
+      const rows = await Pago.findAll(findOptions);
       
       // Calcular total de páginas
       const totalPages = Math.ceil(count / limit);
@@ -179,7 +190,7 @@ const pagosController = {
       }
       
       // Verificar permisos de acceso
-      if (req.user.role === 'ciudadano' && pago.ciudadano_id !== req.user.id) {
+      if (req.user.rol_nombre === 'ciudadano' && pago.ciudadano_id !== req.user.id) {
         throw new ApiError('No tienes permiso para ver este pago', 403);
       }
       
@@ -211,6 +222,18 @@ const pagosController = {
       if (!tramite) {
         throw new ApiError('El trámite seleccionado no existe', 400);
       }
+      if (req.user.rol_nombre === 'administrador') {
+        if (!req.user.municipalidad_id || req.user.municipalidad_id !== tramite.municipalidad_id) {
+          throw new ApiError('No tienes permiso para registrar pagos de otra municipalidad', 403);
+        }
+      }
+      if (req.user.rol_nombre === 'secretaria comunitaria') {
+        const funcionario = await Usuario.findByPk(req.user.id, { include: [{ model: require('../models').Municipalidad }], attributes: ['id', 'municipalidad_id'] });
+        const muniIdFunc = funcionario?.municipalidad_id || funcionario?.Municipalidad?.id || null;
+        if (!muniIdFunc || muniIdFunc !== tramite.municipalidad_id) {
+          throw new ApiError('No tienes permiso para registrar pagos de otra municipalidad', 403);
+        }
+      }
       
       if (!tramite.requiere_pago) {
         throw new ApiError('El trámite seleccionado no requiere pago', 400);
@@ -226,15 +249,17 @@ const pagosController = {
       let ciudadanoIdFinal = ciudadano_id;
       
       // Si es ciudadano, asignar automáticamente su ID
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         ciudadanoIdFinal = req.user.id;
       } else if (!ciudadanoIdFinal) {
         // Si no se especificó ciudadano, usar el del trámite
         ciudadanoIdFinal = tramite.ciudadano_id;
       } else {
         // Verificar que el ciudadano existe
+        const { Rol } = require('../models');
         const ciudadano = await Usuario.findOne({
-          where: { id: ciudadanoIdFinal, role: 'ciudadano' }
+          where: { id: ciudadanoIdFinal },
+          include: [{ model: Rol, where: { nombre: 'ciudadano' } }]
         });
         if (!ciudadano) {
           throw new ApiError('El ciudadano seleccionado no existe', 400);
@@ -243,7 +268,7 @@ const pagosController = {
       
       // Asignar funcionario si es funcionario o admin
       let funcionarioId = null;
-      if (req.user.role === 'funcionario' || req.user.role === 'admin') {
+      if (req.user.rol_nombre === 'secretaria comunitaria' || ['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         funcionarioId = req.user.id;
       }
       
@@ -305,9 +330,22 @@ const pagosController = {
       if (!pago) {
         throw new ApiError('Pago no encontrado', 404);
       }
+      const tramitePago = await Tramite.findByPk(pago.tramite_id);
+      if (req.user.rol_nombre === 'administrador') {
+        if (!req.user.municipalidad_id || req.user.municipalidad_id !== tramitePago.municipalidad_id) {
+          throw new ApiError('No tienes permiso para modificar pagos de otra municipalidad', 403);
+        }
+      }
+      if (req.user.rol_nombre === 'secretaria comunitaria') {
+        const funcionario = await Usuario.findByPk(req.user.id, { include: [{ model: require('../models').Municipalidad }], attributes: ['id', 'municipalidad_id'] });
+        const muniIdFunc = funcionario?.municipalidad_id || funcionario?.Municipalidad?.id || null;
+        if (!muniIdFunc || muniIdFunc !== tramitePago.municipalidad_id) {
+          throw new ApiError('No tienes permiso para modificar pagos de otra municipalidad', 403);
+        }
+      }
       
       // Verificar permisos
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         // Los ciudadanos no pueden modificar pagos
         throw new ApiError('No tienes permiso para modificar pagos', 403);
       }
@@ -361,9 +399,22 @@ const pagosController = {
       if (!pago) {
         throw new ApiError('Pago no encontrado', 404);
       }
+      const tramitePago2 = await Tramite.findByPk(pago.tramite_id);
+      if (req.user.rol_nombre === 'administrador') {
+        if (!req.user.municipalidad_id || req.user.municipalidad_id !== tramitePago2.municipalidad_id) {
+          throw new ApiError('No tienes permiso para procesar pagos de otra municipalidad', 403);
+        }
+      }
+      if (req.user.rol_nombre === 'secretaria comunitaria') {
+        const funcionario = await Usuario.findByPk(req.user.id, { include: [{ model: require('../models').Municipalidad }], attributes: ['id', 'municipalidad_id'] });
+        const muniIdFunc = funcionario?.municipalidad_id || funcionario?.Municipalidad?.id || null;
+        if (!muniIdFunc || muniIdFunc !== tramitePago2.municipalidad_id) {
+          throw new ApiError('No tienes permiso para procesar pagos de otra municipalidad', 403);
+        }
+      }
 
       // Permisos: ciudadanos solo pueden procesar sus pagos
-      if (req.user.role === 'ciudadano' && pago.ciudadano_id !== req.user.id) {
+      if (req.user.rol_nombre === 'ciudadano' && pago.ciudadano_id !== req.user.id) {
         throw new ApiError('No tienes permiso para procesar este pago', 403);
       }
 
@@ -389,7 +440,7 @@ const pagosController = {
       pago.fecha_confirmacion = fechaPago ? new Date(fechaPago) : new Date();
 
       // Asignar funcionario si aplica
-      if (req.user.role === 'funcionario' || req.user.role === 'admin') {
+      if (req.user.rol_nombre === 'secretaria comunitaria' || ['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         pago.funcionario_id = req.user.id;
       }
 
@@ -466,7 +517,7 @@ const pagosController = {
       }
       
       // Verificar permisos de acceso
-      if (req.user.role === 'ciudadano' && pago.ciudadano_id !== req.user.id) {
+      if (req.user.rol_nombre === 'ciudadano' && pago.ciudadano_id !== req.user.id) {
         throw new ApiError('No tienes permiso para ver este comprobante', 403);
       }
       
@@ -572,7 +623,7 @@ const pagosController = {
   getPagosStats: async (req, res, next) => {
     try {
       // Solo administradores y funcionarios pueden ver estadísticas
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
       

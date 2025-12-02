@@ -97,11 +97,11 @@ const Proyecto = sequelize.define('Proyecto', {
     type: DataTypes.STRING(100),
     allowNull: true
   },
-  departamento_id: {
+  municipalidad_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
-      model: 'departamentos',
+      model: 'municipalidades',
       key: 'id'
     }
   },

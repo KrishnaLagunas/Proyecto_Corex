@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
 
-const Departamento = sequelize.define('Departamento', {
+const Rol = sequelize.define('Rol', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -9,12 +9,13 @@ const Departamento = sequelize.define('Departamento', {
   },
   nombre: {
     type: DataTypes.STRING(100),
-    allowNull: false
+    allowNull: false,
+    unique: true
   }
 }, {
-  tableName: 'municipalidades',
-  timestamps: true,
+  tableName: 'rol',
+  timestamps: false,
   underscored: true
 });
 
-module.exports = Departamento;
+module.exports = Rol;

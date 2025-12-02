@@ -1,4 +1,4 @@
-const { Proyecto, Departamento, Usuario, Presupuesto } = require('../models');
+const { Proyecto, Municipalidad, Usuario, Presupuesto, Rol } = require('../models');
 const { ApiError } = require('../middlewares/errorHandler');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
@@ -24,7 +24,7 @@ const proyectosController = {
         limit = 10, 
         estado, 
         tipo,
-        departamento_id,
+        municipalidad_id,
         año_fiscal,
         search,
         sort = 'createdAt',
@@ -44,9 +44,9 @@ const proyectosController = {
         where.tipo = tipo;
       }
       
-      // Filtro por departamento
-      if (departamento_id) {
-        where.departamento_id = departamento_id;
+      // Filtro por municipalidad
+      if (municipalidad_id) {
+        where.municipalidad_id = municipalidad_id;
       }
       
       // Filtro por año fiscal
@@ -64,21 +64,21 @@ const proyectosController = {
       }
       
       // Restricción por rol de usuario
-      if (req.user.role === 'funcionario') {
+      if (req.user.rol_nombre === 'secretaria comunitaria') {
         // Los funcionarios solo ven los proyectos de su departamento o donde son responsables
         const funcionario = await Usuario.findByPk(req.user.id, {
-          include: [{ model: Departamento }]
+          include: [{ model: Municipalidad }]
         });
         
-        if (funcionario.Departamento) {
+        if (funcionario.Municipalidad) {
           where[Op.or] = [
             { responsable_id: req.user.id },
-            { departamento_id: funcionario.Departamento.id }
+            { municipalidad_id: funcionario.Municipalidad.id }
           ];
         } else {
           where.responsable_id = req.user.id;
         }
-      } else if (req.user.role === 'ciudadano') {
+      } else if (req.user.rol_nombre === 'ciudadano') {
         // Los ciudadanos solo pueden ver proyectos públicos y en ciertos estados
         where.publico = true;
         where.estado = { [Op.in]: ['en_ejecucion', 'finalizado'] };
@@ -100,7 +100,7 @@ const proyectosController = {
         where,
         include: [
           { 
-            model: Departamento,
+            model: Municipalidad,
             attributes: ['id', 'nombre'] 
           },
           { 
@@ -148,7 +148,7 @@ const proyectosController = {
       const proyecto = await Proyecto.findByPk(id, {
         include: [
           { 
-            model: Departamento,
+            model: Municipalidad,
             attributes: ['id', 'nombre'] 
           },
           { 
@@ -168,18 +168,18 @@ const proyectosController = {
       }
       
       // Verificar permisos de acceso
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         if (!proyecto.publico || !['en_ejecucion', 'finalizado'].includes(proyecto.estado)) {
           throw new ApiError('No tienes permiso para ver este proyecto', 403);
         }
-      } else if (req.user.role === 'funcionario') {
+      } else if (req.user.rol_nombre === 'secretaria comunitaria') {
         // Verificar si pertenece al departamento o es responsable
         const funcionario = await Usuario.findByPk(req.user.id, {
-          include: [{ model: Departamento }]
+          include: [{ model: Municipalidad }]
         });
         
-        const esDepartamento = funcionario.Departamento && 
-                              funcionario.Departamento.id === proyecto.departamento_id;
+        const esDepartamento = funcionario.Municipalidad && 
+                              funcionario.Municipalidad.id === proyecto.municipalidad_id;
         const esResponsable = proyecto.responsable_id === req.user.id;
         
         if (!esDepartamento && !esResponsable) {
@@ -208,7 +208,7 @@ const proyectosController = {
         fecha_inicio,
         fecha_fin,
         presupuesto_asignado,
-        departamento_id,
+        municipalidad_id,
         responsable_id,
         presupuesto_id,
         año_fiscal,
@@ -216,17 +216,15 @@ const proyectosController = {
       } = req.body;
       
       // Verificar que el departamento existe
-      const departamento = await Departamento.findByPk(departamento_id);
-      if (!departamento) {
-        throw new ApiError('El departamento seleccionado no existe', 400);
+      const municipalidad = await Municipalidad.findByPk(municipalidad_id);
+      if (!municipalidad) {
+        throw new ApiError('La municipalidad seleccionada no existe', 400);
       }
       
       // Verificar que el responsable existe y es funcionario o admin
       const responsable = await Usuario.findOne({
-        where: { 
-          id: responsable_id, 
-          role: { [Op.in]: ['funcionario', 'admin'] }
-        }
+        where: { id: responsable_id },
+        include: [{ model: Rol, where: { nombre: { [Op.in]: ['secretaria comunitaria', 'administrador', 'superadministrador'] } } }]
       });
       
       if (!responsable) {
@@ -241,8 +239,8 @@ const proyectosController = {
         }
         
         // Verificar que el presupuesto pertenece al mismo departamento
-        if (presupuesto.departamento_id !== departamento_id) {
-          throw new ApiError('El presupuesto debe pertenecer al mismo departamento del proyecto', 400);
+        if (presupuesto.municipalidad_id !== municipalidad_id) {
+          throw new ApiError('El presupuesto debe pertenecer a la misma municipalidad del proyecto', 400);
         }
         
         // Verificar que hay fondos suficientes
@@ -274,7 +272,7 @@ const proyectosController = {
         presupuesto_asignado,
         presupuesto_ejecutado: 0, // Inicialmente no se ha ejecutado nada
         estado: 'planificacion', // Estado inicial
-        departamento_id,
+        municipalidad_id,
         responsable_id,
         presupuesto_id,
         año_fiscal,
@@ -287,7 +285,7 @@ const proyectosController = {
       // Obtener el proyecto con sus relaciones
       const proyectoCompleto = await Proyecto.findByPk(nuevoProyecto.id, {
         include: [
-          { model: Departamento, attributes: ['id', 'nombre'] },
+          { model: Municipalidad, attributes: ['id', 'nombre'] },
           { model: Usuario, as: 'Responsable', attributes: ['id', 'nombre', 'apellido', 'email'] },
           { model: Presupuesto, attributes: ['id', 'codigo', 'nombre', 'año_fiscal'] }
         ]
@@ -334,11 +332,11 @@ const proyectosController = {
       }
       
       // Verificar permisos
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         throw new ApiError('No tienes permiso para modificar proyectos', 403);
       }
       
-      if (req.user.role === 'funcionario') {
+      if (req.user.rol_nombre === 'secretaria comunitaria') {
         // Verificar si es responsable
         if (proyecto.responsable_id !== req.user.id) {
           throw new ApiError('Solo el responsable puede modificar este proyecto', 403);
@@ -358,7 +356,7 @@ const proyectosController = {
       if (fecha_fin) proyecto.fecha_fin = fecha_fin;
       
       // Solo admin puede modificar presupuesto asignado
-      if (presupuesto_asignado !== undefined && req.user.role === 'admin') {
+      if (presupuesto_asignado !== undefined && ['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         // Verificar que hay fondos suficientes en el presupuesto
         if (proyecto.presupuesto_id) {
           const presupuesto = proyecto.Presupuesto;
@@ -414,12 +412,10 @@ const proyectosController = {
       }
       
       // Actualizar responsable (solo admin)
-      if (responsable_id && req.user.role === 'admin') {
+      if (responsable_id && ['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         const responsable = await Usuario.findOne({
-          where: { 
-            id: responsable_id, 
-            role: { [Op.in]: ['funcionario', 'admin'] }
-          }
+          where: { id: responsable_id },
+          include: [{ model: Rol, where: { nombre: { [Op.in]: ['secretaria comunitaria', 'administrador', 'superadministrador'] } } }]
         });
         
         if (!responsable) {
@@ -442,7 +438,7 @@ const proyectosController = {
       // Obtener el proyecto actualizado con sus relaciones
       const proyectoActualizado = await Proyecto.findByPk(id, {
         include: [
-          { model: Departamento, attributes: ['id', 'nombre'] },
+          { model: Municipalidad, attributes: ['id', 'nombre'] },
           { model: Usuario, as: 'Responsable', attributes: ['id', 'nombre', 'apellido', 'email'] },
           { model: Presupuesto, attributes: ['id', 'codigo', 'nombre', 'año_fiscal'] }
         ]
@@ -468,7 +464,7 @@ const proyectosController = {
       const { id } = req.params;
       
       // Solo los administradores pueden eliminar proyectos
-      if (req.user.role !== 'admin') {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para eliminar proyectos', 403);
       }
       
@@ -511,7 +507,7 @@ const proyectosController = {
       
       const proyecto = await Proyecto.findByPk(id, {
         include: [
-          { model: Departamento },
+          { model: Municipalidad },
           { model: Usuario, as: 'Responsable' },
           { model: Presupuesto }
         ]
@@ -522,21 +518,21 @@ const proyectosController = {
       }
       
       // Verificar permisos de acceso
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         if (!proyecto.publico || !['en_ejecucion', 'finalizado'].includes(proyecto.estado)) {
           throw new ApiError('No tienes permiso para ver este proyecto', 403);
         }
-      } else if (req.user.role === 'funcionario') {
-        // Verificar si pertenece al departamento o es responsable
+      } else if (req.user.rol_nombre === 'secretaria comunitaria') {
+        // Verificar si pertenece a la municipalidad o es responsable
         const funcionario = await Usuario.findByPk(req.user.id, {
-          include: [{ model: Departamento }]
+          include: [{ model: Municipalidad }]
         });
-        
-        const esDepartamento = funcionario.Departamento && 
-                              funcionario.Departamento.id === proyecto.departamento_id;
+
+        const esMunicipalidad = funcionario.Municipalidad && 
+                              funcionario.Municipalidad.id === proyecto.municipalidad_id;
         const esResponsable = proyecto.responsable_id === req.user.id;
-        
-        if (!esDepartamento && !esResponsable) {
+
+        if (!esMunicipalidad && !esResponsable) {
           throw new ApiError('No tienes permiso para ver este proyecto', 403);
         }
       }
@@ -587,12 +583,12 @@ const proyectosController = {
       doc.fontSize(12).text(`Estado: ${proyecto.estado}`);
       doc.moveDown(2);
       
-      // Información del departamento
-      doc.fontSize(14).text('DEPARTAMENTO RESPONSABLE', { underline: true });
+      // Información de la municipalidad
+      doc.fontSize(14).text('MUNICIPALIDAD RESPONSABLE', { underline: true });
       doc.moveDown();
-      doc.fontSize(12).text(`Departamento: ${proyecto.Departamento.nombre}`);
+      doc.fontSize(12).text(`Municipalidad: ${proyecto.Municipalidad.nombre}`);
       doc.moveDown();
-      doc.fontSize(12).text(`Código: ${proyecto.Departamento.codigo}`);
+      doc.fontSize(12).text(`Código: ${proyecto.Municipalidad.codigo || ''}`);
       doc.moveDown(2);
       
       // Información del responsable
@@ -666,7 +662,7 @@ const proyectosController = {
   getProyectosStats: async (req, res, next) => {
     try {
       // Solo administradores y funcionarios pueden ver estadísticas
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
       
@@ -691,19 +687,19 @@ const proyectosController = {
         group: ['tipo']
       });
       
-      // Estadísticas por departamento
+      // Estadísticas por municipalidad
       const departamentoStats = await Proyecto.findAll({
         attributes: [
-          'departamento_id',
+          'municipalidad_id',
           [sequelize.fn('COUNT', sequelize.col('id')), 'total'],
           [sequelize.fn('SUM', sequelize.col('presupuesto_asignado')), 'presupuesto_asignado'],
           [sequelize.fn('SUM', sequelize.col('presupuesto_ejecutado')), 'presupuesto_ejecutado']
         ],
         include: [{
-          model: Departamento,
+          model: Municipalidad,
           attributes: ['nombre']
         }],
-        group: ['departamento_id', 'Departamento.id', 'Departamento.nombre']
+        group: ['municipalidad_id', 'Municipalidad.id', 'Municipalidad.nombre']
       });
       
       // Estadísticas por año fiscal
@@ -732,7 +728,7 @@ const proyectosController = {
       res.json({
         estadoPorProyecto: estadoStats,
         tipoPorProyecto: tipoStats,
-        departamentoPorProyecto: departamentoStats,
+        municipalidadPorProyecto: departamentoStats,
         añoFiscalPorProyecto: añoFiscalStats,
         ejecucionGlobal: {
           presupuesto_asignado: ejecucionGlobal[0].dataValues.presupuesto_asignado,

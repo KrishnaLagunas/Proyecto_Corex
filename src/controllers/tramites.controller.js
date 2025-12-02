@@ -1,4 +1,4 @@
-const { Tramite, Usuario, Departamento, Documento, Pago, ConfiguracionPago } = require('../models');
+const { Tramite, Usuario, Municipalidad, Documento, Pago, ConfiguracionPago, Rol } = require('../models');
 const { ApiError } = require('../middlewares/errorHandler');
 const logger = require('../utils/logger');
 const { Op, QueryTypes } = require('sequelize');
@@ -24,7 +24,7 @@ const tramitesController = {
         limit = 10, 
         estado, 
         tipo, 
-        departamento_id,
+        municipalidad_id,
         search,
         desde,
         hasta,
@@ -46,8 +46,8 @@ const tramitesController = {
       }
       
       // Filtro por departamento
-      if (departamento_id) {
-        where.departamento_id = departamento_id;
+      if (municipalidad_id) {
+        where.municipalidad_id = municipalidad_id;
       }
       
       // Filtro por rango de fechas
@@ -71,35 +71,43 @@ const tramitesController = {
       }
       
       // Restricción por rol de usuario
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         // Los ciudadanos solo pueden ver sus propios trámites
         where.ciudadano_id = req.user.id;
-      } else if (req.user.role === 'funcionario') {
+      } else if (req.user.rol_nombre === 'secretaria comunitaria') {
         // Los funcionarios ven los trámites asignados a ellos, de su departamento (si tiene) y sin asignar
         const funcionario = await Usuario.findByPk(req.user.id, {
-          include: [{ model: Departamento }],
-          attributes: ['id', 'departamento_id']
+          include: [{ model: Municipalidad }],
+          attributes: ['id', 'municipalidad_id']
         });
 
-        const deptId = funcionario?.departamento_id || funcionario?.Departamento?.id || null;
+        const muniId = funcionario?.municipalidad_id || funcionario?.Municipalidad?.id || null;
 
-        if (deptId) {
+        if (muniId) {
           where[Op.or] = [
             { funcionario_id: req.user.id },
-            { departamento_id: deptId },
+            { municipalidad_id: muniId },
             { funcionario_id: null }
           ];
         } else {
-          // Si el funcionario no está asociado a un departamento, incluir también los no asignados
+          // Si el funcionario no está asociado a una municipalidad, incluir también los no asignados
           where[Op.or] = [
             { funcionario_id: req.user.id },
             { funcionario_id: null }
           ];
         }
       }
+      // Administrador: restringir a su municipalidad asignada
+      if (req.user.rol_nombre === 'administrador') {
+        if (req.user.municipalidad_id) {
+          where.municipalidad_id = req.user.municipalidad_id;
+        } else {
+          throw new ApiError('El administrador no tiene municipalidad asignada', 403);
+        }
+      }
       // Filtro opcional por ciudadano cuando lo solicita admin/funcionario
       const ciudadanoIdParam = req.query.ciudadanoId || req.query.ciudadano_id;
-      if (ciudadanoIdParam && req.user.role !== 'ciudadano') {
+      if (ciudadanoIdParam && req.user.rol_nombre !== 'ciudadano') {
         where.ciudadano_id = ciudadanoIdParam;
       }
       // Los administradores pueden ver todos los trámites (no se aplica filtro adicional)
@@ -132,7 +140,7 @@ const tramitesController = {
             attributes: ['id', 'nombre', 'apellido', 'email'] 
           },
           { 
-            model: Departamento,
+            model: Municipalidad,
             attributes: ['id', 'nombre'] 
           }
         ],
@@ -181,7 +189,7 @@ const tramitesController = {
             attributes: ['id', 'nombre', 'apellido', 'email'] 
           },
           { 
-            model: Departamento,
+            model: Municipalidad,
             attributes: ['id', 'nombre'] 
           },
           {
@@ -196,7 +204,7 @@ const tramitesController = {
       }
       
       // Verificar permisos de acceso
-      if (req.user.role === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
+      if (req.user.rol_nombre === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
         throw new ApiError('No tienes permiso para ver este trámite', 403);
       }
       
@@ -221,23 +229,36 @@ const tramitesController = {
         prioridad = 'media',
         requiere_pago = false,
         monto = 0,
-        departamento_id 
+        municipalidad_id 
       } = req.body;
       
       // Verificar que el departamento existe
-      const departamento = await Departamento.findByPk(departamento_id);
-      if (!departamento) {
-        throw new ApiError('El departamento seleccionado no existe', 400);
+      const municipalidad = await Municipalidad.findByPk(municipalidad_id);
+      if (!municipalidad) {
+        throw new ApiError('La municipalidad seleccionada no existe', 400);
+      }
+      if (req.user.rol_nombre === 'administrador') {
+        if (!req.user.municipalidad_id || req.user.municipalidad_id !== municipalidad_id) {
+          throw new ApiError('No tienes permiso para crear trámites fuera de tu municipalidad', 403);
+        }
+      }
+      if (req.user.rol_nombre === 'secretaria comunitaria') {
+        const funcionario = await Usuario.findByPk(req.user.id, { include: [{ model: Municipalidad }], attributes: ['id', 'municipalidad_id'] });
+        const muniIdFunc = funcionario?.municipalidad_id || funcionario?.Municipalidad?.id || null;
+        if (!muniIdFunc || muniIdFunc !== municipalidad_id) {
+          throw new ApiError('No tienes permiso para crear trámites fuera de tu municipalidad', 403);
+        }
       }
       
       // Si es ciudadano, asignar automáticamente su ID
       let ciudadano_id = null;
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         ciudadano_id = req.user.id;
       } else if (req.body.ciudadano_id) {
         // Si es funcionario o admin, puede especificar el ciudadano
         const ciudadano = await Usuario.findOne({
-          where: { id: req.body.ciudadano_id, role: 'ciudadano' }
+          where: { id: req.body.ciudadano_id },
+          include: [{ model: Rol, where: { nombre: 'ciudadano' } }]
         });
         if (!ciudadano) {
           throw new ApiError('El ciudadano seleccionado no existe', 400);
@@ -271,7 +292,7 @@ const tramitesController = {
         requiere_pago,
         monto,
         ciudadano_id,
-        departamento_id
+        municipalidad_id
       });
       
       logger.info(`Nuevo trámite creado: ${nuevoTramite.codigo} - ${titulo}`);
@@ -291,7 +312,7 @@ const tramitesController = {
           monto: nuevoTramite.monto,
           fecha_solicitud: nuevoTramite.fecha_solicitud,
           ciudadano_id: nuevoTramite.ciudadano_id,
-          departamento_id: nuevoTramite.departamento_id
+          municipalidad_id: nuevoTramite.municipalidad_id
         }
       });
     } catch (error) {
@@ -314,7 +335,7 @@ const tramitesController = {
         estado, 
         prioridad,
         funcionario_id,
-        departamento_id,
+        municipalidad_id,
         requiere_pago,
         monto,
         observaciones
@@ -325,9 +346,21 @@ const tramitesController = {
       if (!tramite) {
         throw new ApiError('Trámite no encontrado', 404);
       }
+      if (req.user.rol_nombre === 'administrador') {
+        if (!req.user.municipalidad_id || req.user.municipalidad_id !== tramite.municipalidad_id) {
+          throw new ApiError('No tienes permiso para modificar trámites de otra municipalidad', 403);
+        }
+      }
+      if (req.user.rol_nombre === 'secretaria comunitaria') {
+        const funcionario = await Usuario.findByPk(req.user.id, { include: [{ model: Municipalidad }], attributes: ['id', 'municipalidad_id'] });
+        const muniIdFunc = funcionario?.municipalidad_id || funcionario?.Municipalidad?.id || null;
+        if (!muniIdFunc || muniIdFunc !== tramite.municipalidad_id) {
+          throw new ApiError('No tienes permiso para modificar trámites de otra municipalidad', 403);
+        }
+      }
       
       // Verificar permisos
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         // Los ciudadanos solo pueden modificar sus propios trámites y solo ciertos campos
         if (tramite.ciudadano_id !== req.user.id) {
           throw new ApiError('No tienes permiso para modificar este trámite', 403);
@@ -354,21 +387,33 @@ const tramitesController = {
         // Actualizar funcionario asignado
         if (funcionario_id) {
           const funcionario = await Usuario.findOne({
-            where: { id: funcionario_id, role: 'funcionario' }
+            where: { id: funcionario_id },
+            include: [{ model: Rol, where: { nombre: 'secretaria comunitaria' } }]
           });
           if (!funcionario) {
             throw new ApiError('El funcionario seleccionado no existe', 400);
           }
+          const muniFunc = await Usuario.findByPk(funcionario_id, { include: [{ model: Municipalidad }], attributes: ['id', 'municipalidad_id'] });
+          const muniIdAsignado = muniFunc?.municipalidad_id || muniFunc?.Municipalidad?.id || null;
+          if (!muniIdAsignado || muniIdAsignado !== tramite.municipalidad_id) {
+            throw new ApiError('El funcionario pertenece a otra municipalidad', 400);
+          }
           tramite.funcionario_id = funcionario_id;
         }
         
-        // Actualizar departamento
-        if (departamento_id) {
-          const departamento = await Departamento.findByPk(departamento_id);
-          if (!departamento) {
-            throw new ApiError('El departamento seleccionado no existe', 400);
+        // Actualizar municipalidad
+        if (municipalidad_id) {
+          const municipalidad = await Municipalidad.findByPk(municipalidad_id);
+          if (!municipalidad) {
+            throw new ApiError('La municipalidad seleccionada no existe', 400);
           }
-          tramite.departamento_id = departamento_id;
+          if (req.user.rol_nombre === 'administrador' && municipalidad_id !== req.user.municipalidad_id) {
+            throw new ApiError('No puedes cambiar el trámite a otra municipalidad', 403);
+          }
+          if (req.user.rol_nombre === 'secretaria comunitaria') {
+            throw new ApiError('No tienes permiso para cambiar la municipalidad del trámite', 403);
+          }
+          tramite.municipalidad_id = municipalidad_id;
         }
         
         // Si se cambia el estado a 'finalizado', registrar la fecha
@@ -387,7 +432,7 @@ const tramitesController = {
         include: [
           { model: Usuario, as: 'ciudadano', attributes: ['id', 'nombre', 'apellido', 'email'] },
           { model: Usuario, as: 'funcionario', attributes: ['id', 'nombre', 'apellido', 'email'] },
-          { model: Departamento, attributes: ['id', 'nombre', 'codigo'] }
+          { model: Municipalidad, attributes: ['id', 'nombre'] }
         ]
       });
       
@@ -411,13 +456,18 @@ const tramitesController = {
       const { id } = req.params;
       
       // Solo los administradores pueden eliminar trámites
-      if (req.user.role !== 'admin') {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para eliminar trámites', 403);
       }
       
       const tramite = await Tramite.findByPk(id);
       if (!tramite) {
         throw new ApiError('Trámite no encontrado', 404);
+      }
+      if (req.user.rol_nombre === 'administrador') {
+        if (!req.user.municipalidad_id || req.user.municipalidad_id !== tramite.municipalidad_id) {
+          throw new ApiError('No tienes permiso para eliminar trámites de otra municipalidad', 403);
+        }
       }
       
       // Guardar información para el log
@@ -445,7 +495,7 @@ const tramitesController = {
   getTramitesStats: async (req, res, next) => {
     try {
       // Solo administradores y funcionarios pueden ver estadísticas
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
       
@@ -467,17 +517,17 @@ const tramitesController = {
         group: ['tipo']
       });
       
-      // Estadísticas por departamento
-      const departamentoStats = await Tramite.findAll({
+      // Estadísticas por municipalidad
+      const municipalidadStats = await Tramite.findAll({
         attributes: [
-          'departamento_id',
+          'municipalidad_id',
           [sequelize.fn('COUNT', sequelize.col('id')), 'total']
         ],
         include: [{
-          model: Departamento,
+          model: Municipalidad,
           attributes: ['nombre']
         }],
-        group: ['departamento_id', 'Departamento.id', 'Departamento.nombre']
+        group: ['municipalidad_id', 'Municipalidad.id', 'Municipalidad.nombre']
       });
       
       // Trámites creados por mes (últimos 12 meses)
@@ -498,7 +548,7 @@ const tramitesController = {
       res.json({
         estadoPorTramite: estadoStats,
         tipoPorTramite: tipoStats,
-        departamentoPorTramite: departamentoStats,
+        municipalidadPorTramite: municipalidadStats,
         tramitesPorMes
       });
     } catch (error) {
@@ -560,7 +610,7 @@ tramitesController.getDocumentosByTramiteId = async (req, res, next) => {
     const { id } = req.params;
     const tramite = await Tramite.findByPk(id, { attributes: ['id', 'ciudadano_id'] });
     if (!tramite) throw new ApiError('Trámite no encontrado', 404);
-    if (req.user.role === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
+    if (req.user.rol_nombre === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
       throw new ApiError('No tienes permiso para ver documentos de este trámite', 403);
     }
     const documentos = await Documento.findAll({
@@ -583,7 +633,7 @@ tramitesController.subirDocumentoTramite = async (req, res, next) => {
     const tramite = await Tramite.findByPk(id, { attributes: ['id', 'ciudadano_id'] });
     if (!tramite) throw new ApiError('Trámite no encontrado', 404);
     // Solo el propio ciudadano, funcionario o admin pueden subir
-    if (req.user.role === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
+    if (req.user.rol_nombre === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
       throw new ApiError('No tienes permiso para subir documentos a este trámite', 403);
     }
 
@@ -625,7 +675,7 @@ tramitesController.getPagosByTramiteId = async (req, res, next) => {
     const { id } = req.params;
     const tramite = await Tramite.findByPk(id, { attributes: ['id', 'ciudadano_id'] });
     if (!tramite) throw new ApiError('Trámite no encontrado', 404);
-    if (req.user.role === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
+    if (req.user.rol_nombre === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
       throw new ApiError('No tienes permiso para ver pagos de este trámite', 403);
     }
 
@@ -654,7 +704,7 @@ tramitesController.getHistorialByTramiteId = async (req, res, next) => {
       ]
     });
     if (!tramite) throw new ApiError('Trámite no encontrado', 404);
-    if (req.user.role === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
+    if (req.user.rol_nombre === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
       throw new ApiError('No tienes permiso para ver el historial de este trámite', 403);
     }
 
@@ -706,7 +756,7 @@ tramitesController.updateTramiteEstado = async (req, res, next) => {
     const { estado, observaciones } = req.body || {};
 
     // Solo funcionarios y administradores pueden cambiar estado
-    if (!['funcionario', 'admin'].includes(req.user.role)) {
+    if (!['secretaria comunitaria', 'administrador', 'superadministrador'].includes(req.user.rol_nombre)) {
       throw new ApiError('No tienes permiso para actualizar el estado del trámite', 403);
     }
 
@@ -778,8 +828,8 @@ tramitesController.generateConstancia = async (req, res, next) => {
     const tramite = await Tramite.findByPk(id, {
       include: [
         { model: Usuario, as: 'ciudadano', attributes: ['id','nombre','apellido','rut','direccion','email'] },
-        // Incluir dirección del departamento para imprimir en la constancia
-        { model: Departamento, attributes: ['id','nombre','rut','email','telefono','direccion','region','comuna'] }
+        // Incluir dirección de la municipalidad para imprimir en la constancia
+        { model: Municipalidad, attributes: ['id','nombre','rut','email','telefono','direccion','region','comuna'] }
       ]
     });
 
@@ -788,7 +838,7 @@ tramitesController.generateConstancia = async (req, res, next) => {
     }
 
     // Permisos: el ciudadano sólo su propio trámite; funcionarios y admin permitidos
-    if (req.user.role === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
+    if (req.user.rol_nombre === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
       throw new ApiError('No tienes permiso para descargar la constancia de este trámite', 403);
     }
 
@@ -831,9 +881,9 @@ tramitesController.generateConstancia = async (req, res, next) => {
     doc.moveDown();
     doc.fontSize(12).text(`Título: ${tramite.titulo}`);
     doc.text(`Tipo: ${tramite.tipo}`);
-    doc.text(`Departamento: ${tramite.Departamento ? tramite.Departamento.nombre : 'N/A'}`);
-    const deptRegion = (tramite.Departamento && tramite.Departamento.region) ? tramite.Departamento.region : null;
-    const deptComuna = (tramite.Departamento && tramite.Departamento.comuna) ? tramite.Departamento.comuna : null;
+    doc.text(`Municipalidad: ${tramite.Municipalidad ? tramite.Municipalidad.nombre : 'N/A'}`);
+    const deptRegion = (tramite.Municipalidad && tramite.Municipalidad.region) ? tramite.Municipalidad.region : null;
+    const deptComuna = (tramite.Municipalidad && tramite.Municipalidad.comuna) ? tramite.Municipalidad.comuna : null;
     // Formateadores cortos para mostrar de forma formal (ej.: "Región de Coquimbo - Ovalle")
     const formatRegion = (r) => {
       if (!r) return null;
@@ -842,8 +892,8 @@ tramitesController.generateConstancia = async (req, res, next) => {
     const capitalize = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 
     let deptAddress = null;
-    if (tramite.Departamento && tramite.Departamento.direccion) {
-      deptAddress = tramite.Departamento.direccion;
+    if (tramite.Municipalidad && tramite.Municipalidad.direccion) {
+      deptAddress = tramite.Municipalidad.direccion;
     } else if (deptRegion && deptComuna) {
       deptAddress = `${formatRegion(deptRegion)} - ${capitalize(deptComuna)}`;
     } else if (deptRegion) {
@@ -853,7 +903,7 @@ tramitesController.generateConstancia = async (req, res, next) => {
     } else {
       deptAddress = 'N/A';
     }
-    doc.text(`Dirección departamento: ${deptAddress}`);
+    doc.text(`Dirección municipalidad: ${deptAddress}`);
     doc.moveDown();
 
     // Datos del ciudadano
@@ -914,7 +964,7 @@ tramitesController.generateConstancia = async (req, res, next) => {
     doc.moveDown();
 
     // Autorización
-    doc.fontSize(12).text(`Emitido y autorizado por: Municipalidad - Departamento ${tramite.Departamento ? tramite.Departamento.nombre : ''}`);
+    doc.fontSize(12).text(`Emitido y autorizado por: Municipalidad ${tramite.Municipalidad ? tramite.Municipalidad.nombre : ''}`);
     doc.moveDown(2);
     doc.fontSize(10).text('Este documento es una constancia oficial del trámite realizado por el ciudadano.', { align: 'left' });
 

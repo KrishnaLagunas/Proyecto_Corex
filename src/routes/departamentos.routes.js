@@ -43,7 +43,7 @@ router.get(
 router.post(
   '/',
   isAuthenticated,
-  hasRole(['admin']),
+  hasRole(['administrador', 'superadministrador']),
   validateSchema(createDepartamentoSchema),
   departamentosController.createDepartamento
 );
@@ -56,7 +56,7 @@ router.post(
 router.put(
   '/:id',
   isAuthenticated,
-  hasRole(['admin']),
+  hasRole(['administrador', 'superadministrador']),
   validateParams(idSchema),
   validateSchema(updateDepartamentoSchema),
   departamentosController.updateDepartamento
@@ -70,7 +70,7 @@ router.put(
 router.delete(
   '/:id',
   isAuthenticated,
-  hasRole(['admin']),
+  hasRole(['administrador', 'superadministrador']),
   validateParams(idSchema),
   departamentosController.deleteDepartamento
 );
@@ -83,7 +83,7 @@ router.delete(
 router.post(
   '/:id/funcionarios',
   isAuthenticated,
-  hasRole(['admin']),
+  hasRole(['administrador', 'superadministrador']),
   validateParams(idSchema),
   validateSchema(asignarFuncionariosSchema),
   departamentosController.asignarFuncionarios
@@ -97,7 +97,7 @@ router.post(
 router.get(
   '/stats/general',
   isAuthenticated,
-  hasRole(['admin']),
+  hasRole(['administrador', 'superadministrador']),
   departamentosController.getDepartamentosStats
 );
 

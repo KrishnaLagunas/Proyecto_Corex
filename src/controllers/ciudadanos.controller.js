@@ -1,4 +1,4 @@
-const { Ciudadano, Usuario } = require('../models');
+const { Ciudadano, Usuario, Rol } = require('../models');
 const { generateToken } = require('../config/jwt');
 const logger = require('../utils/logger');
 const { ApiError } = require('../middlewares/errorHandler');
@@ -61,7 +61,7 @@ const ciudadanosController = {
       newCiudadano.generateVerificationToken();
       await newCiudadano.save();
 
-      // Asegurar sincronización con la tabla usuarios (role: ciudadano)
+      // Asegurar sincronización con la tabla usuarios (rol: ciudadano)
       const nombre = [primer_nombre, segundo_nombre].filter(Boolean).join(' ').trim();
       const apellido = [apellido_paterno, apellido_materno].filter(Boolean).join(' ').trim();
 
@@ -69,6 +69,7 @@ const ciudadanosController = {
       const existingUsuarioByRut = await Usuario.findOne({ where: { rut } });
 
       if (!existingUsuarioByEmail && !existingUsuarioByRut) {
+        const rolCiudadano = await Rol.findOne({ where: { nombre: 'ciudadano' } });
         await Usuario.create(
           {
             nombre,
@@ -78,10 +79,10 @@ const ciudadanosController = {
             telefono,
             direccion,
             password, // Se hashea por hook en Usuario
-            role: 'ciudadano',
+            id_rol: rolCiudadano ? rolCiudadano.id : null,
             estado: 'activo'
           },
-          { fields: ['nombre','apellido','email','rut','telefono','direccion','password','role','estado'] }
+          { fields: ['nombre','apellido','email','rut','telefono','direccion','password','id_rol','estado'] }
         );
       }
 
@@ -126,7 +127,8 @@ const ciudadanosController = {
       // Intentar autenticar contra Usuarios por email (independiente del rol)
       let usuario = await Usuario.findOne({ 
         where: { email },
-        attributes: ['id','email','password','role','estado','nombre','apellido','rut','telefono']
+        attributes: ['id','email','password','id_rol','estado','nombre','apellido','rut','telefono'],
+        include: [{ model: Rol }]
       });
 
       if (!usuario) {
@@ -149,6 +151,7 @@ const ciudadanosController = {
         const nombreSync = [ciudadano.primer_nombre, ciudadano.segundo_nombre].filter(Boolean).join(' ').trim();
         const apellidoSync = [ciudadano.apellido_paterno, ciudadano.apellido_materno].filter(Boolean).join(' ').trim();
 
+        const rolCiudadanoLogin = await Rol.findOne({ where: { nombre: 'ciudadano' } });
         usuario = await Usuario.create(
           {
             nombre: nombreSync,
@@ -158,10 +161,10 @@ const ciudadanosController = {
             telefono: ciudadano.telefono,
             direccion: ciudadano.direccion,
             password, // se hashea por hook
-            role: 'ciudadano',
+            id_rol: rolCiudadanoLogin ? rolCiudadanoLogin.id : null,
             estado: 'activo'
           },
-          { fields: ['nombre','apellido','email','rut','telefono','direccion','password','role','estado'] }
+          { fields: ['nombre','apellido','email','rut','telefono','direccion','password','id_rol','estado'] }
         );
       } else {
         // Validar contraseña desde Usuario
@@ -175,13 +178,14 @@ const ciudadanosController = {
         }
 
         // Si el usuario existe sin rol establecido, fijarlo como ciudadano tras login
-        if (!usuario.role) {
-          usuario.role = 'ciudadano';
+        if (!usuario.id_rol) {
+          const rolCiudadanoFix = await Rol.findOne({ where: { nombre: 'ciudadano' } });
+          usuario.id_rol = rolCiudadanoFix ? rolCiudadanoFix.id : null;
           await usuario.save();
         }
 
         // Evitar que funcionarios/admin inicien por este endpoint
-        if (usuario.role !== 'ciudadano') {
+        if ((usuario.Rol && usuario.Rol.nombre !== 'ciudadano') || (!usuario.Rol && usuario.id_rol === null)) {
           throw new ApiError('Este endpoint es solo para ciudadanos', 403);
         }
       }
@@ -190,8 +194,8 @@ const ciudadanosController = {
       const token = generateToken({
         id: usuario.id,
         email: usuario.email,
-        role: 'ciudadano',
-        tipo: 'ciudadano'
+        id_rol: usuario.id_rol,
+        rol_nombre: 'ciudadano'
       });
 
       logger.info(`Ciudadano autenticado: ${email} (usuario_id=${usuario.id})`);
@@ -208,7 +212,8 @@ const ciudadanosController = {
           email: usuario.email,
           rut: usuario.rut,
           telefono: usuario.telefono,
-          role: 'ciudadano',
+          id_rol: usuario.id_rol,
+          rol_nombre: 'ciudadano',
           estado: usuario.estado,
           nombre_completo: [usuario.nombre, usuario.apellido].filter(Boolean).join(' ').trim()
         }

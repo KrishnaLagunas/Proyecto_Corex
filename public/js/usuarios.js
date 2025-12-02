@@ -655,12 +655,21 @@ async function mostrarFormularioUsuario(usuarioId = null) {
             accion = 'actualizar';
         }
 
+        const currentUser = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+        const esSuperadmin = currentUser?.rol_nombre === 'superadministrador';
         // Cargar departamentos para el select
         let departamentos = [];
+        let municipalidades = [];
         try {
             const respDept = await fetchAPI('/departamentos');
             departamentos = respDept.departamentos || [];
         } catch (_) { /* opcional */ }
+        if (esSuperadmin) {
+            try {
+                const respMuni = await fetchAPI('/municipalidades');
+                municipalidades = respMuni.departamentos || [];
+            } catch (_) { /* opcional */ }
+        }
 
         const mainContent = document.getElementById('main-content');
         if (!mainContent) return;
@@ -762,20 +771,32 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                         <div class="mb-3">
                                             <label for="role" class="form-label">Rol</label>
                                             <select class="form-select" id="role" required>
-                                                <option value="">Selecciona rol</option>
-                                                <option value="admin" ${usuario?.role === 'admin' ? 'selected' : ''}>Admin</option>
-                                                <option value="funcionario" ${usuario?.role === 'funcionario' ? 'selected' : ''}>Funcionario</option>
-                                                <option value="ciudadano" ${usuario?.role === 'ciudadano' ? 'selected' : ''}>Ciudadano</option>
+                                                ${esSuperadmin ? `
+                                                    <option value="admin" selected>Administrador</option>
+                                                ` : `
+                                                    <option value="">Selecciona rol</option>
+                                                    <option value="admin" ${usuario?.role === 'admin' ? 'selected' : ''}>Admin</option>
+                                                    <option value="funcionario" ${usuario?.role === 'funcionario' ? 'selected' : ''}>Funcionario</option>
+                                                    <option value="ciudadano" ${usuario?.role === 'ciudadano' ? 'selected' : ''}>Ciudadano</option>
+                                                `}
                                             </select>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
-                                            <label for="departamento_id" class="form-label">Departamento (solo funcionario)</label>
-                                            <select class="form-select" id="departamento_id">
-                                                <option value="">Ninguno</option>
-                                                ${departamentos.map(d => `<option value="${d.id}" ${usuario?.departamento_id === d.id || usuario?.Departamento?.id === d.id ? 'selected' : ''}>${d.nombre}</option>`).join('')}
-                                            </select>
+                                            ${esSuperadmin ? `
+                                                <label for="municipalidad_id" class="form-label">Municipalidad</label>
+                                                <select class="form-select" id="municipalidad_id" required>
+                                                    <option value="">Selecciona municipalidad</option>
+                                                    ${municipalidades.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('')}
+                                                </select>
+                                            ` : `
+                                                <label for="departamento_id" class="form-label">Departamento (solo funcionario)</label>
+                                                <select class="form-select" id="departamento_id">
+                                                    <option value="">Ninguno</option>
+                                                    ${departamentos.map(d => `<option value="${d.id}" ${usuario?.departamento_id === d.id || usuario?.Departamento?.id === d.id ? 'selected' : ''}>${d.nombre}</option>`).join('')}
+                                                </select>
+                                            `}
                                         </div>
                                     </div>
                                 </div>
@@ -871,6 +892,8 @@ async function guardarUsuario(e) {
     const role = form?.querySelector('#role')?.value;
     const departamento_id_raw = form?.querySelector('#departamento_id')?.value;
     const departamento_id = departamento_id_raw ? parseInt(departamento_id_raw) : null;
+    const municipalidad_id_raw = form?.querySelector('#municipalidad_id')?.value;
+    const municipalidad_id = municipalidad_id_raw ? parseInt(municipalidad_id_raw) : null;
     const password = form?.querySelector('#password')?.value;
 
     // Normalizar antes de validar/enviar (con valores por defecto seguros)
@@ -915,8 +938,16 @@ async function guardarUsuario(e) {
         return;
     }
 
+    const currentUser = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+    const esSuperadmin = currentUser?.rol_nombre === 'superadministrador';
     if (role === 'funcionario' && !departamento_id) {
         mostrarNotificacion('El departamento es obligatorio para funcionarios', 'warning');
+        return;
+    }
+    if (esSuperadmin && role === 'admin' && !municipalidad_id) {
+        mostrarNotificacion('La municipalidad es obligatoria para administradores', 'warning');
+        const el = form?.querySelector('#municipalidad_id');
+        if (el) marcarCampoInvalidoUsuarios(el, 'Seleccione una municipalidad');
         return;
     }
 
@@ -935,6 +966,7 @@ async function guardarUsuario(e) {
         primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
         email, rut, telefono, direccion: direccionCompuesta, role, departamento_id 
     };
+    if (esSuperadmin && role === 'admin') payload.municipalidad_id = municipalidad_id;
     if (!usuarioId) payload.password = password;
 
     try {
@@ -943,7 +975,11 @@ async function guardarUsuario(e) {
             await fetchAPI(`/usuarios/${usuarioId}`, { method: 'PUT', body: payload });
             mostrarNotificacion('Usuario actualizado correctamente', 'success');
         } else {
-            await fetchAPI('/usuarios', { method: 'POST', body: payload });
+            if (esSuperadmin && role === 'admin') {
+                await fetchAPI('/superadmin/usuarios/administradores', { method: 'POST', body: payload });
+            } else {
+                await fetchAPI('/usuarios', { method: 'POST', body: payload });
+            }
             mostrarNotificacion('Usuario creado correctamente', 'success');
         }
         cargarUsuarios();
@@ -956,6 +992,249 @@ async function guardarUsuario(e) {
             mostrarNotificacion('No tienes permisos para gestionar usuarios.', 'warning');
         } else {
             mostrarNotificacion('Error al guardar usuario: ' + (error.message || ''), 'danger');
+        }
+    } finally {
+        mostrarCargando(false);
+    }
+}
+
+// Formulario específico para crear administradores (SUPERADMINISTRADOR)
+async function mostrarFormularioCrearAdministrador() {
+    try {
+        mostrarCargando(true);
+
+        // Cargar municipalidades para el select
+        let municipalidades = [];
+        try {
+            const respDept = await fetchAPI('/departamentos');
+            municipalidades = respDept.departamentos || [];
+        } catch (_) { /* opcional */ }
+
+        const mainContent = document.getElementById('main-content');
+        if (!mainContent) return;
+        mainContent.classList.remove('d-none');
+        mainContent.innerHTML = `
+            <div class="row mb-3 align-items-center">
+                <div class="col-4">
+                    <button class="btn btn-outline-secondary" onclick="cargarInterfazSuperadmin({ nombre: '', apellido: '' })">
+                        <i class="bi bi-arrow-left"></i> Volver
+                    </button>
+                </div>
+                <div class="col-4 text-center">
+                    <h2 class="section-title">Crear Administrador</h2>
+                </div>
+                <div class="col-4"></div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-8 offset-md-2">
+                    <div class="card no-hover">
+                        <div class="card-body">
+                            <form id="form-admin-super" data-accion="crear">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="primer_nombre" class="form-label">Primer nombre</label>
+                                            <input type="text" class="form-control" id="primer_nombre" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="segundo_nombre" class="form-label">Segundo nombre</label>
+                                            <input type="text" class="form-control" id="segundo_nombre" placeholder="Opcional">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="primer_apellido" class="form-label">Primer apellido</label>
+                                            <input type="text" class="form-control" id="primer_apellido" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="segundo_apellido" class="form-label">Segundo apellido</label>
+                                            <input type="text" class="form-control" id="segundo_apellido" placeholder="Opcional">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="email" class="form-label">Email</label>
+                                            <input type="email" class="form-control" id="email" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="rut" class="form-label">RUT</label>
+                                            <input type="text" class="form-control" id="rut" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="telefono" class="form-label">Teléfono</label>
+                                            <input type="text" class="form-control" id="telefono" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="direccion" class="form-label">Dirección</label>
+                                            <input type="text" class="form-control" id="direccion" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="municipalidad_id" class="form-label">Municipalidad</label>
+                                            <select class="form-select" id="municipalidad_id" required>
+                                                <option value="">Selecciona municipalidad</option>
+                                                ${municipalidades.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('')}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="password" class="form-label">Contraseña</label>
+                                            <input type="password" class="form-control" id="password" required>
+                                            <div id="password_hint" class="form-text">Debe tener 8+, mayúscula, minúscula, número y símbolo (@$!%*?&#.).</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-center gap-2">
+                                    <button type="submit" class="btn btn-success">
+                                        <i class="bi bi-person-plus"></i> Crear Administrador
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="cargarInterfazSuperadmin({ nombre: '', apellido: '' })">Cancelar</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const formEl = document.getElementById('form-admin-super');
+        const rutInput = formEl?.querySelector('#rut');
+        if (rutInput) {
+            rutInput.addEventListener('input', validarRutEnTiempoReal);
+            rutInput.addEventListener('blur', validarRutCompleto);
+        }
+        const telInput = formEl?.querySelector('#telefono');
+        if (telInput) {
+            telInput.addEventListener('input', (e) => {
+                const v = normalizarTelefono(e.target.value, true);
+                e.target.value = v;
+            });
+            telInput.addEventListener('blur', (e) => {
+                e.target.value = normalizarTelefono(e.target.value);
+            });
+        }
+        const passInput = formEl?.querySelector('#password');
+        if (passInput) {
+            passInput.addEventListener('input', (e) => {
+                const hintEl = formEl?.querySelector('#password_hint');
+                if (!hintEl) return;
+                const issues = obtenerFaltasPassword(e.target.value);
+                hintEl.textContent = issues.length === 0
+                    ? 'Contraseña fuerte'
+                    : 'Falta: ' + issues.join(', ');
+            });
+        }
+
+        formEl?.addEventListener('submit', guardarAdministradorSuperadmin);
+    } catch (error) {
+        console.error('Error al mostrar formulario de admin:', error);
+        mostrarNotificacion('Error al cargar formulario: ' + (error.message || ''), 'danger');
+    } finally {
+        mostrarCargando(false);
+    }
+}
+
+async function guardarAdministradorSuperadmin(e) {
+    e.preventDefault();
+    const form = document.getElementById('form-admin-super');
+
+    const primer_nombre = form?.querySelector('#primer_nombre')?.value.trim();
+    const segundo_nombre = form?.querySelector('#segundo_nombre')?.value.trim();
+    const primer_apellido = form?.querySelector('#primer_apellido')?.value.trim();
+    const segundo_apellido = form?.querySelector('#segundo_apellido')?.value.trim();
+    const email = form?.querySelector('#email')?.value.trim();
+    let rut = form?.querySelector('#rut')?.value.trim();
+    let telefono = form?.querySelector('#telefono')?.value.trim();
+    const direccion = form?.querySelector('#direccion')?.value.trim();
+    const municipalidad_id_raw = form?.querySelector('#municipalidad_id')?.value;
+    const municipalidad_id = municipalidad_id_raw ? parseInt(municipalidad_id_raw) : null;
+    const password = form?.querySelector('#password')?.value;
+
+    rut = normalizarRut(rut || '');
+    telefono = normalizarTelefono(telefono || '');
+
+    const faltantes = [];
+    const reportar = (id, msg) => {
+        const el = form?.querySelector(`#${id}`);
+        if (el) marcarCampoInvalidoUsuarios(el, msg);
+        faltantes.push(msg);
+    };
+    const isEmpty = (v) => (v ?? '').toString().trim().length === 0;
+    if (isEmpty(primer_nombre)) reportar('primer_nombre', 'El campo "primer_nombre" es obligatorio');
+    if (isEmpty(primer_apellido)) reportar('primer_apellido', 'El campo "primer_apellido" es obligatorio');
+    if (isEmpty(email)) reportar('email', 'El campo "email" es obligatorio');
+    if (isEmpty(rut)) reportar('rut', 'El campo "rut" es obligatorio');
+    if (isEmpty(telefono)) reportar('telefono', 'El campo "telefono" es obligatorio');
+    if (isEmpty(direccion)) reportar('direccion', 'El campo "direccion" es obligatorio');
+    if (!municipalidad_id) reportar('municipalidad_id', 'Debe seleccionar una municipalidad');
+    if (isEmpty(password)) reportar('password', 'La contraseña es obligatoria');
+    if (faltantes.length > 0) {
+        mostrarNotificacion('Completa los campos obligatorios: ' + faltantes.join(', '), 'warning');
+        return;
+    }
+
+    const rutCheck = validarRutValor(rut, { exacto8: true });
+    if (!rutCheck.valido) {
+        const inputRut = form?.querySelector('#rut');
+        if (inputRut) marcarCampoInvalidoUsuarios(inputRut, rutCheck.mensaje);
+        mostrarNotificacion(rutCheck.mensaje, 'warning');
+        return;
+    }
+    const passIssues = obtenerFaltasPassword(password);
+    if (passIssues.length > 0) {
+        const passEl = form?.querySelector('#password');
+        if (passEl) marcarCampoInvalidoUsuarios(passEl, 'Falta: ' + passIssues.join(', '));
+        mostrarNotificacion('La contraseña debe ser fuerte: falta ' + passIssues.join(', '), 'warning');
+        return;
+    }
+
+    const payload = {
+        primer_nombre,
+        segundo_nombre,
+        primer_apellido,
+        segundo_apellido,
+        email,
+        password,
+        rut,
+        telefono,
+        direccion,
+        municipalidad_id
+    };
+
+    try {
+        mostrarCargando(true);
+        await fetchAPI('/superadmin/usuarios/administradores', { method: 'POST', body: payload });
+        mostrarNotificacion('Administrador creado correctamente', 'success');
+        cargarInterfazSuperadmin({ nombre: '', apellido: '' });
+    } catch (error) {
+        console.error('Error al crear administrador:', error);
+        if (error.status === 401) {
+            mostrarNotificacion('Sesión expirada. Inicia sesión nuevamente.', 'warning');
+        } else if (error.status === 403) {
+            mostrarNotificacion('No tienes permisos para crear administradores.', 'warning');
+        } else {
+            mostrarNotificacion('Error al crear administrador: ' + (error.message || ''), 'danger');
         }
     } finally {
         mostrarCargando(false);

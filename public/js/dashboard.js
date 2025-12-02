@@ -651,3 +651,114 @@ async function cargarDashboard() {
 
 // Exponer globalmente
 window.cargarDashboard = cargarDashboard;
+
+async function mostrarSupervisionMultiMunicipalidad() {
+  try {
+    mostrarCargando(true);
+    const mainContent = document.getElementById('main-content');
+    if (!mainContent) return;
+    const hoy = new Date();
+    const inicio = new Date(hoy);
+    inicio.setMonth(inicio.getMonth() - 3);
+    const toIsoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const defaultDesde = toIsoDate(inicio);
+    const defaultHasta = toIsoDate(hoy);
+    mainContent.innerHTML = `
+      <div class="container-fluid py-3">
+        <div class="row mb-3 align-items-center">
+          <div class="col-4">
+            <button class="btn btn-outline-secondary" id="btn-volver-superadmin">
+              <i class="bi bi-arrow-left"></i> Volver
+            </button>
+          </div>
+          <div class="col-4 text-center">
+            <h2 class="section-title">Supervisión Multi-Municipalidad</h2>
+          </div>
+          <div class="col-4"></div>
+        </div>
+        <div class="row mb-3 g-2">
+          <div class="col-md-3">
+            <label class="form-label">Desde</label>
+            <input type="date" class="form-control" id="filtro-desde" value="${defaultDesde}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Hasta</label>
+            <input type="date" class="form-control" id="filtro-hasta" value="${defaultHasta}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Buscar</label>
+            <input type="text" class="form-control" id="filtro-buscar" placeholder="Municipalidad">
+          </div>
+          <div class="col-md-3 d-flex align-end">
+            <button class="btn btn-primary w-100" id="btn-actualizar-ranking"><i class="bi bi-arrow-repeat"></i> Actualizar</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-12">
+            <div class="card">
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-striped table-hover align-middle">
+                    <thead>
+                      <tr>
+                        <th class="text-center">Ranking</th>
+                        <th>Municipalidad</th>
+                        <th class="text-center">Trámites</th>
+                        <th class="text-center">Pagos</th>
+                        <th class="text-center">Proyectos</th>
+                        <th class="text-center">Usuarios Activos</th>
+                        <th class="text-center">Puntuación</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tabla-ranking"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    const cargar = async () => {
+      try {
+        const desde = document.getElementById('filtro-desde').value;
+        const hasta = document.getElementById('filtro-hasta').value;
+        const buscar = (document.getElementById('filtro-buscar').value || '').toLowerCase();
+        const res = await fetchAPI(`/dashboard/municipalidades/ranking?start=${encodeURIComponent(desde)}&end=${encodeURIComponent(hasta)}`);
+        const arr = Array.isArray(res?.ranking) ? res.ranking : [];
+        const filtrado = buscar ? arr.filter(i => (i.municipalidad_nombre || '').toLowerCase().includes(buscar)) : arr;
+        const tbody = document.getElementById('tabla-ranking');
+        if (!tbody) return;
+        tbody.innerHTML = filtrado.map((item, index) => `
+          <tr>
+            <td class="text-center">${index + 1}</td>
+            <td>${item.municipalidad_nombre || '—'}</td>
+            <td class="text-center">${item.tramites}</td>
+            <td class="text-center">${item.pagos}</td>
+            <td class="text-center">${item.proyectos}</td>
+            <td class="text-center">${item.usuarios_activos}</td>
+            <td class="text-center">${Number(item.score || 0).toFixed(2)}</td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        mostrarNotificacion('Error al cargar supervisión: ' + (e.message || e), 'danger');
+      }
+    };
+    const btnActualizar = document.getElementById('btn-actualizar-ranking');
+    if (btnActualizar) btnActualizar.onclick = cargar;
+    const inputBuscar = document.getElementById('filtro-buscar');
+    if (inputBuscar) inputBuscar.oninput = cargar;
+    const btnVolver = document.getElementById('btn-volver-superadmin');
+    if (btnVolver) btnVolver.onclick = () => {
+      try {
+        const u = typeof obtenerUsuario === 'function' ? obtenerUsuario() : { nombre: '', apellido: '' };
+        if (typeof cargarInterfazSuperadmin === 'function') cargarInterfazSuperadmin(u);
+      } catch (_) {}
+    };
+    await cargar();
+  } finally {
+    mostrarCargando(false);
+  }
+}
+
+window.mostrarSupervisionMultiMunicipalidad = mostrarSupervisionMultiMunicipalidad;

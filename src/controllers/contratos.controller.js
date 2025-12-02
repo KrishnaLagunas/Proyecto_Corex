@@ -1,4 +1,4 @@
-const { Contrato, Proveedor, Departamento, Usuario } = require('../models');
+const { Contrato, Proveedor, Municipalidad, Usuario, Rol } = require('../models');
 const { ApiError } = require('../middlewares/errorHandler');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
@@ -26,7 +26,7 @@ const contratosController = {
         tipo,
         modalidad,
         proveedor_id,
-        departamento_id,
+        municipalidad_id,
         search,
         sort = 'createdAt',
         order = 'DESC'
@@ -55,9 +55,9 @@ const contratosController = {
         where.proveedor_id = proveedor_id;
       }
       
-      // Filtro por departamento
-      if (departamento_id) {
-        where.departamento_id = departamento_id;
+      // Filtro por municipalidad
+      if (municipalidad_id) {
+        where.municipalidad_id = municipalidad_id;
       }
       
       // Búsqueda por texto en nombre, descripción o código
@@ -70,16 +70,16 @@ const contratosController = {
       }
       
       // Restricción por rol de usuario
-      if (req.user.role === 'funcionario') {
-        // Los funcionarios solo ven los contratos de su departamento
+      if (req.user.rol_nombre === 'secretaria comunitaria') {
+        // Los funcionarios solo ven los contratos de su municipalidad
         const funcionario = await Usuario.findByPk(req.user.id, {
-          include: [{ model: Departamento }]
+          include: [{ model: Municipalidad }]
         });
         
-        if (funcionario.Departamento) {
-          where.departamento_id = funcionario.Departamento.id;
+        if (funcionario.Municipalidad) {
+          where.municipalidad_id = funcionario.Municipalidad.id;
         } else {
-          // Si el funcionario no tiene departamento asignado, no ve ningún contrato
+          // Si el funcionario no tiene municipalidad asignada, no ve ningún contrato
           return res.json({
             contratos: [],
             pagination: {
@@ -90,7 +90,7 @@ const contratosController = {
             }
           });
         }
-      } else if (req.user.role === 'ciudadano') {
+      } else if (req.user.rol_nombre === 'ciudadano') {
         // Los ciudadanos solo pueden ver contratos públicos y activos
         where.publico = true;
         where.estado = { [Op.in]: ['activo', 'finalizado'] };
@@ -116,7 +116,7 @@ const contratosController = {
             attributes: ['id', 'codigo', 'razon_social', 'rut'] 
           },
           { 
-            model: Departamento,
+            model: Municipalidad,
             attributes: ['id', 'nombre'] 
           },
           { 
@@ -164,7 +164,7 @@ const contratosController = {
             attributes: ['id', 'codigo', 'razon_social', 'rut', 'email', 'telefono'] 
           },
           { 
-            model: Departamento,
+            model: Municipalidad,
             attributes: ['id', 'nombre'] 
           },
           { 
@@ -180,18 +180,18 @@ const contratosController = {
       }
       
       // Verificar permisos de acceso
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         if (!contrato.publico || contrato.estado === 'borrador' || contrato.estado === 'cancelado') {
           throw new ApiError('No tienes permiso para ver este contrato', 403);
         }
-      } else if (req.user.role === 'funcionario') {
+      } else if (req.user.rol_nombre === 'secretaria comunitaria') {
         // Verificar si pertenece al departamento
         const funcionario = await Usuario.findByPk(req.user.id, {
-          include: [{ model: Departamento }]
+          include: [{ model: Municipalidad }]
         });
         
-        const esDepartamento = funcionario.Departamento && 
-                              funcionario.Departamento.id === contrato.departamento_id;
+        const esDepartamento = funcionario.Municipalidad && 
+                              funcionario.Municipalidad.id === contrato.municipalidad_id;
         const esResponsable = contrato.responsable_id === req.user.id;
         
         if (!esDepartamento && !esResponsable) {
@@ -222,7 +222,7 @@ const contratosController = {
         fecha_fin,
         monto_total,
         proveedor_id,
-        departamento_id,
+        municipalidad_id,
         responsable_id,
         publico
       } = req.body;
@@ -233,18 +233,16 @@ const contratosController = {
         throw new ApiError('El proveedor seleccionado no existe', 400);
       }
       
-      // Verificar que el departamento existe
-      const departamento = await Departamento.findByPk(departamento_id);
-      if (!departamento) {
-        throw new ApiError('El departamento seleccionado no existe', 400);
+      // Verificar que la municipalidad existe
+      const municipalidad = await Municipalidad.findByPk(municipalidad_id);
+      if (!municipalidad) {
+        throw new ApiError('La municipalidad seleccionada no existe', 400);
       }
       
       // Verificar que el responsable existe y es funcionario o admin
       const responsable = await Usuario.findOne({
-        where: { 
-          id: responsable_id, 
-          role: { [Op.in]: ['funcionario', 'admin'] }
-        }
+        where: { id: responsable_id },
+        include: [{ model: Rol, where: { nombre: { [Op.in]: ['secretaria comunitaria', 'administrador', 'superadministrador'] } } }]
       });
       
       if (!responsable) {
@@ -263,7 +261,7 @@ const contratosController = {
         monto_pagado: 0, // Inicialmente no se ha pagado nada
         estado: 'borrador', // Estado inicial
         proveedor_id,
-        departamento_id,
+        municipalidad_id,
         responsable_id,
         publico: publico !== undefined ? publico : false
         // El código se genera automáticamente en el hook beforeCreate
@@ -275,7 +273,7 @@ const contratosController = {
       const contratoCompleto = await Contrato.findByPk(nuevoContrato.id, {
         include: [
           { model: Proveedor, attributes: ['id', 'codigo', 'razon_social', 'rut'] },
-          { model: Departamento, attributes: ['id', 'nombre'] },
+          { model: Municipalidad, attributes: ['id', 'nombre'] },
           { model: Usuario, as: 'Responsable', attributes: ['id', 'nombre', 'apellido', 'email'] }
         ]
       });
@@ -319,18 +317,18 @@ const contratosController = {
       }
       
       // Verificar permisos
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         throw new ApiError('No tienes permiso para modificar contratos', 403);
       }
-      
-      if (req.user.role === 'funcionario') {
+
+      if (req.user.rol_nombre === 'secretaria comunitaria') {
         // Verificar si pertenece al departamento o es responsable
         const funcionario = await Usuario.findByPk(req.user.id, {
-          include: [{ model: Departamento }]
+          include: [{ model: Municipalidad }]
         });
         
-        const esDepartamento = funcionario.Departamento && 
-                              funcionario.Departamento.id === contrato.departamento_id;
+        const esDepartamento = funcionario.Municipalidad && 
+                              funcionario.Municipalidad.id === contrato.municipalidad_id;
         const esResponsable = contrato.responsable_id === req.user.id;
         
         if (!esDepartamento && !esResponsable) {
@@ -352,7 +350,7 @@ const contratosController = {
       if (fecha_fin) contrato.fecha_fin = fecha_fin;
       
       // Solo admin puede modificar montos
-      if (req.user.role === 'admin') {
+      if (['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         if (monto_total !== undefined) contrato.monto_total = monto_total;
       }
       
@@ -382,12 +380,10 @@ const contratosController = {
       }
       
       // Actualizar responsable (solo admin)
-      if (responsable_id && req.user.role === 'admin') {
+      if (responsable_id && ['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         const responsable = await Usuario.findOne({
-          where: { 
-            id: responsable_id, 
-            role: { [Op.in]: ['funcionario', 'admin'] }
-          }
+          where: { id: responsable_id },
+          include: [{ model: Rol, where: { nombre: { [Op.in]: ['secretaria comunitaria', 'administrador', 'superadministrador'] } } }]
         });
         
         if (!responsable) {
@@ -411,7 +407,7 @@ const contratosController = {
       const contratoActualizado = await Contrato.findByPk(id, {
         include: [
           { model: Proveedor, attributes: ['id', 'codigo', 'razon_social', 'rut'] },
-          { model: Departamento, attributes: ['id', 'nombre'] },
+          { model: Municipalidad, attributes: ['id', 'nombre'] },
           { model: Usuario, as: 'Responsable', attributes: ['id', 'nombre', 'apellido', 'email'] }
         ]
       });
@@ -436,7 +432,7 @@ const contratosController = {
       const { id } = req.params;
       
       // Solo los administradores pueden eliminar contratos
-      if (req.user.role !== 'admin') {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para eliminar contratos', 403);
       }
       
@@ -480,7 +476,7 @@ const contratosController = {
       const contrato = await Contrato.findByPk(id, {
         include: [
           { model: Proveedor },
-          { model: Departamento },
+          { model: Municipalidad },
           { model: Usuario, as: 'Responsable' }
         ]
       });
@@ -490,21 +486,21 @@ const contratosController = {
       }
       
       // Verificar permisos de acceso
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         if (!contrato.publico || contrato.estado === 'borrador' || contrato.estado === 'cancelado') {
           throw new ApiError('No tienes permiso para ver este contrato', 403);
         }
-      } else if (req.user.role === 'funcionario') {
-        // Verificar si pertenece al departamento
+      } else if (req.user.rol_nombre === 'secretaria comunitaria') {
+        // Verificar si pertenece a la municipalidad
         const funcionario = await Usuario.findByPk(req.user.id, {
-          include: [{ model: Departamento }]
+          include: [{ model: Municipalidad }]
         });
         
-        const esDepartamento = funcionario.Departamento && 
-                              funcionario.Departamento.id === contrato.departamento_id;
+        const esMunicipalidad = funcionario.Municipalidad && 
+                              funcionario.Municipalidad.id === contrato.municipalidad_id;
         const esResponsable = contrato.responsable_id === req.user.id;
         
-        if (!esDepartamento && !esResponsable) {
+        if (!esMunicipalidad && !esResponsable) {
           throw new ApiError('No tienes permiso para ver este contrato', 403);
         }
       }
@@ -567,12 +563,12 @@ const contratosController = {
       doc.fontSize(12).text(`Teléfono: ${contrato.Proveedor.telefono}`);
       doc.moveDown(2);
       
-      // Información del departamento
-      doc.fontSize(14).text('DEPARTAMENTO RESPONSABLE', { underline: true });
+      // Información de la municipalidad
+      doc.fontSize(14).text('MUNICIPALIDAD RESPONSABLE', { underline: true });
       doc.moveDown();
-      doc.fontSize(12).text(`Departamento: ${contrato.Departamento.nombre}`);
+      doc.fontSize(12).text(`Municipalidad: ${contrato.Municipalidad.nombre}`);
       doc.moveDown();
-      doc.fontSize(12).text(`Código: ${contrato.Departamento.codigo}`);
+      doc.fontSize(12).text(`ID: ${contrato.Municipalidad.id}`);
       doc.moveDown(2);
       
       // Información del responsable
@@ -630,7 +626,7 @@ const contratosController = {
   getContratosStats: async (req, res, next) => {
     try {
       // Solo administradores y funcionarios pueden ver estadísticas
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
       

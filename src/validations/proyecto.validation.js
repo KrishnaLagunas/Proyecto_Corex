@@ -39,7 +39,7 @@ const proyectoQuerySchema = Joi.object({
   limit: Joi.number().integer().min(1).max(100).messages(mensajesError),
   estado: Joi.string().valid('planificacion', 'en_ejecucion', 'pausado', 'finalizado', 'cancelado').messages(mensajesError),
   tipo: Joi.string().valid('infraestructura', 'social', 'ambiental', 'cultural', 'deportivo', 'educativo', 'salud', 'otro').messages(mensajesError),
-  departamento_id: Joi.number().integer().min(1).messages(mensajesError),
+  municipalidad_id: Joi.number().integer().min(1).messages(mensajesError),
   año_fiscal: Joi.number().integer().min(2000).max(2100).messages(mensajesError),
   search: Joi.string().min(1).max(100).messages(mensajesError),
   sort: Joi.string().valid('createdAt', 'nombre', 'fecha_inicio', 'fecha_fin', 'presupuesto_asignado', 'estado').messages(mensajesError),
@@ -60,7 +60,7 @@ const createProyectoSchema = Joi.object({
   objetivos: Joi.string().min(10).max(1000).required().messages(mensajesError),
   resultados_esperados: Joi.string().min(10).max(1000).required().messages(mensajesError),
   fuente_financiamiento: Joi.string().min(3).max(100).required().messages(mensajesError),
-  departamento_id: Joi.number().integer().min(1).required().messages(mensajesError),
+  municipalidad_id: Joi.number().integer().min(1).required().messages(mensajesError),
   responsable_id: Joi.number().integer().min(1).required().messages(mensajesError),
   presupuesto_id: Joi.number().integer().min(1).allow(null).messages(mensajesError),
   estado: Joi.string().valid('planificacion', 'en_ejecucion', 'pausado', 'finalizado', 'cancelado').default('planificacion').messages(mensajesError)

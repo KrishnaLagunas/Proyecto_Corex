@@ -89,11 +89,11 @@ const idSchema = Joi.object({
 const usuarioQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).messages(mensajesError),
   limit: Joi.number().integer().min(1).max(100).messages(mensajesError),
-  role: Joi.string().valid('admin', 'funcionario', 'ciudadano').messages(mensajesError),
-  departamento_id: Joi.number().integer().min(1).messages(mensajesError),
+  id_rol: Joi.number().integer().min(1).messages(mensajesError),
+  municipalidad_id: Joi.number().integer().min(1).messages(mensajesError),
   estado: Joi.string().valid('activo', 'inactivo', 'bloqueado').messages(mensajesError),
   search: Joi.string().min(1).max(100).messages(mensajesError),
-  sort: Joi.string().valid('createdAt', 'nombre', 'apellido', 'email', 'role', 'estado').messages(mensajesError),
+  sort: Joi.string().valid('createdAt', 'nombre', 'apellido', 'email', 'id_rol', 'estado').messages(mensajesError),
   order: Joi.string().valid('ASC', 'DESC', 'asc', 'desc').messages(mensajesError)
 }).messages(mensajesError);
 
@@ -114,10 +114,10 @@ const createUsuarioSchema = Joi.object({
   rut: rutValidation.required(),
   telefono: Joi.string().min(7).max(20).required().messages(mensajesError),
   direccion: Joi.string().min(5).max(200).required().messages(mensajesError),
-  role: Joi.string().valid('admin', 'funcionario', 'ciudadano').required().messages(mensajesError),
-  departamento_id: Joi.number().integer().min(1)
-    .when('role', {
-      is: 'funcionario',
+  id_rol: Joi.number().integer().min(1).required().messages(mensajesError),
+  municipalidad_id: Joi.number().integer().min(1)
+    .when('id_rol', {
+      is: Joi.exist(),
       then: Joi.required(),
       otherwise: Joi.allow(null)
     })
@@ -136,8 +136,8 @@ const updateUsuarioSchema = Joi.object({
   email: Joi.string().email().max(100).messages(mensajesError),
   telefono: Joi.string().min(7).max(20).messages(mensajesError),
   direccion: Joi.string().min(5).max(200).messages(mensajesError),
-  role: Joi.string().valid('admin', 'funcionario', 'ciudadano').messages(mensajesError),
-  departamento_id: Joi.number().integer().min(1).allow(null).messages(mensajesError),
+  id_rol: Joi.number().integer().min(1).messages(mensajesError),
+  municipalidad_id: Joi.number().integer().min(1).allow(null).messages(mensajesError),
   estado: Joi.string().valid('activo', 'inactivo', 'bloqueado').messages(mensajesError)
 }).min(1).messages(mensajesError);
 

@@ -104,11 +104,11 @@ const Contrato = sequelize.define('Contrato', {
       key: 'id'
     }
   },
-  departamento_id: {
+  municipalidad_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
-      model: 'departamentos',
+      model: 'municipalidades',
       key: 'id'
     }
   },

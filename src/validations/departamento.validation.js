@@ -38,32 +38,30 @@ const departamentoQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).messages(mensajesError),
   limit: Joi.number().integer().min(1).max(100).messages(mensajesError),
   search: Joi.string().min(1).max(100).messages(mensajesError),
-  sort: Joi.string().valid('nombre', 'createdAt').messages(mensajesError),
+  sort: Joi.string().valid('nombre').messages(mensajesError),
   order: Joi.string().valid('ASC', 'DESC', 'asc', 'desc').messages(mensajesError)
 }).messages(mensajesError);
 
 // Esquema para validar la creación de un departamento
 const createDepartamentoSchema = Joi.object({
   nombre: Joi.string().min(3).max(100).required().messages(mensajesError),
-  rut: Joi.string().min(7).max(12).required().messages(mensajesError),
-  telefono: Joi.string().min(7).max(20).allow(null, '').messages(mensajesError),
-  email: Joi.string().email().max(100).allow(null, '').messages(mensajesError),
-  region: Joi.string().max(100).allow(null, '').messages(mensajesError),
-  comuna: Joi.string().max(100).allow(null, '').messages(mensajesError),
-  estado: Joi.string().valid('activo', 'inactivo').default('activo').messages(mensajesError),
-  descripcion: Joi.string().min(0).max(1000).allow(null, '').messages(mensajesError)
+  direccion: Joi.string().min(3).max(255).allow('', null).messages(mensajesError),
+  region: Joi.string().min(2).max(100).allow('', null).messages(mensajesError),
+  comuna: Joi.string().min(2).max(100).allow('', null).messages(mensajesError),
+  telefono: Joi.string().min(5).max(20).allow('', null).messages(mensajesError),
+  email: Joi.string().email().allow('', null).messages(mensajesError),
+  rut: Joi.string().max(12).allow('', null).messages(mensajesError)
 }).messages(mensajesError);
 
 // Esquema para validar la actualización de un departamento
 const updateDepartamentoSchema = Joi.object({
   nombre: Joi.string().min(3).max(100).messages(mensajesError),
-  rut: Joi.string().min(7).max(12).messages(mensajesError),
-  telefono: Joi.string().min(7).max(20).messages(mensajesError),
-  email: Joi.string().email().max(100).messages(mensajesError),
-  region: Joi.string().max(100).messages(mensajesError),
-  comuna: Joi.string().max(100).messages(mensajesError),
-  estado: Joi.string().valid('activo', 'inactivo').messages(mensajesError),
-  descripcion: Joi.string().min(0).max(1000).allow(null, '').messages(mensajesError)
+  direccion: Joi.string().min(3).max(255).allow('', null).messages(mensajesError),
+  region: Joi.string().min(2).max(100).allow('', null).messages(mensajesError),
+  comuna: Joi.string().min(2).max(100).allow('', null).messages(mensajesError),
+  telefono: Joi.string().min(5).max(20).allow('', null).messages(mensajesError),
+  email: Joi.string().email().allow('', null).messages(mensajesError),
+  rut: Joi.string().max(12).allow('', null).messages(mensajesError)
 }).min(1).messages(mensajesError);
 
 // Esquema para validar la asignación de funcionarios

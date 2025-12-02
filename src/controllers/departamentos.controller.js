@@ -1,4 +1,4 @@
-const { Departamento, Usuario, Proyecto } = require('../models');
+const { Departamento, Usuario, Proyecto, Rol, Municipalidad } = require('../models');
 const { ApiError } = require('../middlewares/errorHandler');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
@@ -7,6 +7,11 @@ const sequelize = require('sequelize');
 /**
  * Controlador para el manejo de departamentos municipales
  */
+const esMunicipalidades = (req) => {
+  const b = (req.baseUrl || '') + (req.originalUrl || '');
+  return b.includes('/api/municipalidades') || b.includes('/superadmin/municipalidades');
+};
+
 const departamentosController = {
   /**
    * Obtiene todos los departamentos con paginación y filtros
@@ -27,13 +32,9 @@ const departamentosController = {
       // Construir condiciones de búsqueda
       const where = {};
       
-      // Búsqueda por texto en nombre, rut, región o comuna
       if (search) {
         where[Op.or] = [
-          { nombre: { [Op.like]: `%${search}%` } },
-          { rut: { [Op.like]: `%${search}%` } },
-          { region: { [Op.like]: `%${search}%` } },
-          { comuna: { [Op.like]: `%${search}%` } }
+          { nombre: { [Op.like]: `%${search}%` } }
         ];
       }
       
@@ -41,25 +42,32 @@ const departamentosController = {
       const offset = (page - 1) * limit;
       
       // Validar campo de ordenamiento
-      const validSortFields = ['nombre', 'createdAt'];
+      const validSortFields = ['nombre'];
       const sortField = validSortFields.includes(sort) ? sort : 'nombre';
       
       // Validar dirección de ordenamiento
       const sortOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
       
       // Ejecutar consulta
-      const { count, rows } = await Departamento.findAndCountAll({
+      const consulta = esMunicipalidades(req) ? Municipalidad : Departamento;
+      const { count, rows } = await consulta.findAndCountAll({
         where,
         order: [[sortField, sortOrder]],
         limit: parseInt(limit),
         offset: offset
+      });
+      const rowsPlain = rows.map(r => {
+        const j = typeof r.toJSON === 'function' ? r.toJSON() : r;
+        const email = j.email ?? j.email_contacto ?? null;
+        const telefono = j.telefono ?? j.telefono_contacto ?? null;
+        return { ...j, email, telefono };
       });
       
       // Calcular total de páginas
       const totalPages = Math.ceil(count / limit);
       
       res.json({
-        departamentos: rows,
+        departamentos: rowsPlain,
         pagination: {
           total: count,
           totalPages,
@@ -81,8 +89,16 @@ const departamentosController = {
   getDepartamentoById: async (req, res, next) => {
     try {
       const { id } = req.params;
-      
-      const departamento = await Departamento.findByPk(id);
+      const modelo = esMunicipalidades(req) ? Municipalidad : Departamento;
+      const departamentoRaw = await modelo.findByPk(id);
+      const departamento = departamentoRaw && typeof departamentoRaw.toJSON === 'function'
+        ? (() => {
+            const j = departamentoRaw.toJSON();
+            const email = j.email ?? j.email_contacto ?? null;
+            const telefono = j.telefono ?? j.telefono_contacto ?? null;
+            return { ...j, email, telefono };
+          })()
+        : departamentoRaw;
       
       if (!departamento) {
         throw new ApiError('Departamento no encontrado', 404);
@@ -102,58 +118,36 @@ const departamentosController = {
    */
   createDepartamento: async (req, res, next) => {
     try {
-      // Solo los administradores pueden crear departamentos
-      if (req.user.role !== 'admin') {
+      if (req.user.rol_nombre !== 'superadministrador') {
         throw new ApiError('No tienes permiso para crear departamentos', 403);
       }
-      
-      const { 
-        nombre,
-        rut,
-        telefono,
-        email,
-        region,
-        comuna,
-        estado
-      } = req.body;
-      
-      // Verificar que el rut o nombre no exista
-      const existingDepartamento = await Departamento.findOne({
-        where: { 
-          [Op.or]: [
-            { rut },
-            { nombre }
-          ]
+      if (esMunicipalidades(req)) {
+        const { nombre, direccion, region, comuna, telefono, email, rut } = req.body;
+        const existente = await Municipalidad.findOne({ where: { nombre } });
+        if (existente) {
+          throw new ApiError('Ya existe una municipalidad con el nombre proporcionado', 400);
         }
-      });
-      
-      if (existingDepartamento) {
-        throw new ApiError(
-          'Ya existe un departamento con el nombre o RUT proporcionado',
-          400
-        );
+        const nuevo = await Municipalidad.create({ nombre, direccion, region, comuna, telefono, email, rut });
+        logger.info(`Nueva municipalidad creada: ${nombre}`);
+        const completo = await Municipalidad.findByPk(nuevo.id);
+        return res.status(201).json({
+          message: 'Municipalidad creada exitosamente',
+          departamento: completo
+        });
+      } else {
+        const { nombre } = req.body;
+        const existente = await Departamento.findOne({ where: { nombre } });
+        if (existente) {
+          throw new ApiError('Ya existe un departamento con el nombre proporcionado', 400);
+        }
+        const nuevo = await Departamento.create({ nombre });
+        logger.info(`Nuevo departamento creado: ${nombre}`);
+        const completo = await Departamento.findByPk(nuevo.id);
+        return res.status(201).json({
+          message: 'Departamento creado exitosamente',
+          departamento: completo
+        });
       }
-
-      // Crear el departamento con los nuevos campos
-      const nuevoDepartamento = await Departamento.create({
-        nombre,
-        rut,
-        telefono,
-        email,
-        region,
-        comuna,
-        estado
-      });
-      
-      logger.info(`Nuevo departamento creado: ${nombre}`);
-      
-      // Obtener el departamento con sus relaciones
-      const departamentoCompleto = await Departamento.findByPk(nuevoDepartamento.id);
-      
-      res.status(201).json({
-        message: 'Departamento creado exitosamente',
-        departamento: departamentoCompleto
-      });
     } catch (error) {
       next(error);
     }
@@ -167,68 +161,50 @@ const departamentosController = {
    */
   updateDepartamento: async (req, res, next) => {
     try {
-      // Solo los administradores pueden actualizar departamentos
-      if (req.user.role !== 'admin') {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para actualizar departamentos', 403);
       }
       
       const { id } = req.params;
-      const { 
-        nombre,
-        rut,
-        telefono,
-        email,
-        region,
-        comuna,
-        estado
-      } = req.body;
-      
-      const departamento = await Departamento.findByPk(id);
+      const esMun = esMunicipalidades(req);
+      const departamento = esMun ? await Municipalidad.findByPk(id) : await Departamento.findByPk(id);
       
       if (!departamento) {
         throw new ApiError('Departamento no encontrado', 404);
       }
+      if (req.user.rol_nombre === 'administrador') {
+        if (!req.user.municipalidad_id || req.user.municipalidad_id !== parseInt(id)) {
+          throw new ApiError('No tienes permiso para modificar departamentos de otra municipalidad', 403);
+        }
+      }
       
-      if (nombre && nombre !== departamento.nombre) {
-        const existingDepartamento = await Departamento.findOne({
-          where: { 
-            nombre,
-            id: { [Op.ne]: id }
+      if (esMun) {
+        const { nombre, direccion, region, comuna, telefono, email, rut } = req.body;
+        if (nombre && nombre !== departamento.nombre) {
+          const existeNombre = await Municipalidad.findOne({ where: { nombre, id: { [Op.ne]: id } } });
+          if (existeNombre) {
+            throw new ApiError('Ya existe una municipalidad con el nombre proporcionado', 400);
           }
-        });
-        
-        if (existingDepartamento) {
-          throw new ApiError('Ya existe un departamento con el nombre proporcionado', 400);
         }
-      }
-      
-      // Verificar que el rut o nombre no exista en otro departamento
-      if (rut && rut !== departamento.rut) {
-        const existenteRut = await Departamento.findOne({
-          where: { rut, id: { [Op.ne]: id } }
-        });
-        if (existenteRut) {
-          throw new ApiError('Ya existe un departamento con el RUT proporcionado', 400);
+        if (nombre) departamento.nombre = nombre;
+        if (direccion !== undefined) departamento.direccion = direccion;
+        if (region !== undefined) departamento.region = region;
+        if (comuna !== undefined) departamento.comuna = comuna;
+        if (telefono !== undefined) departamento.telefono = telefono;
+        if (email !== undefined) departamento.email = email;
+        if (rut !== undefined) departamento.rut = rut;
+      } else {
+        const { nombre } = req.body;
+        if (nombre && nombre !== departamento.nombre) {
+          const existenteNombre = await Departamento.findOne({
+            where: { nombre, id: { [Op.ne]: id } }
+          });
+          if (existenteNombre) {
+            throw new ApiError('Ya existe un departamento con el nombre proporcionado', 400);
+          }
         }
+        if (nombre) departamento.nombre = nombre;
       }
-      if (nombre && nombre !== departamento.nombre) {
-        const existenteNombre = await Departamento.findOne({
-          where: { nombre, id: { [Op.ne]: id } }
-        });
-        if (existenteNombre) {
-          throw new ApiError('Ya existe un departamento con el nombre proporcionado', 400);
-        }
-      }
-
-      // Actualizar campos
-      if (nombre) departamento.nombre = nombre;
-      if (rut) departamento.rut = rut;
-      if (telefono) departamento.telefono = telefono;
-      if (email) departamento.email = email;
-      // campo ubicacion removido del sistema
-      if (region) departamento.region = region;
-      if (comuna) departamento.comuna = comuna;
-      if (estado) departamento.estado = estado;
       
       // Guardar los cambios
       await departamento.save();
@@ -236,7 +212,7 @@ const departamentosController = {
       logger.info(`Departamento actualizado: ${departamento.nombre}`);
       
       // Obtener el departamento actualizado con sus relaciones
-      const departamentoActualizado = await Departamento.findByPk(id);
+      const departamentoActualizado = esMun ? await Municipalidad.findByPk(id) : await Departamento.findByPk(id);
       
       res.json({
         message: 'Departamento actualizado exitosamente',
@@ -255,22 +231,26 @@ const departamentosController = {
    */
   deleteDepartamento: async (req, res, next) => {
     try {
-      // Solo los administradores pueden eliminar departamentos
-      if (req.user.role !== 'admin') {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para eliminar departamentos', 403);
       }
       
       const { id } = req.params;
-      
-      const departamento = await Departamento.findByPk(id);
+      const esMun = esMunicipalidades(req);
+      const departamento = esMun ? await Municipalidad.findByPk(id) : await Departamento.findByPk(id);
       
       if (!departamento) {
         throw new ApiError('Departamento no encontrado', 404);
       }
+      if (req.user.rol_nombre === 'administrador') {
+        if (!req.user.municipalidad_id || req.user.municipalidad_id !== parseInt(id)) {
+          throw new ApiError('No tienes permiso para eliminar departamentos de otra municipalidad', 403);
+        }
+      }
       
       // Verificar si hay proyectos asociados al departamento
       const proyectosAsociados = await Proyecto.count({
-        where: { departamento_id: id }
+        where: { municipalidad_id: id }
       });
       
       if (proyectosAsociados > 0) {
@@ -283,9 +263,9 @@ const departamentosController = {
       // Verificar si hay funcionarios asociados al departamento
       const funcionariosAsociados = await Usuario.count({
         where: { 
-          departamento_id: id,
-          role: 'funcionario'
-        }
+          municipalidad_id: id
+        },
+        include: [{ model: Rol, where: { nombre: 'secretaria comunitaria' } }]
       });
       
       if (funcionariosAsociados > 0) {
@@ -316,8 +296,7 @@ const departamentosController = {
    */
   asignarFuncionarios: async (req, res, next) => {
     try {
-      // Solo los administradores pueden asignar funcionarios
-      if (req.user.role !== 'admin') {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para asignar funcionarios', 403);
       }
       
@@ -329,13 +308,16 @@ const departamentosController = {
       if (!departamento) {
         throw new ApiError('Departamento no encontrado', 404);
       }
+      if (req.user.rol_nombre === 'administrador') {
+        if (!req.user.municipalidad_id || req.user.municipalidad_id !== parseInt(id)) {
+          throw new ApiError('No tienes permiso para asignar funcionarios de otra municipalidad', 403);
+        }
+      }
       
       // Verificar que todos los funcionarios existen y tienen el rol adecuado
       const funcionarios = await Usuario.findAll({
-        where: { 
-          id: { [Op.in]: funcionario_ids },
-          role: 'funcionario'
-        }
+        where: { id: { [Op.in]: funcionario_ids } },
+        include: [{ model: Rol, where: { nombre: 'secretaria comunitaria' } }]
       });
       
       if (funcionarios.length !== funcionario_ids.length) {
@@ -377,40 +359,13 @@ const departamentosController = {
   getDepartamentosStats: async (req, res, next) => {
     try {
       // Solo administradores pueden ver estadísticas
-      if (req.user.role !== 'admin') {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
       
-      // Contar proyectos por departamento
-      const proyectosPorDepartamento = await Departamento.findAll({
-        attributes: [
-          'id',
-          'nombre',
-          [sequelize.literal('(SELECT COUNT(*) FROM Proyectos WHERE Proyectos.departamento_id = Departamento.id)'), 'total_proyectos'],
-          [sequelize.literal('(SELECT SUM(presupuesto_asignado) FROM Proyectos WHERE Proyectos.departamento_id = Departamento.id)'), 'presupuesto_total'],
-          [sequelize.literal('(SELECT SUM(presupuesto_ejecutado) FROM Proyectos WHERE Proyectos.departamento_id = Departamento.id)'), 'presupuesto_ejecutado']
-        ],
-        order: [[sequelize.literal('total_proyectos'), 'DESC']]
-      });
-      
-      // Contar funcionarios por departamento
-      const funcionariosPorDepartamento = await Departamento.findAll({
-        attributes: [
-          'id',
-          'nombre',
-          [sequelize.literal('(SELECT COUNT(*) FROM Usuarios WHERE Usuarios.departamento_id = Departamento.id AND Usuarios.role = "funcionario")'), 'total_funcionarios']
-        ],
-        order: [[sequelize.literal('total_funcionarios'), 'DESC']]
-      });
-
-      // Contar departamentos por estado (activo/inactivo)
-      const estadoPorDepartamento = await Departamento.findAll({
-        attributes: [
-          'estado',
-          [sequelize.fn('COUNT', sequelize.col('id')), 'total']
-        ],
-        group: ['estado']
-      });
+      const proyectosPorDepartamento = [];
+      const funcionariosPorDepartamento = [];
+      const estadoPorDepartamento = [];
       
       res.json({
         proyectosPorDepartamento,

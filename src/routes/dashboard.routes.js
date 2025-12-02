@@ -10,7 +10,7 @@ const { isAuthenticated, hasRole } = require('../middlewares/auth.middleware');
  */
 router.get('/resumen', 
   isAuthenticated, 
-  hasRole(['admin', 'funcionario']),
+  hasRole(['administrador', 'superadministrador', 'funcionario']),
   dashboardController.getResumenGeneral
 );
 
@@ -21,8 +21,19 @@ router.get('/resumen',
  */
 router.get('/departamento/:departamento_id?', 
   isAuthenticated, 
-  hasRole(['admin', 'funcionario']),
+  hasRole(['administrador', 'superadministrador']),
   dashboardController.getResumenDepartamento
+);
+
+/**
+ * @route GET /api/dashboard/municipalidades/ranking
+ * @desc Ranking de uso por municipalidad (últimos 90 días)
+ * @access Private - Superadministrador
+ */
+router.get('/municipalidades/ranking',
+  isAuthenticated,
+  hasRole(['superadministrador']),
+  dashboardController.getMunicipalidadesRanking
 );
 
 module.exports = router;

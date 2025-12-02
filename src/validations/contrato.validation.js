@@ -37,7 +37,7 @@ const contratoQuerySchema = Joi.object({
     .messages(mensajesError),
   proveedor_id: Joi.number().integer().positive()
     .messages(mensajesError),
-  departamento_id: Joi.number().integer().positive()
+  municipalidad_id: Joi.number().integer().positive()
     .messages(mensajesError),
   search: Joi.string().min(1).max(100)
     .messages(mensajesError),
@@ -70,7 +70,7 @@ const createContratoSchema = Joi.object({
     .messages(mensajesError),
   proveedor_id: Joi.number().integer().positive().required()
     .messages(mensajesError),
-  departamento_id: Joi.number().integer().positive().required()
+  municipalidad_id: Joi.number().integer().positive().required()
     .messages(mensajesError),
   responsable_id: Joi.number().integer().positive().required()
     .messages(mensajesError),

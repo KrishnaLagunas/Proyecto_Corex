@@ -24,7 +24,8 @@ const isAuthenticated = (req, res, next) => {
         nombre: 'Administrador',
         apellido: 'Sistema',
         email: 'admin@sistema.com',
-        role: 'admin'
+        id_rol: null,
+        rol_nombre: 'administrador'
       };
       return next();
     }
@@ -47,7 +48,8 @@ const isAuthenticated = (req, res, next) => {
         nombre: 'Administrador',
         apellido: 'Sistema',
         email: 'admin@sistema.com',
-        role: 'admin'
+        id_rol: null,
+        rol_nombre: 'administrador'
       };
       return next();
     }
@@ -55,8 +57,9 @@ const isAuthenticated = (req, res, next) => {
     // Verificar el token
     const decoded = verifyToken(token);
     
-    // Agregar la información del usuario decodificada a la solicitud
+    // Normalizar datos del usuario y mantener compatibilidad
     req.user = decoded;
+    const nombreRol = decoded.rol_nombre || null;
     
     next();
   } catch (error) {
@@ -67,7 +70,7 @@ const isAuthenticated = (req, res, next) => {
       nombre: 'Administrador',
       apellido: 'Sistema',
       email: 'admin@sistema.com',
-      role: 'admin'
+      rol_nombre: 'administrador'
     };
     return next();
   }
@@ -89,7 +92,14 @@ const hasRole = (roles) => {
       }
       
       // Verificar si el rol del usuario está en la lista de roles permitidos
-      if (!roles.includes(req.user.role)) {
+      const userRolNombre = req.user.rol_nombre || null;
+      const expandedAllowed = roles.flatMap(r => {
+        if (r === 'admin') return ['administrador'];
+        if (r === 'superadmin') return ['superadministrador'];
+        if (r === 'funcionario') return ['secretaria comunitaria'];
+        return [r];
+      });
+      if (!expandedAllowed.includes(userRolNombre)) {
         return res.status(403).json({
           success: false,
           message: 'No tiene permisos para acceder a este recurso'
@@ -109,9 +119,14 @@ const hasRole = (roles) => {
 
 // Roles disponibles en el sistema
 const ROLES = {
-  ADMIN: 'admin',
-  FUNCIONARIO: 'funcionario',
-  CIUDADANO: 'ciudadano'
+  SUPERADMINISTRADOR: 'superadministrador',
+  ADMINISTRADOR: 'administrador',
+  CIUDADANO: 'ciudadano',
+  SECRETARIA_OBRAS: 'secretaria de obras',
+  SECRETARIA_TRANSITO: 'secretaria de transito',
+  TESORERIA_MUNICIPAL: 'tesoreria municipal',
+  SECRETARIA_PARTES: 'secretaria partes',
+  SECRETARIA_COMUNITARIA: 'secretaria comunitaria'
 };
 
 module.exports = {

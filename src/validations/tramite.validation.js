@@ -76,7 +76,7 @@ const tramiteSchemas = {
     requiere_pago: Joi.boolean().default(false).messages(customMessages),
     monto: Joi.number().min(0).allow(null).default(0).messages(customMessages),
     ciudadano_id: Joi.number().integer().positive().messages(customMessages),
-    departamento_id: Joi.number().integer().positive().required().messages(customMessages)
+    municipalidad_id: Joi.number().integer().positive().required().messages(customMessages)
   }),
 
   /**
@@ -95,7 +95,7 @@ const tramiteSchemas = {
     monto: Joi.number().min(0).allow(null).messages(customMessages),
     pago_completado: Joi.boolean().messages(customMessages),
     funcionario_id: Joi.number().integer().positive().allow(null).messages(customMessages),
-    departamento_id: Joi.number().integer().positive().messages(customMessages)
+    municipalidad_id: Joi.number().integer().positive().messages(customMessages)
   })
 };
 

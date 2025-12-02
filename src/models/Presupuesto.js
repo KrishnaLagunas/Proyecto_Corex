@@ -64,14 +64,14 @@ const Presupuesto = sequelize.define('Presupuesto', {
     type: DataTypes.TEXT,
     allowNull: true
   },
-  departamento_id: {
+  municipalidad_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
     references: {
-      model: 'departamentos',
+      model: 'municipalidades',
       key: 'id'
     },
-    comment: 'Departamento al que pertenece el presupuesto, si aplica'
+    comment: 'Municipalidad a la que pertenece el presupuesto, si aplica'
   },
   responsable_id: {
     type: DataTypes.INTEGER,

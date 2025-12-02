@@ -406,8 +406,69 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (active) active.classList.add('active');
                         }
                     } catch (_) {}
-                }
-            }
+  }
+}
+
+async function cargarReportes() {
+  try {
+    mostrarCargando(true);
+    const mainContent = document.getElementById('main-content');
+    if (!mainContent) return;
+    mainContent.classList.remove('d-none');
+    mainContent.innerHTML = `
+      <div class="container py-4">
+        <div class="row mb-3">
+          <div class="col-12 text-center">
+            <h2 class="section-title">Reportes</h2>
+          </div>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">Resumen de Trámites</h5>
+                <p class="card-text">Conteos y estados generales.</p>
+                <button class="btn btn-primary" id="btn-reporte-tramites">Ver</button>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">Resumen de Pagos</h5>
+                <p class="card-text">Montos y transacciones.</p>
+                <button class="btn btn-primary" id="btn-reporte-pagos">Ver</button>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">Departamentos</h5>
+                <p class="card-text">Actividad por departamento.</p>
+                <button class="btn btn-primary" id="btn-reporte-departamentos">Ver</button>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">Exportar</h5>
+                <p class="card-text">Descargar informes generales.</p>
+                <button class="btn btn-outline-secondary" id="btn-reporte-exportar">Descargar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (error) {
+  } finally {
+    mostrarCargando(false);
+  }
+}
+
+window.cargarReportes = cargarReportes;
         } catch (_) {
             // Mantener sesión en caso de error transitorio
         }

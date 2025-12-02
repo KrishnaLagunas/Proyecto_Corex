@@ -50,9 +50,13 @@ const Usuario = sequelize.define('Usuario', {
     type: DataTypes.STRING,
     allowNull: false
   },
-  role: {
-    type: DataTypes.ENUM('admin', 'funcionario', 'ciudadano'),
-    allowNull: true
+  id_rol: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'rol',
+      key: 'id'
+    }
   },
   rut: {
     type: DataTypes.STRING(12),
@@ -88,11 +92,11 @@ const Usuario = sequelize.define('Usuario', {
     type: DataTypes.DATE,
     allowNull: true
   },
-  departamento_id: {
+  municipalidad_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
     references: {
-      model: 'departamentos',
+      model: 'municipalidades',
       key: 'id'
     }
   },

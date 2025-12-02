@@ -38,7 +38,7 @@ const presupuestoQuerySchema = Joi.object({
     .messages(mensajesError),
   anio_fiscal: Joi.number().integer().min(2000).max(2100)
     .messages(mensajesError),
-  departamento_id: Joi.number().integer().positive()
+  municipalidad_id: Joi.number().integer().positive()
     .messages(mensajesError),
   search: Joi.string().min(1).max(100)
     .messages(mensajesError),
@@ -75,7 +75,7 @@ const createPresupuestoSchema = Joi.object({
     .messages(mensajesError),
   notas: Joi.string().max(1000).allow('', null)
     .messages(mensajesError),
-  departamento_id: Joi.number().integer().positive().allow(null)
+  municipalidad_id: Joi.number().integer().positive().allow(null)
     .messages(mensajesError),
   responsable_id: Joi.number().integer().positive().required()
     .messages(mensajesError)
@@ -101,7 +101,7 @@ const updatePresupuestoSchema = Joi.object({
     .messages(mensajesError),
   notas: Joi.string().max(1000).allow('', null)
     .messages(mensajesError),
-  departamento_id: Joi.number().integer().positive().allow(null)
+  municipalidad_id: Joi.number().integer().positive().allow(null)
     .messages(mensajesError),
   responsable_id: Joi.number().integer().positive()
     .messages(mensajesError)

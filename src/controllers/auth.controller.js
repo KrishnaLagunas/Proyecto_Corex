@@ -1,4 +1,4 @@
-const { Usuario } = require('../models');
+const { Usuario, Rol } = require('../models');
 const { generateToken, verifyToken } = require('../config/jwt');
 const bcrypt = require('bcryptjs');
 const logger = require('../utils/logger');
@@ -35,6 +35,7 @@ const authController = {
       const nombreConcatenado = (nombre && nombre.trim()) || [primer_nombre, segundo_nombre].filter(Boolean).join(' ').trim();
       const apellidoConcatenado = (apellido && apellido.trim()) || [primer_apellido, segundo_apellido].filter(Boolean).join(' ').trim();
 
+      const rolCiudadano = await Rol.findOne({ where: { nombre: 'ciudadano' } });
       const newUser = await Usuario.create({
         nombre: cleanName(nombreConcatenado),
         apellido: cleanName(apellidoConcatenado),
@@ -44,7 +45,7 @@ const authController = {
         segundo_apellido,
         email,
         password, // El hash se genera automáticamente en el hook beforeCreate del modelo
-        role: 'ciudadano', // Rol por defecto para registro público
+        id_rol: rolCiudadano ? rolCiudadano.id : null,
         rut,
         fecha_nacimiento: fecha_nacimiento ?? fechaNacimiento ?? null,
         celular,
@@ -57,7 +58,8 @@ const authController = {
       const token = generateToken({
         id: newUser.id,
         email: newUser.email,
-        role: newUser.role
+        id_rol: newUser.id_rol,
+        rol_nombre: 'ciudadano'
       });
 
       logger.info(`Usuario registrado: ${email}`);
@@ -70,7 +72,8 @@ const authController = {
           nombre: newUser.nombre,
           apellido: newUser.apellido,
           email: newUser.email,
-          role: newUser.role,
+          id_rol: newUser.id_rol,
+          rol_nombre: 'ciudadano',
           rut: newUser.rut
         },
         token
@@ -91,7 +94,7 @@ const authController = {
       const { email, password } = req.body;
 
       // Buscar el usuario por email
-      const user = await Usuario.findOne({ where: { email } });
+      const user = await Usuario.findOne({ where: { email }, include: [{ model: Rol }] });
       if (!user) {
         throw new ApiError('Credenciales inválidas', 401);
       }
@@ -116,10 +119,27 @@ const authController = {
       const token = generateToken({
         id: user.id,
         email: user.email,
-        role: user.role
+        id_rol: user.id_rol,
+        rol_nombre: user.Rol ? user.Rol.nombre : null
       });
 
       logger.info(`Inicio de sesión exitoso: ${email}`);
+
+      const rolNombre = user.Rol ? user.Rol.nombre : null;
+      const portal = rolNombre === 'ciudadano' ? 'ciudadano'
+        : rolNombre === 'administrador' ? 'admin'
+        : rolNombre === 'superadministrador' ? 'superadmin'
+        : 'usuario';
+      const redirect_path = portal === 'ciudadano' ? '/portal-ciudadano'
+        : portal === 'admin' ? '/panel-admin'
+        : portal === 'superadmin' ? '/panel-superadmin'
+        : '/';
+
+      const allowed_features = portal === 'superadmin'
+        ? ['municipalidades', 'usuarios_admin']
+        : portal === 'admin'
+        ? ['dashboard_municipal', 'usuarios_funcionarios', 'tramites', 'pagos', 'proyectos']
+        : ['portal_ciudadano'];
 
       // Responder con los datos del usuario (sin la contraseña) y el token
       res.json({
@@ -129,10 +149,14 @@ const authController = {
           nombre: user.nombre,
           apellido: user.apellido,
           email: user.email,
-          role: user.role,
+          id_rol: user.id_rol,
+          rol_nombre: rolNombre,
           rut: user.rut
         },
-        token
+        token,
+        portal,
+        redirect_path,
+        allowed_features
       });
     } catch (error) {
       next(error);
@@ -157,18 +181,38 @@ const authController = {
       const decoded = verifyToken(token);
 
       // Buscar el usuario para asegurar que existe y está activo
-      const user = await Usuario.findByPk(decoded.id);
+      const user = await Usuario.findByPk(decoded.id, { include: [{ model: Rol }] });
       if (!user || user.estado !== 'activo') {
         throw new ApiError('Token inválido o usuario inactivo', 401);
       }
+
+      const rolNombre = user.Rol ? user.Rol.nombre : null;
+      const portal = rolNombre === 'ciudadano' ? 'ciudadano'
+        : rolNombre === 'administrador' ? 'admin'
+        : rolNombre === 'superadministrador' ? 'superadmin'
+        : 'usuario';
+      const redirect_path = portal === 'ciudadano' ? '/portal-ciudadano'
+        : portal === 'admin' ? '/panel-admin'
+        : portal === 'superadmin' ? '/panel-superadmin'
+        : '/';
+
+      const allowed_features = portal === 'superadmin'
+        ? ['municipalidades', 'usuarios_admin']
+        : portal === 'admin'
+        ? ['dashboard_municipal', 'usuarios_funcionarios', 'tramites', 'pagos', 'proyectos']
+        : ['portal_ciudadano'];
 
       res.json({
         valid: true,
         user: {
           id: user.id,
           email: user.email,
-          role: user.role
-        }
+          id_rol: user.id_rol,
+          rol_nombre: rolNombre
+        },
+        portal,
+        redirect_path,
+        allowed_features
       });
     } catch (error) {
       // No usar next() aquí para evitar el manejo de errores global

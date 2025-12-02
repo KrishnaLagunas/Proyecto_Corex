@@ -36,51 +36,7 @@ const usuariosPrueba = [
 
 // Inicializar el módulo de autenticación
 document.addEventListener('DOMContentLoaded', () => {
-    const cookieToken = getCookie('corex_session');
-    if (cookieToken && !localStorage.getItem('token')) localStorage.setItem('token', cookieToken);
-    const token = localStorage.getItem('token');
-    const localUser = obtenerUsuario();
-    if (token && localUser && localUser.role) {
-        cancelarMostrarLogin();
-        redirigirSegunRol(localUser);
-        (async () => {
-            try {
-                const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
-                if (perfil && perfil.id) {
-                    const s = (perfil.role || perfil.rol || '').toString().toLowerCase();
-                    const role = s.includes('admin') ? 'admin' : s.includes('func') ? 'funcionario' : s.includes('ciud') || s === 'user' || s === 'usuario' ? 'ciudadano' : (s || 'ciudadano');
-                    const usuarioInfo = { id: perfil.id, nombre: perfil.nombre || perfil.primer_nombre || '', apellido: perfil.apellido || perfil.apellido_paterno || '', email: perfil.email, role };
-                    localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
-                }
-            } catch (_) { }
-        })();
-    } else if (token) {
-        (async () => {
-            try {
-                const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
-                if (perfil && perfil.id) {
-                    const s = (perfil.role || perfil.rol || '').toString().toLowerCase();
-                    const role = s.includes('admin') ? 'admin' : s.includes('func') ? 'funcionario' : s.includes('ciud') || s === 'user' || s === 'usuario' ? 'ciudadano' : (s || 'ciudadano');
-                    const usuarioInfo = { id: perfil.id, nombre: perfil.nombre || perfil.primer_nombre || '', apellido: perfil.apellido || perfil.apellido_paterno || '', email: perfil.email, role };
-                    localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
-                    cancelarMostrarLogin();
-                    redirigirSegunRol(usuarioInfo);
-                } else {
-                    const usuarioInfo = { id: 'session', nombre: '', apellido: '', email: '', role: 'admin' };
-                    localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
-                    cancelarMostrarLogin();
-                    redirigirSegunRol(usuarioInfo);
-                }
-            } catch (_) {
-                const usuarioInfo = { id: 'session', nombre: '', apellido: '', email: '', role: 'admin' };
-                localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
-                cancelarMostrarLogin();
-                redirigirSegunRol(usuarioInfo);
-            }
-        })();
-    } else {
-        programarMostrarLogin(600);
-    }
+    programarMostrarLogin(0);
     
     // Configurar el evento de submit del formulario de login
     const loginForm = document.getElementById('login-form');
@@ -326,12 +282,21 @@ async function manejarLogin(e) {
             if (s.includes('ciud') || s === 'user' || s === 'usuario') return 'ciudadano';
             return s || 'ciudadano';
         };
+        const rolNombreBackend = (user.rol_nombre || '').toString().toLowerCase();
+        const roleFromBackend = rolNombreBackend
+            ? (rolNombreBackend === 'administrador' ? 'admin' : rolNombreBackend)
+            : normalizarRol(user.role);
+        const portal = (response.portal || '').toString().toLowerCase();
+        const roleFinal = portal === 'superadmin' ? 'superadministrador'
+            : portal === 'admin' ? 'admin'
+            : portal === 'ciudadano' ? 'ciudadano'
+            : roleFromBackend;
         const usuarioInfo = {
             id: user.id,
             nombre: user.nombre || user.primer_nombre || '',
             apellido: user.apellido || user.apellido_paterno || '',
             email: user.email,
-            role: normalizarRol(user.role),
+            role: roleFinal,
             nombre_completo: user.nombre_completo || `${user.nombre || user.primer_nombre || ''} ${user.apellido || user.apellido_paterno || ''}`.trim()
         };
 
@@ -413,6 +378,9 @@ function redirigirSegunRol(usuario) {
     
     // Redirigir según el rol
     switch (usuario.role) {
+        case 'superadministrador':
+            cargarInterfazSuperadmin(usuario);
+            break;
         case 'admin':
             cargarInterfazAdmin(usuario);
             break;
@@ -426,6 +394,96 @@ function redirigirSegunRol(usuario) {
             console.error('Rol no reconocido:', usuario.role, '— mostrando interfaz de administrador por defecto');
             cargarInterfazAdmin(usuario);
     }
+}
+
+async function cargarInterfazSuperadmin(usuario) {
+    try {
+        const navbar = document.getElementById('main-navbar');
+        if (navbar) navbar.classList.remove('d-none');
+        try { generarMenu('superadmin'); } catch (_) {}
+        const mainContent = document.getElementById('main-content');
+        if (mainContent) {
+            mainContent.classList.remove('d-none');
+            mainContent.innerHTML = `
+              <div class="container py-4">
+                <div class="row">
+                  <div class="col-12">
+                    <h2 class="mb-4">Panel de Superadministrador</h2>
+                    <div class="alert alert-success">
+                      <i class="bi bi-shield-check me-2"></i>
+                      Bienvenido/a, ${usuario.nombre} ${usuario.apellido}.
+                    </div>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col-md-6 mb-4">
+                    <div class="card shadow-sm">
+                      <div class="card-body text-center">
+                        <i class="bi bi-building fs-1 text-primary mb-3"></i>
+                        <h5 class="card-title">Gestionar Municipalidades</h5>
+                        <p class="card-text">Crear, editar y ver municipalidades.</p>
+                        <a href="#" class="btn btn-primary" id="btn-gestion-municipalidades">Acceder</a>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-6 mb-4">
+                    <div class="card shadow-sm">
+                      <div class="card-body text-center">
+                        <i class="bi bi-people fs-1 text-success mb-3"></i>
+                        <h5 class="card-title">Crear Usuarios Administradores</h5>
+                        <p class="card-text">Asignar administradores a municipalidades.</p>
+                        <a href="#" class="btn btn-success" id="btn-crear-administradores">Acceder</a>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-6 mb-4">
+                    <div class="card shadow-sm">
+                      <div class="card-body text-center">
+                        <i class="bi bi-bar-chart-line fs-1 text-info mb-3"></i>
+                        <h5 class="card-title">Supervisión Multi-Municipalidad</h5>
+                        <p class="card-text">Ver ranking y métricas de todas las municipalidades.</p>
+                        <a href="#" class="btn btn-info" id="btn-supervision-multi">Acceder</a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+            const btnGestionMunicipalidades = document.getElementById('btn-gestion-municipalidades');
+            if (btnGestionMunicipalidades) {
+                btnGestionMunicipalidades.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (typeof cargarMunicipalidades === 'function') {
+                        cargarMunicipalidades();
+                    } else if (typeof cargarDepartamentos === 'function') {
+                        cargarDepartamentos();
+                    }
+                });
+            }
+            const btnCrearAdministradores = document.getElementById('btn-crear-administradores');
+            if (btnCrearAdministradores) {
+                btnCrearAdministradores.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (typeof mostrarFormularioCrearAdministrador === 'function') {
+                        mostrarFormularioCrearAdministrador();
+                    } else if (typeof cargarUsuarios === 'function') {
+                        cargarUsuarios();
+                    }
+                });
+            }
+            const btnSupervisionMulti = document.getElementById('btn-supervision-multi');
+            if (btnSupervisionMulti) {
+                btnSupervisionMulti.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (typeof mostrarSupervisionMultiMunicipalidad === 'function') {
+                        mostrarSupervisionMultiMunicipalidad();
+                    } else {
+                        if (typeof cargarDashboard === 'function') cargarDashboard();
+                    }
+                });
+            }
+        }
+    } catch (_) {}
 }
 
 /**
@@ -1074,6 +1132,20 @@ function generarMenu(rol) {
                 </a>
             </li>
         `;
+    } else if (rol === 'superadmin') {
+        const pageKey = currentPage==='municipalidades' ? 'municipalidades' : currentPage;
+        menuHTML = `
+            <li class="nav-item">
+                <a href="#" class="nav-link ${pageKey==='municipalidades'?'active':''}" data-page="municipalidades">
+                    <i class="bi bi-building"></i> Municipalidades
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link ${pageKey==='usuarios'?'active':''}" data-page="usuarios">
+                    <i class="bi bi-people"></i> Administradores
+                </a>
+            </li>
+        `;
     }
     
     menuItems.innerHTML = menuHTML;
@@ -1090,7 +1162,9 @@ function generarMenu(rol) {
             // Cargar la página correspondiente
             const pagina = enlace.getAttribute('data-page');
             try { localStorage.setItem('currentPage', pagina); } catch (_) {}
-            if (pagina && typeof window[`cargar${pagina.charAt(0).toUpperCase() + pagina.slice(1)}`] === 'function') {
+            if (pagina === 'municipalidades' && typeof cargarMunicipalidades === 'function') {
+                cargarMunicipalidades();
+            } else if (pagina && typeof window[`cargar${pagina.charAt(0).toUpperCase() + pagina.slice(1)}`] === 'function') {
                 window[`cargar${pagina.charAt(0).toUpperCase() + pagina.slice(1)}`]();
             } else {
                 console.log(`Función para cargar ${pagina} no encontrada`);
@@ -1112,6 +1186,8 @@ function obtenerNombreRol(role) {
             return 'Funcionario Municipal';
         case 'ciudadano':
             return 'Ciudadano';
+        case 'superadministrador':
+            return 'Superadministrador';
         default:
             return role;
     }

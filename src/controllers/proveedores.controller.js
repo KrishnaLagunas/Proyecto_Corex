@@ -44,7 +44,7 @@ const proveedoresController = {
       }
       
       // Restricción por rol de usuario
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         // Los ciudadanos solo pueden ver proveedores activos
         where.estado = 'activo';
       }
@@ -120,7 +120,7 @@ const proveedoresController = {
       }
       
       // Verificar permisos de acceso para ciudadanos
-      if (req.user.role === 'ciudadano' && proveedor.estado !== 'activo') {
+      if (req.user.rol_nombre === 'ciudadano' && proveedor.estado !== 'activo') {
         throw new ApiError('No tienes permiso para ver este proveedor', 403);
       }
       
@@ -229,7 +229,7 @@ const proveedoresController = {
       }
       
       // Verificar permisos
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         throw new ApiError('No tienes permiso para modificar proveedores', 403);
       }
       
@@ -252,7 +252,7 @@ const proveedoresController = {
       if (contacto_id) proveedor.contacto_id = contacto_id;
       
       // Solo admin y funcionario pueden cambiar el estado
-      if (estado && ['admin', 'funcionario'].includes(req.user.role)) {
+      if (estado && (['administrador','superadministrador'].includes(req.user.rol_nombre) || req.user.rol_nombre === 'secretaria comunitaria')) {
         proveedor.estado = estado;
       }
       
@@ -292,7 +292,7 @@ const proveedoresController = {
       const { id } = req.params;
       
       // Solo los administradores pueden eliminar proveedores
-      if (req.user.role !== 'admin') {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para eliminar proveedores', 403);
       }
       
@@ -334,7 +334,7 @@ const proveedoresController = {
   getProveedoresStats: async (req, res, next) => {
     try {
       // Solo administradores y funcionarios pueden ver estadísticas
-      if (req.user.role === 'ciudadano') {
+      if (req.user.rol_nombre === 'ciudadano') {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
       
