@@ -291,6 +291,57 @@ function generarId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
 }
 
+function formatRut(rut) {
+    if (!rut) return '';
+    const clean = String(rut).replace(/[^0-9kK]/g, '').toLowerCase();
+    if (!clean) return '';
+    const dv = clean.slice(-1);
+    let cuerpo = clean.slice(0, -1);
+    let rev = cuerpo.split('').reverse();
+    let withDots = '';
+    for (let i = 0; i < rev.length; i++) {
+        withDots += rev[i];
+        if ((i + 1) % 3 === 0 && i + 1 < rev.length) withDots += '.';
+    }
+    cuerpo = withDots.split('').reverse().join('');
+    return `${cuerpo}-${dv}`;
+}
+
+function formatRutLive(value) {
+    const clean = String(value || '').replace(/[^0-9kK]/g, '').toLowerCase();
+    if (!clean) return '';
+    if (clean.length <= 8) {
+        const rev = clean.split('').reverse();
+        let withDots = '';
+        for (let i = 0; i < rev.length; i++) {
+            withDots += rev[i];
+            if ((i + 1) % 3 === 0 && i + 1 < rev.length) withDots += '.';
+        }
+        return withDots.split('').reverse().join('');
+    }
+    return formatRut(clean);
+}
+
+function normalizeRut(value) {
+    const clean = String(value || '').replace(/[^0-9kK]/g, '').toLowerCase();
+    return clean || null;
+}
+
+function formatPhoneLive(value) {
+    const digits = String(value || '').replace(/[^0-9]/g, '');
+    if (!digits) return '';
+    // Si comienza con 56 y tiene 11 dígitos, mostrar +56 9XXXXXXX
+    if (digits.startsWith('56') && digits.length === 11) {
+        return `+${digits.slice(0,2)} ${digits.slice(2,3)}${digits.slice(3)}`;
+    }
+    // Si tiene 9 dígitos (móvil chileno), prefijar +56
+    if (digits.length === 9) {
+        return `+56 ${digits[0]}${digits.slice(1)}`;
+    }
+    // Otro caso: mostrar tal cual
+    return digits;
+}
+
 /**
  * Función para crear un elemento de paginación
  * @param {number} totalItems - Total de elementos

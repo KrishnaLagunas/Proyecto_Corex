@@ -14,19 +14,31 @@ const Municipalidad = sequelize.define('Municipalidad', {
   },
   rut: {
     type: DataTypes.STRING(12),
-    allowNull: false,
-    unique: true
+    allowNull: true,
+    unique: true,
+    set(value) {
+      const clean = value == null ? null : String(value).replace(/[^0-9kK]/g, '').toLowerCase();
+      this.setDataValue('rut', clean || null);
+    }
   },
   email: {
     type: DataTypes.STRING(100),
     allowNull: true,
     validate: { isEmail: true },
-    field: 'email_contacto'
+    field: 'email_contacto',
+    set(value) {
+      const v = value == null ? null : String(value).trim();
+      this.setDataValue('email', v);
+    }
   },
   telefono: {
     type: DataTypes.STRING(20),
     allowNull: true,
-    field: 'telefono_contacto'
+    field: 'telefono_contacto',
+    set(value) {
+      const v = value == null ? null : String(value).trim();
+      this.setDataValue('telefono', v);
+    }
   },
   direccion: {
     type: DataTypes.STRING(255),

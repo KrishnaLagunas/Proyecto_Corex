@@ -134,10 +134,12 @@ const updateUsuarioSchema = Joi.object({
   nombre: Joi.string().min(2).max(100).messages(mensajesError),
   apellido: Joi.string().min(2).max(100).messages(mensajesError),
   email: Joi.string().email().max(100).messages(mensajesError),
+  rut: rutValidation.messages(mensajesError),
   telefono: Joi.string().min(7).max(20).messages(mensajesError),
   direccion: Joi.string().min(5).max(200).messages(mensajesError),
   id_rol: Joi.number().integer().min(1).messages(mensajesError),
   municipalidad_id: Joi.number().integer().min(1).allow(null).messages(mensajesError),
+  role: Joi.string().valid('superadministrador','administrador','funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal','ciudadano','admin','superadmin').messages(mensajesError),
   estado: Joi.string().valid('activo', 'inactivo', 'bloqueado').messages(mensajesError)
 }).min(1).messages(mensajesError);
 

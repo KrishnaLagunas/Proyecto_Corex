@@ -4,6 +4,19 @@ function cargarContenidoPagina(pagina) {
     mostrarCargando(true);
     
     switch (pagina) {
+        case 'panel-superadmin': {
+            const mainContent = document.getElementById('main-content');
+            const u = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+            if (typeof cargarInterfazSuperadmin === 'function') {
+                cargarInterfazSuperadmin(u || {});
+            } else {
+                if (mainContent) {
+                    mainContent.classList.remove('d-none');
+                    mainContent.innerHTML = '<div class="alert alert-info">Panel de Superadministrador</div>';
+                }
+            }
+            break;
+        }
         case 'dashboard': {
             // Permitir dashboard para 'admin' y 'funcionario' con sesión válida
             let rol, token;

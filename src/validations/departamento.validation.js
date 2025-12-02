@@ -50,7 +50,8 @@ const createDepartamentoSchema = Joi.object({
   comuna: Joi.string().min(2).max(100).allow('', null).messages(mensajesError),
   telefono: Joi.string().min(5).max(20).allow('', null).messages(mensajesError),
   email: Joi.string().email().allow('', null).messages(mensajesError),
-  rut: Joi.string().max(12).allow('', null).messages(mensajesError)
+  rut: Joi.string().max(12).allow('', null).messages(mensajesError),
+  estado: Joi.string().valid('activo','inactivo').allow('', null).messages(mensajesError)
 }).messages(mensajesError);
 
 // Esquema para validar la actualización de un departamento
@@ -61,7 +62,8 @@ const updateDepartamentoSchema = Joi.object({
   comuna: Joi.string().min(2).max(100).allow('', null).messages(mensajesError),
   telefono: Joi.string().min(5).max(20).allow('', null).messages(mensajesError),
   email: Joi.string().email().allow('', null).messages(mensajesError),
-  rut: Joi.string().max(12).allow('', null).messages(mensajesError)
+  rut: Joi.string().max(12).allow('', null).messages(mensajesError),
+  estado: Joi.string().valid('activo','inactivo').allow('', null).messages(mensajesError)
 }).min(1).messages(mensajesError);
 
 // Esquema para validar la asignación de funcionarios

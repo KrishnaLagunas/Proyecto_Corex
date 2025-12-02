@@ -476,9 +476,15 @@ async function mostrarListaUsuarios() {
             <div class="col-md-3">
                 <select class="form-select" id="filtro-rol-usuario">
                     <option value="">Todos los roles</option>
-                    <option value="admin">Admin</option>
-                    <option value="funcionario">Funcionario</option>
-                    <option value="ciudadano">Ciudadano</option>
+                    <option value="superadministrador">superadministrador</option>
+                    <option value="administrador">administrador</option>
+                    <option value="funcionario">funcionario</option>
+                    <option value="secretaria comunitaria">secretaria comunitaria</option>
+                    <option value="secretaria de obras">secretaria de obras</option>
+                    <option value="secretaria de transito">secretaria de transito</option>
+                    <option value="secretaria partes">secretaria partes</option>
+                    <option value="tesoreria municipal">tesoreria municipal</option>
+                    <option value="ciudadano">ciudadano</option>
                 </select>
             </div>
             <div class="col-md-3">
@@ -540,11 +546,20 @@ async function actualizarTablaUsuarios(page = 1) {
         params.set('page', page);
         params.set('limit', (CONFIG?.PAGINACION?.ITEMS_POR_PAGINA) || 10);
         if (buscar) params.set('search', buscar);
-        if (rol) params.set('role', rol);
+        // El backend espera 'id_rol' numérico; como no lo tenemos aquí,
+        // filtramos por rol en el cliente y no enviamos este parámetro.
         if (estado) params.set('estado', estado);
 
         const resp = await fetchAPI(`/usuarios?${params.toString()}`);
-        const usuarios = resp.usuarios || [];
+        let usuarios = resp.usuarios || [];
+        // Filtro por rol en cliente usando nombre del rol devuelto por relación Rol
+        if (rol) {
+            const rolLower = String(rol).toLowerCase();
+            usuarios = usuarios.filter(u => {
+                const nombreRol = (u.Rol?.nombre || u.rol_nombre || '').toLowerCase();
+                return nombreRol === rolLower;
+            });
+        }
         const pagination = resp.pagination || { total: usuarios.length, currentPage: page, limit: (CONFIG?.PAGINACION?.ITEMS_POR_PAGINA) || 10 };
 
         if (!tbody) return;
@@ -561,8 +576,8 @@ async function actualizarTablaUsuarios(page = 1) {
                     <td class="cell-wrap">${(u.nombre || '')} ${(u.apellido || '')}</td>
                     <td class="cell-wrap cell-email">${u.email || ''}</td>
                     <td class="cell-nowrap">${u.rut || ''}</td>
-                    <td class="text-center">${u.role || ''}</td>
-                    <td class="cell-wrap">${u.Departamento?.nombre || u.departamento?.nombre || 'N/A'}</td>
+                    <td class="text-center">${u.Rol?.nombre || u.rol_nombre || ''}</td>
+                    <td class="cell-wrap">${u.Municipalidad?.nombre || 'N/A'}</td>
                     <td class="text-center"><span class="estado-${u.estado}">${u.estado}</span></td>
                     <td class="text-center">${typeof formatearFecha === 'function' ? formatearFecha(u.createdAt) : ''}</td>
                     <td class="text-center col-actions">
@@ -617,7 +632,13 @@ async function actualizarTablaUsuarios(page = 1) {
 // Eliminar usuario con confirmación
 async function eliminarUsuario(usuarioId) {
     if (!usuarioId) return;
-    const ok = confirm('¿Seguro que deseas eliminar este usuario? Esta acción no se puede deshacer.');
+    const ok = await mostrarModalConfirmacion({
+        titulo: 'Confirmar eliminación',
+        mensaje: '¿Seguro que deseas eliminar este usuario? Esta acción no se puede deshacer.',
+        confirmarTexto: 'Confirmar',
+        cancelarTexto: 'Cancelar',
+        tipo: 'danger'
+    });
     if (!ok) return;
 
     try {
@@ -638,6 +659,69 @@ async function eliminarUsuario(usuarioId) {
     } finally {
         mostrarCargando(false);
     }
+}
+
+function mostrarModalConfirmacion(opts) {
+    const o = opts || {};
+    const titulo = o.titulo || 'Confirmación';
+    const mensaje = o.mensaje || '';
+    const confirmarTexto = o.confirmarTexto || 'Confirmar';
+    const cancelarTexto = o.cancelarTexto || 'Cancelar';
+    const tipo = o.tipo || 'primary';
+    return new Promise((resolve) => {
+        const existingBackdrop = document.getElementById('confirm-backdrop');
+        const existingModal = document.getElementById('confirm-modal');
+        if (existingBackdrop) existingBackdrop.remove();
+        if (existingModal) existingModal.remove();
+        const backdrop = document.createElement('div');
+        backdrop.id = 'confirm-backdrop';
+        backdrop.className = 'modal-backdrop fade show';
+        backdrop.style.zIndex = '1050';
+        const modal = document.createElement('div');
+        modal.id = 'confirm-modal';
+        modal.className = 'modal fade show';
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+        modal.style.display = 'block';
+        modal.style.zIndex = '1055';
+        modal.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">${titulo}</h5>
+                  <button type="button" class="btn-close" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">${mensaje}</div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-outline-secondary" id="confirm-cancel">${cancelarTexto}</button>
+                  <button type="button" class="btn btn-${tipo}" id="confirm-accept">${confirmarTexto}</button>
+                </div>
+              </div>
+            </div>`;
+        const cleanup = () => {
+            try { modal.remove(); } catch (_) {}
+            try { backdrop.remove(); } catch (_) {}
+        };
+        document.body.appendChild(backdrop);
+        document.body.appendChild(modal);
+        const btnClose = modal.querySelector('.btn-close');
+        const btnCancel = modal.querySelector('#confirm-cancel');
+        const btnAccept = modal.querySelector('#confirm-accept');
+        if (btnClose) btnClose.onclick = () => { cleanup(); resolve(false); };
+        if (btnCancel) btnCancel.onclick = () => { cleanup(); resolve(false); };
+        if (btnAccept) btnAccept.onclick = () => { cleanup(); resolve(true); };
+        setTimeout(() => {
+            const focusTarget = btnAccept || btnCancel || btnClose;
+            try { focusTarget && focusTarget.focus(); } catch (_) {}
+        }, 50);
+        document.addEventListener('keydown', function esc(e) {
+            if (e.key === 'Escape') {
+                document.removeEventListener('keydown', esc);
+                cleanup();
+                resolve(false);
+            }
+        });
+    });
 }
 
 // Formulario de creación/edición de usuarios
@@ -771,14 +855,27 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                         <div class="mb-3">
                                             <label for="role" class="form-label">Rol</label>
                                             <select class="form-select" id="role" required>
-                                                ${esSuperadmin ? `
-                                                    <option value="admin" selected>Administrador</option>
-                                                ` : `
-                                                    <option value="">Selecciona rol</option>
-                                                    <option value="admin" ${usuario?.role === 'admin' ? 'selected' : ''}>Admin</option>
-                                                    <option value="funcionario" ${usuario?.role === 'funcionario' ? 'selected' : ''}>Funcionario</option>
-                                                    <option value="ciudadano" ${usuario?.role === 'ciudadano' ? 'selected' : ''}>Ciudadano</option>
-                                                `}
+                                                ${(() => {
+                                                    const actual = (usuario?.Rol?.nombre || usuario?.rol_nombre || '').toLowerCase();
+                                                    const opts = [
+                                                        'superadministrador',
+                                                        'administrador',
+                                                        'funcionario',
+                                                        'secretaria comunitaria',
+                                                        'secretaria de obras',
+                                                        'secretaria de transito',
+                                                        'secretaria partes',
+                                                        'tesoreria municipal',
+                                                        'ciudadano'
+                                                    ];
+                                                    if (esSuperadmin) {
+                                                        return opts.map(n => `<option value="${n}" ${n==='administrador'?'selected':''}>${n}</option>`).join('');
+                                                    } else {
+                                                        return ['','superadministrador','administrador','funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal','ciudadano']
+                                                            .map(n => n ? `<option value="${n}" ${actual===n?'selected':''}>${n}</option>` : '<option value="">Selecciona rol</option>')
+                                                            .join('');
+                                                    }
+                                                })()}
                                             </select>
                                         </div>
                                     </div>
@@ -964,17 +1061,20 @@ async function guardarUsuario(e) {
     const direccionCompuesta = [direccion, comunaNombre, regionNombre].filter(Boolean).join(', ');
     const payload = { 
         primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
-        email, rut, telefono, direccion: direccionCompuesta, role, departamento_id 
+        email, rut, telefono, direccion: direccionCompuesta, role 
     };
     if (esSuperadmin && role === 'admin') payload.municipalidad_id = municipalidad_id;
+    if (!esSuperadmin && departamento_id) payload.municipalidad_id = departamento_id;
     if (!usuarioId) payload.password = password;
 
     try {
         mostrarCargando(true);
         if (accion === 'actualizar' && usuarioId) {
+            try { console.log('[USUARIOS][UPDATE][PAYLOAD]', { id: usuarioId, ...payload }); } catch (_) {}
             await fetchAPI(`/usuarios/${usuarioId}`, { method: 'PUT', body: payload });
             mostrarNotificacion('Usuario actualizado correctamente', 'success');
         } else {
+            try { console.log('[USUARIOS][CREATE][PAYLOAD]', payload); } catch (_) {}
             if (esSuperadmin && role === 'admin') {
                 await fetchAPI('/superadmin/usuarios/administradores', { method: 'POST', body: payload });
             } else {

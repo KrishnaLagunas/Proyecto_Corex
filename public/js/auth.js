@@ -1133,8 +1133,13 @@ function generarMenu(rol) {
             </li>
         `;
     } else if (rol === 'superadmin') {
-        const pageKey = currentPage==='municipalidades' ? 'municipalidades' : currentPage;
+        const pageKey = currentPage || 'panel-superadmin';
         menuHTML = `
+            <li class="nav-item">
+                <a href="#" class="nav-link ${pageKey==='panel-superadmin'?'active':''}" data-page="panel-superadmin">
+                    <i class="bi bi-speedometer2"></i> Panel
+                </a>
+            </li>
             <li class="nav-item">
                 <a href="#" class="nav-link ${pageKey==='municipalidades'?'active':''}" data-page="municipalidades">
                     <i class="bi bi-building"></i> Municipalidades
@@ -1162,7 +1167,10 @@ function generarMenu(rol) {
             // Cargar la página correspondiente
             const pagina = enlace.getAttribute('data-page');
             try { localStorage.setItem('currentPage', pagina); } catch (_) {}
-            if (pagina === 'municipalidades' && typeof cargarMunicipalidades === 'function') {
+            if (pagina === 'panel-superadmin') {
+                const u = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+                if (typeof cargarInterfazSuperadmin === 'function') cargarInterfazSuperadmin(u || {});
+            } else if (pagina === 'municipalidades' && typeof cargarMunicipalidades === 'function') {
                 cargarMunicipalidades();
             } else if (pagina && typeof window[`cargar${pagina.charAt(0).toUpperCase() + pagina.slice(1)}`] === 'function') {
                 window[`cargar${pagina.charAt(0).toUpperCase() + pagina.slice(1)}`]();

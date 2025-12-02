@@ -67,6 +67,14 @@ async function cargarDepartamentos() {
                     <tbody id="tabla-departamentos"></tbody>
                 </table>
             `;
+            try {
+                if (window.mobileNav && typeof window.mobileNav.close === 'function') {
+                    window.mobileNav.close();
+                }
+                const overlay = document.getElementById('nav-overlay');
+                if (overlay) overlay.classList.remove('active');
+                document.body.style.overflow = '';
+            } catch (_) {}
         }
         
         const tablaDepartamentos = document.getElementById('tabla-departamentos');
@@ -360,11 +368,13 @@ async function cargarMunicipalidades() {
             id: d.id,
             nombre: d.nombre,
             rut: d.rut ?? '',
+            rutFmt: formatRut(d.rut ?? ''),
             email: d.email ?? d.email_contacto ?? '',
             telefono: d.telefono ?? d.telefono_contacto ?? '',
             direccion: d.direccion ?? '',
             region: d.region ?? '',
-            comuna: d.comuna ?? ''
+            comuna: d.comuna ?? '',
+            estado: d.estado || 'activo'
         }));
         const mainContent = document.getElementById('main-content');
         if (!document.getElementById('tabla-departamentos')) {
@@ -376,9 +386,9 @@ async function cargarMunicipalidades() {
                         <h2 class="section-title">Gestión de Municipalidades</h2>
                     </div>
                 </div>
-                <div class="row g-2 align-items-end mb-2">
-                    <div class="col-md-6">
-                        <input type="text" class="form-control" id="buscar-departamento" placeholder="Buscar municipalidad...">
+                <div class="row g-2 align-items-end mb-2" style="position:relative; z-index:1100;">
+                    <div class="col-md-6" id="buscar-departamento-wrap" style="position:relative; z-index:1100;">
+                        <input type="text" class="form-control" id="buscar-departamento" placeholder="Buscar municipalidad..." autocomplete="off" tabindex="0" aria-label="Buscar municipalidad" style="position:relative; z-index:1100;">
                     </div>
                 </div>
                 <div class="row mb-2">
@@ -399,6 +409,7 @@ async function cargarMunicipalidades() {
                             <th>Dirección</th>
                             <th>Región</th>
                             <th>Comuna</th>
+                            <th>Estado</th>
                             <th class="text-center col-actions">Acciones</th>
                         </tr>
                     </thead>
@@ -419,12 +430,13 @@ async function cargarMunicipalidades() {
             <tr>
                 <td class="text-center">${d.id}</td>
                 <td class="cell-wrap">${d.nombre}</td>
-                <td class="cell-wrap">${d.rut || ''}</td>
+                <td class="cell-wrap">${d.rutFmt || ''}</td>
                 <td class="cell-wrap">${d.email || d.email_contacto || ''}</td>
                 <td class="cell-wrap">${d.telefono || d.telefono_contacto || ''}</td>
                 <td class="cell-wrap">${d.direccion || ''}</td>
                 <td class="cell-wrap">${d.region || ''}</td>
                 <td class="cell-wrap">${d.comuna || ''}</td>
+                <td class="cell-wrap">${d.estado || 'activo'}</td>
                 <td class="text-center col-actions">
                     <div class="btn-group btn-group-sm table-actions" role="group" aria-label="Acciones">
                         <button class="btn btn-view" onclick="verDetalleMunicipalidad(${d.id})" title="Ver detalles">
@@ -433,7 +445,7 @@ async function cargarMunicipalidades() {
                         <button class="btn btn-edit" onclick="editarMunicipalidad(${d.id})" title="Editar municipalidad">
                             <i class="bi bi-pencil"></i>
                         </button>
-                        <button class="btn btn-danger" onclick="eliminarMunicipalidad(${d.id})" title="Eliminar municipalidad">
+                        <button class="btn btn-danger" onclick="confirmarEliminarMunicipalidad(${d.id}, '${(d.nombre || '').replace(/'/g, "\\'")}')" title="Eliminar municipalidad">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
@@ -441,7 +453,26 @@ async function cargarMunicipalidades() {
             </tr>
         `).join('');
         const buscar = document.getElementById('buscar-departamento');
-        if (buscar) buscar.addEventListener('input', filtrarDepartamentos);
+        if (buscar) {
+            buscar.removeAttribute('disabled');
+            buscar.style.pointerEvents = 'auto';
+            buscar.addEventListener('input', filtrarDepartamentos);
+            // Asegurar foco inmediato en desktop
+            try { buscar.focus(); } catch (_) {}
+            const wrap = document.getElementById('buscar-departamento-wrap');
+            if (wrap) {
+                wrap.addEventListener('click', () => {
+                    try { buscar.focus(); } catch (_) {}
+                });
+                wrap.style.pointerEvents = 'auto';
+            }
+        }
+        try {
+            if (window.mobileNav && typeof window.mobileNav.close === 'function') window.mobileNav.close();
+            const overlay = document.getElementById('nav-overlay');
+            if (overlay) overlay.classList.remove('active');
+            document.body.style.overflow = '';
+        } catch (_) {}
     } catch (error) {
         mostrarNotificacion('Error al cargar municipalidades: ' + (error.message || ''), 'danger');
     } finally {
@@ -452,7 +483,7 @@ async function cargarMunicipalidades() {
 async function mostrarFormularioMunicipalidad(id = null) {
     try {
         mostrarCargando(true);
-        let muni = { nombre: '', direccion: '', region: '', comuna: '', telefono: '' };
+        let muni = { nombre: '', direccion: '', region: '', comuna: '', telefono: '', estado: 'activo' };
         let titulo = 'Nueva Municipalidad';
         let accion = 'crear';
         if (id) {
@@ -482,7 +513,7 @@ async function mostrarFormularioMunicipalidad(id = null) {
                                     <div class="col-md-12">
                                         <div class="mb-3">
                                             <label for="nombre" class="form-label">Nombre del municipio *</label>
-                                            <input type="text" class="form-control" id="nombre" value="${muni.nombre || ''}" required>
+                                            <input type="text" class="form-control" id="nombre" name="nombre" value="${muni.nombre || ''}" required>
                                         </div>
                                     </div>
                                 </div>
@@ -490,13 +521,13 @@ async function mostrarFormularioMunicipalidad(id = null) {
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="rut" class="form-label">RUT *</label>
-                                            <input type="text" class="form-control" id="rut" value="${muni.rut || ''}" required>
+                                            <input type="text" class="form-control" id="rut" name="rut" value="${muni.rut || ''}" required>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="email" class="form-label">Correo electrónico</label>
-                                            <input type="email" class="form-control" id="email" value="${muni.email || muni.email_contacto || ''}">
+                                            <input type="email" class="form-control" id="email" name="email" value="${muni.email || muni.email_contacto || ''}">
                                         </div>
                                     </div>
                                 </div>
@@ -504,27 +535,39 @@ async function mostrarFormularioMunicipalidad(id = null) {
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="telefono" class="form-label">Teléfono *</label>
-                                            <input type="text" class="form-control" id="telefono" value="${muni.telefono || muni.telefono_contacto || ''}" required>
+                                            <input type="text" class="form-control" id="telefono" name="telefono" value="${muni.telefono || muni.telefono_contacto || ''}" required>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="direccion" class="form-label">Dirección *</label>
-                                            <input type="text" class="form-control" id="direccion" value="${muni.direccion || ''}" required>
+                                            <input type="text" class="form-control" id="direccion" name="direccion" value="${muni.direccion || ''}" required>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">
+                                            <label for="estado" class="form-label">Estado *</label>
+                                            <select class="form-select" id="estado" name="estado" required>
+                                                <option value="activo" ${ (muni.estado || 'activo') === 'activo' ? 'selected' : '' }>Activo</option>
+                                                <option value="inactivo" ${ (muni.estado || 'activo') === 'inactivo' ? 'selected' : '' }>Inactivo</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6"></div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
                                             <label for="region" class="form-label">Región *</label>
-                                            <select class="form-select" id="region" required></select>
+                                            <select class="form-select" id="region" name="region" required></select>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="comuna" class="form-label">Comuna *</label>
-                                            <select class="form-select" id="comuna" required></select>
+                                            <select class="form-select" id="comuna" name="comuna" required></select>
                                         </div>
                                     </div>
                                 </div>
@@ -543,6 +586,24 @@ async function mostrarFormularioMunicipalidad(id = null) {
         await cargarRegionesYComunasEnFormulario(muni);
         const form = document.getElementById('form-municipalidad');
         form.addEventListener('submit', guardarMunicipalidad);
+        const rutInput = form.querySelector('#rut');
+        const telInput = form.querySelector('#telefono');
+        if (rutInput) {
+            rutInput.addEventListener('input', () => {
+                rutInput.value = formatRutLive(rutInput.value);
+            });
+            rutInput.addEventListener('blur', () => {
+                rutInput.value = formatRut(rutInput.value);
+            });
+        }
+        if (telInput) {
+            telInput.addEventListener('input', () => {
+                telInput.value = formatPhoneLive(telInput.value);
+            });
+            telInput.addEventListener('blur', () => {
+                telInput.value = formatPhoneLive(telInput.value);
+            });
+        }
     } catch (error) {
         mostrarNotificacion('Error al cargar formulario: ' + (error.message || ''), 'danger');
     } finally {
@@ -557,16 +618,69 @@ async function guardarMunicipalidad(event) {
         const form = event.target;
         const accion = form.dataset.accion;
         const id = form.dataset.id;
-        const nombre = document.getElementById('nombre').value;
-        const rut = document.getElementById('rut').value;
-        const email = document.getElementById('email').value;
-        const direccion = document.getElementById('direccion').value;
-        const telefono = document.getElementById('telefono').value;
-        const regionSelect = document.getElementById('region');
-        const comunaSelect = document.getElementById('comuna');
+        const nombre = (form.querySelector('#nombre') || {}).value || '';
+        const rut = (form.querySelector('#rut') || {}).value || '';
+        let rutNormalizado = normalizeRut(rut);
+        try { console.log('[DEBUG][guardarMunicipalidad] RUT raw:', rut, ' -> normalizado:', rutNormalizado); } catch (_) {}
+        if (!rutNormalizado && (rut || '').trim().length > 0) {
+            rutNormalizado = String(rut).replace(/[\.\-\s]/g, '').replace(/[^0-9kK]/g, '').toLowerCase();
+            try { console.log('[DEBUG][guardarMunicipalidad] RUT fallback normalizado:', rutNormalizado); } catch (_) {}
+        }
+        const email = (form.querySelector('#email') || {}).value || '';
+        const direccion = (form.querySelector('#direccion') || {}).value || '';
+        const telefono = (form.querySelector('#telefono') || {}).value || '';
+        let telefonoNormalizado = (telefono || '').replace(/[^0-9]/g, '');
+        try { console.log('[DEBUG][guardarMunicipalidad] Teléfono raw:', telefono, ' -> digits:', telefonoNormalizado); } catch (_) {}
+        if (telefonoNormalizado.length === 9) {
+            telefonoNormalizado = '+56' + telefonoNormalizado;
+        } else if (telefonoNormalizado.startsWith('56') && telefonoNormalizado.length === 11) {
+            telefonoNormalizado = '+' + telefonoNormalizado;
+        }
+        try { console.log('[DEBUG][guardarMunicipalidad] Teléfono normalizado final:', telefonoNormalizado); } catch (_) {}
+        const regionSelect = form.querySelector('#region');
+        const comunaSelect = form.querySelector('#comuna');
         const regionText = regionSelect.options[regionSelect.selectedIndex]?.text || '';
         const comunaText = comunaSelect.options[comunaSelect.selectedIndex]?.text || '';
-        const payload = { nombre, rut, email, direccion, telefono, region: regionText, comuna: comunaText };
+        const estado = (form.querySelector('#estado') || {}).value || '';
+        if (!rutNormalizado) {
+            mostrarNotificacion('El RUT es obligatorio', 'danger');
+            mostrarCargando(false);
+            return;
+        }
+        if (!telefonoNormalizado && !telefono) {
+            mostrarNotificacion('El teléfono es obligatorio', 'danger');
+            mostrarCargando(false);
+            return;
+        }
+        if (!email) {
+            mostrarNotificacion('El correo electrónico es obligatorio', 'danger');
+            mostrarCargando(false);
+            return;
+        }
+        const payload = { nombre, rut: rutNormalizado, email, direccion, telefono: telefonoNormalizado || telefono, region: regionText, comuna: comunaText, estado };
+        try {
+            console.log('[DEBUG][guardarMunicipalidad] valores:', {
+                accion,
+                rutRaw: rut,
+                rutNormalizado,
+                telefonoRaw: telefono,
+                telefonoNormalizado,
+                email,
+                direccion,
+                regionText,
+                comunaText,
+                estado,
+                payload
+            });
+        } catch (_) {}
+        try {
+            const listado = await fetchAPI('/municipalidades', { suppressErrorLog: true });
+            const existentes = (listado.departamentos || []).map(d => (d.rut || '').replace(/[^0-9kK]/g, '').toLowerCase()).filter(Boolean);
+            if (accion === 'crear' && rutNormalizado && existentes.includes(rutNormalizado)) {
+                mostrarNotificacion('Ya existe una municipalidad con el RUT proporcionado', 'danger');
+                return;
+            }
+        } catch (_) {}
         let response;
         if (accion === 'crear') {
             response = await fetchAPI('/municipalidades', { method: 'POST', body: payload });
@@ -576,7 +690,11 @@ async function guardarMunicipalidad(event) {
         mostrarNotificacion(response.message || `Municipalidad ${accion === 'crear' ? 'creada' : 'actualizada'} exitosamente`, 'success');
         cargarMunicipalidades();
     } catch (error) {
-        mostrarNotificacion('Error al guardar municipalidad: ' + (error.message || ''), 'danger');
+        let msg = error.message || '';
+        if (/must be unique/i.test(msg) || /Duplicado/i.test(msg) || /duplicado/i.test(msg)) {
+            msg = 'Ya existe una municipalidad con el RUT proporcionado';
+        }
+        mostrarNotificacion('Error al guardar municipalidad: ' + msg, 'danger');
     } finally {
         mostrarCargando(false);
     }
@@ -612,12 +730,13 @@ async function verDetalleMunicipalidad(id) {
                                     <p><strong>Nombre:</strong> ${d.nombre}</p>
                                 </div>
                                 <div class="col-md-6">
-                                    <p><strong>RUT:</strong> ${d.rut || '-'}</p>
+                                    <p><strong>RUT:</strong> ${formatRut(d.rut) || '-'}</p>
                                     <p><strong>Email:</strong> ${d.email || d.email_contacto || '-'}</p>
                                     <p><strong>Dirección:</strong> ${d.direccion || '-'}</p>
                                     <p><strong>Región:</strong> ${d.region || '-'}</p>
                                     <p><strong>Comuna:</strong> ${d.comuna || '-'}</p>
                                     <p><strong>Teléfono:</strong> ${d.telefono || d.telefono_contacto || '-'}</p>
+                                    <p><strong>Estado:</strong> ${d.estado || 'activo'}</p>
                                 </div>
                             </div>
                         </div>
@@ -634,11 +753,73 @@ async function verDetalleMunicipalidad(id) {
 
 async function editarMunicipalidad(id) { await mostrarFormularioMunicipalidad(id); }
 
-async function eliminarMunicipalidad(id) {
+function ensureEliminarMunicipalidadModal() {
+    if (document.getElementById('modal-eliminar-municipalidad')) return;
+    const html = `
+<div class="modal fade" id="modal-eliminar-municipalidad" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Confirmar eliminación</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p id="msg-eliminar-muni" class="mb-2"></p>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" value="1" id="chk-confirmar-eliminar-muni">
+          <label class="form-check-label" for="chk-confirmar-eliminar-muni">
+            Entiendo que esta acción no se puede deshacer
+          </label>
+        </div>
+        <div class="mb-2">
+          <label for="input-confirmar-eliminar-muni" class="form-label">Escribe ELIMINAR para confirmar</label>
+          <input type="text" class="form-control" id="input-confirmar-eliminar-muni" placeholder="ELIMINAR">
+        </div>
+        <div id="error-eliminar-muni" class="text-danger small d-none">Debes marcar la casilla y escribir ELIMINAR.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btn-confirmar-eliminar-muni"><i class="bi bi-trash"></i> Eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const btn = document.getElementById('btn-confirmar-eliminar-muni');
+    if (btn) btn.addEventListener('click', eliminarMunicipalidadConfirmado);
+}
+
+function confirmarEliminarMunicipalidad(id, nombre) {
+    ensureEliminarMunicipalidadModal();
+    const modalEl = document.getElementById('modal-eliminar-municipalidad');
+    const msg = document.getElementById('msg-eliminar-muni');
+    const chk = document.getElementById('chk-confirmar-eliminar-muni');
+    const input = document.getElementById('input-confirmar-eliminar-muni');
+    const err = document.getElementById('error-eliminar-muni');
+    if (msg) msg.textContent = `Vas a eliminar la municipalidad "${nombre}" (ID: ${id}).`;
+    if (chk) chk.checked = false;
+    if (input) { input.value = ''; input.dataset.muniId = String(id); }
+    if (err) err.classList.add('d-none');
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+}
+
+async function eliminarMunicipalidadConfirmado() {
     try {
+        const input = document.getElementById('input-confirmar-eliminar-muni');
+        const chk = document.getElementById('chk-confirmar-eliminar-muni');
+        const err = document.getElementById('error-eliminar-muni');
+        const id = parseInt(input?.dataset?.muniId || '0', 10);
+        const okText = (input?.value || '').trim().toUpperCase() === 'ELIMINAR';
+        if (!chk?.checked || !okText || !id) {
+            if (err) err.classList.remove('d-none');
+            return;
+        }
         mostrarCargando(true);
         await fetchAPI(`/municipalidades/${id}`, { method: 'DELETE' });
         mostrarNotificacion('Municipalidad eliminada exitosamente', 'success');
+        const modalEl = document.getElementById('modal-eliminar-municipalidad');
+        try { bootstrap.Modal.getInstance(modalEl)?.hide(); } catch (_) {}
         cargarMunicipalidades();
     } catch (error) {
         mostrarNotificacion('Error al eliminar municipalidad: ' + (error.message || ''), 'danger');

@@ -62,10 +62,12 @@ const departamentosController = {
         const telefono = j.telefono ?? j.telefono_contacto ?? null;
         return { ...j, email, telefono };
       });
+      try { logger.info(`[Departamentos] ${esMunicipalidades(req) ? 'Municipalidades' : 'Departamentos'} obtenidos: ${JSON.stringify(rowsPlain)}`); } catch (_) {}
       
       // Calcular total de páginas
       const totalPages = Math.ceil(count / limit);
       
+      try { res.set('Cache-Control', 'no-store'); } catch (_) {}
       res.json({
         departamentos: rowsPlain,
         pagination: {
@@ -104,7 +106,9 @@ const departamentosController = {
         throw new ApiError('Departamento no encontrado', 404);
       }
       
+      try { res.set('Cache-Control', 'no-store'); } catch (_) {}
       res.json(departamento);
+      try { logger.info(`[Departamentos] Detalle ${esMunicipalidades(req) ? 'municipalidad' : 'departamento'} ${id}: ${JSON.stringify(departamento)}`); } catch (_) {}
     } catch (error) {
       next(error);
     }
@@ -122,18 +126,85 @@ const departamentosController = {
         throw new ApiError('No tienes permiso para crear departamentos', 403);
       }
       if (esMunicipalidades(req)) {
-        const { nombre, direccion, region, comuna, telefono, email, rut } = req.body;
-        const existente = await Municipalidad.findOne({ where: { nombre } });
-        if (existente) {
+        const raw = req.body || {};
+        try { logger.info(`[Municipalidades][CREATE][RAW] ${JSON.stringify(raw)}`); console.log('[DEBUG][MUNI][RAW]', raw); } catch (_) {}
+        const nombre = typeof raw.nombre === 'string' ? raw.nombre.trim() : raw.nombre;
+        const direccion = typeof raw.direccion === 'string' ? raw.direccion.trim() : raw.direccion;
+        const region = typeof raw.region === 'string' ? raw.region.trim() : raw.region;
+        const comuna = typeof raw.comuna === 'string' ? raw.comuna.trim() : raw.comuna;
+        const telefono = typeof raw.telefono === 'string' ? raw.telefono.trim() : raw.telefono;
+        let telNorm = telefono ? String(telefono).replace(/[^0-9+]/g, '') : null;
+        if (telNorm && !telNorm.startsWith('+')) {
+          if (telNorm.startsWith('56') && telNorm.length === 11) {
+            telNorm = `+${telNorm}`;
+          } else if (telNorm.length === 9) {
+            telNorm = `+56${telNorm}`;
+          }
+        }
+        const email = typeof raw.email === 'string' ? raw.email.trim() : raw.email;
+        const rutInput = typeof raw.rut === 'string' ? raw.rut.trim() : raw.rut;
+        let rutNorm = rutInput ? String(rutInput).replace(/[^0-9kK]/g, '').toLowerCase() : null;
+        if (!rutNorm && typeof raw.rut === 'string' && raw.rut.length) {
+          rutNorm = raw.rut.replace(/[\.\-\s]/g, '').replace(/[^0-9kK]/g, '').toLowerCase();
+        }
+        try { logger.info(`[Municipalidades][CREATE][NORMALIZED] rutInput=${rutInput} -> rutNorm=${rutNorm} ; telInput=${telefono} -> telNorm=${telNorm}`); console.log('[DEBUG][MUNI][NORMALIZED]', { rutInput, rutNorm, telInput: telefono, telNorm, email, nombre, direccion, region, comuna, estado }); } catch (_) {}
+        const estado = typeof raw.estado === 'string' ? raw.estado.trim().toLowerCase() : raw.estado;
+        const existeNombre = await Municipalidad.findOne({ where: { nombre } });
+        if (existeNombre) {
           throw new ApiError('Ya existe una municipalidad con el nombre proporcionado', 400);
         }
-        const nuevo = await Municipalidad.create({ nombre, direccion, region, comuna, telefono, email, rut });
-        logger.info(`Nueva municipalidad creada: ${nombre}`);
-        const completo = await Municipalidad.findByPk(nuevo.id);
-        return res.status(201).json({
-          message: 'Municipalidad creada exitosamente',
-          departamento: completo
-        });
+        if (rutNorm) {
+          const existeRut = await Municipalidad.findOne({ where: { rut: rutNorm } });
+          if (existeRut) {
+            throw new ApiError('Ya existe una municipalidad con el RUT proporcionado', 400);
+          }
+        }
+        if (!rutNorm) {
+          throw new ApiError('El RUT es obligatorio', 400);
+        }
+        if (!telNorm) {
+          throw new ApiError('El teléfono es obligatorio', 400);
+        }
+        if (!email) {
+          throw new ApiError('El correo electrónico es obligatorio', 400);
+        }
+        try {
+          try { logger.info(`[Municipalidades][CREATE][PAYLOAD] ${JSON.stringify({ nombre, rut: rutNorm || null, telefono: telNorm || telefono || null, email: email || null, direccion, region, comuna, estado })}`); console.log('[DEBUG][MUNI][PAYLOAD]', { nombre, rut: rutNorm || null, telefono: telNorm || telefono || null, email: email || null, direccion, region, comuna, estado }); } catch (_) {}
+          const nuevo = await Municipalidad.create({ 
+            nombre,
+            direccion: direccion || null,
+            region: region || null,
+            comuna: comuna || null,
+            telefono: telNorm,
+            email,
+            rut: rutNorm,
+            estado: estado || 'activo'
+          });
+          if ((!nuevo.rut && rutNorm) || (!nuevo.telefono && (telNorm || telefono))) {
+            await nuevo.update({
+              rut: nuevo.rut || rutNorm,
+              telefono: nuevo.telefono || telNorm || telefono || null
+            });
+          }
+          try { logger.info(`[Municipalidades][CREATE] ${nuevo.id} rut=${nuevo.rut || ''} tel=${nuevo.telefono || ''}`); } catch (_) {}
+          logger.info(`Nueva municipalidad creada: ${nombre}`);
+          const completo = await Municipalidad.findByPk(nuevo.id);
+          return res.status(201).json({
+            message: 'Municipalidad creada exitosamente',
+            departamento: completo
+          });
+        } catch (err) {
+          const msg = (err && err.errors && err.errors[0] && err.errors[0].message) 
+            || (err && err.parent && err.parent.sqlMessage)
+            || err.message
+            || 'Error al crear municipalidad';
+          logger.error(`Error al crear municipalidad: ${msg}`);
+          let out = msg;
+          if (/Duplicate/i.test(msg) || /must be unique/i.test(msg)) {
+            out = 'Ya existe una municipalidad con el RUT proporcionado';
+          }
+          throw new ApiError(out, 400);
+        }
       } else {
         const { nombre } = req.body;
         const existente = await Departamento.findOne({ where: { nombre } });
@@ -179,7 +250,7 @@ const departamentosController = {
       }
       
       if (esMun) {
-        const { nombre, direccion, region, comuna, telefono, email, rut } = req.body;
+        const { nombre, direccion, region, comuna, telefono, email, rut, estado } = req.body;
         if (nombre && nombre !== departamento.nombre) {
           const existeNombre = await Municipalidad.findOne({ where: { nombre, id: { [Op.ne]: id } } });
           if (existeNombre) {
@@ -190,9 +261,24 @@ const departamentosController = {
         if (direccion !== undefined) departamento.direccion = direccion;
         if (region !== undefined) departamento.region = region;
         if (comuna !== undefined) departamento.comuna = comuna;
-        if (telefono !== undefined) departamento.telefono = telefono;
-        if (email !== undefined) departamento.email = email;
-        if (rut !== undefined) departamento.rut = rut;
+        if (telefono !== undefined) {
+          const telVal = typeof telefono === 'string' ? telefono.trim() : telefono;
+          if (telVal) {
+            departamento.telefono = telVal;
+          }
+        }
+        if (email !== undefined) {
+          const emailVal = typeof email === 'string' ? email.trim() : email;
+          if (emailVal) {
+            departamento.email = emailVal;
+          }
+        }
+        if (rut !== undefined) {
+          const rutVal = typeof rut === 'string' ? rut.trim() : rut;
+          const rutNorm = rutVal ? String(rutVal).replace(/[^0-9kK]/g, '').toLowerCase() : null;
+          if (rutNorm) departamento.rut = rutNorm;
+        }
+        if (estado !== undefined) departamento.estado = estado;
       } else {
         const { nombre } = req.body;
         if (nombre && nombre !== departamento.nombre) {
@@ -208,11 +294,13 @@ const departamentosController = {
       
       // Guardar los cambios
       await departamento.save();
+      try { logger.info(`[Departamentos] Actualizado ${esMun ? 'municipalidad' : 'departamento'} ${id}: tel=${departamento.telefono || departamento.telefono_contacto || ''}, email=${departamento.email || departamento.email_contacto || ''}`); } catch (_) {}
       
       logger.info(`Departamento actualizado: ${departamento.nombre}`);
       
       // Obtener el departamento actualizado con sus relaciones
       const departamentoActualizado = esMun ? await Municipalidad.findByPk(id) : await Departamento.findByPk(id);
+      try { const j = typeof departamentoActualizado.toJSON === 'function' ? departamentoActualizado.toJSON() : departamentoActualizado; logger.info(`[Departamentos] Post-save ${esMun ? 'municipalidad' : 'departamento'} ${id}: ${JSON.stringify({ telefono: j.telefono ?? j.telefono_contacto ?? null, email: j.email ?? j.email_contacto ?? null })}`); } catch (_) {}
       
       res.json({
         message: 'Departamento actualizado exitosamente',
@@ -248,10 +336,20 @@ const departamentosController = {
         }
       }
       
-      // Verificar si hay proyectos asociados al departamento
-      const proyectosAsociados = await Proyecto.count({
-        where: { municipalidad_id: id }
-      });
+      // Verificar si hay proyectos asociados a la municipalidad (si la tabla existe)
+      let proyectosAsociados = 0;
+      try {
+        proyectosAsociados = await Proyecto.count({ where: { municipalidad_id: id } });
+      } catch (err) {
+        const code = (err?.original?.code) || (err?.parent?.code) || '';
+        const msg = err?.message || '';
+        if (/ER_NO_SUCH_TABLE/i.test(code) || /doesn'?t exist/i.test(msg)) {
+          try { logger.warn('[Eliminar Municipalidad] Tabla proyectos no existe; se omite verificación de proyectos.'); } catch (_) {}
+          proyectosAsociados = 0;
+        } else {
+          throw err;
+        }
+      }
       
       if (proyectosAsociados > 0) {
         throw new ApiError(
@@ -275,8 +373,9 @@ const departamentosController = {
         );
       }
       
-      // Eliminar el departamento
+      // Eliminar la municipalidad/departamento
       await departamento.destroy();
+      try { logger.info(`[Eliminar Municipalidad] Eliminada ${departamento.nombre} (id: ${departamento.id})`); } catch (_) {}
       
       logger.info(`Departamento eliminado: ${departamento.nombre}`);
       

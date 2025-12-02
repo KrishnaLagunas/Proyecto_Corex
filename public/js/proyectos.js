@@ -11,6 +11,9 @@ async function cargarProyectos() {
         mostrarCargando(true);
         
         const proyectos = await fetchAPI('/proyectos');
+        const usuarioActual = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+        const rolActual = (usuarioActual && (usuarioActual.role || usuarioActual.rol || usuarioActual.rol_nombre)) || '';
+        const puedeEliminar = String(rolActual).toLowerCase() === 'admin';
         
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
@@ -101,6 +104,11 @@ async function cargarProyectos() {
                                                     </button>
                                                     <button class="btn btn-sm btn-success" onclick="registrarAvanceProyecto(${proyecto.id})">
                                                         <i class="bi bi-graph-up"></i>
+                                                    </button>
+                                                ` : ''}
+                                                ${puedeEliminar ? `
+                                                    <button class="btn btn-sm btn-danger" onclick="confirmarEliminarProyecto(${proyecto.id}, '${(proyecto.nombre || '').replace(/'/g, "\\'")}')">
+                                                        <i class="bi bi-trash"></i>
                                                     </button>
                                                 ` : ''}
                                             </td>
@@ -559,6 +567,7 @@ async function verDetalleProyecto(proyectoId) {
                                 <button class="btn btn-info" onclick="generarReporteProyecto(${proyecto.id})">
                                     <i class="bi bi-file-earmark-text"></i> Generar Reporte
                                 </button>
+                                ${(() => { const u = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null; const r = (u && (u.role || u.rol || u.rol_nombre)) || ''; return String(r).toLowerCase() === 'admin' ? `<button class="btn btn-danger" onclick="confirmarEliminarProyecto(${proyecto.id}, '${(proyecto.nombre || '').replace(/'/g, "\\'")}')"><i class=\"bi bi-trash\"></i> Eliminar</button>` : '' })()}
                             </div>
                         </div>
                         <div class="card-body">
@@ -868,6 +877,84 @@ async function generarReporteProyecto(proyectoId) {
     } catch (error) {
         console.error('Error al generar reporte:', error);
         mostrarNotificacion('Error al generar reporte: ' + error.message, 'danger');
+    } finally {
+        mostrarCargando(false);
+    }
+}
+
+// Modal de doble confirmación para eliminar proyecto
+function ensureEliminarProyectoModal() {
+    if (document.getElementById('modal-eliminar-proyecto')) return;
+    const html = `
+<div class="modal fade" id="modal-eliminar-proyecto" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title"><i class="bi bi-exclamation-triangle"></i> Confirmar eliminación</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p id="msg-eliminar-proyecto" class="mb-2"></p>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" value="1" id="chk-confirmar-eliminar">
+          <label class="form-check-label" for="chk-confirmar-eliminar">
+            Entiendo que esta acción no se puede deshacer
+          </label>
+        </div>
+        <div class="mb-2">
+          <label for="input-confirmar-eliminar" class="form-label">Escribe ELIMINAR para confirmar</label>
+          <input type="text" class="form-control" id="input-confirmar-eliminar" placeholder="ELIMINAR">
+        </div>
+        <div id="error-eliminar-proyecto" class="text-danger small d-none">Debes marcar la casilla y escribir ELIMINAR.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btn-confirmar-eliminar-proyecto"><i class="bi bi-trash"></i> Eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+    const btn = document.getElementById('btn-confirmar-eliminar-proyecto');
+    if (btn) {
+      btn.addEventListener('click', eliminarProyectoConfirmado);
+    }
+}
+
+function confirmarEliminarProyecto(id, nombre) {
+    ensureEliminarProyectoModal();
+    const modalEl = document.getElementById('modal-eliminar-proyecto');
+    const msg = document.getElementById('msg-eliminar-proyecto');
+    const chk = document.getElementById('chk-confirmar-eliminar');
+    const input = document.getElementById('input-confirmar-eliminar');
+    const err = document.getElementById('error-eliminar-proyecto');
+    if (msg) msg.textContent = `Vas a eliminar el proyecto "${nombre}" (ID: ${id}).`;
+    if (chk) chk.checked = false;
+    if (input) { input.value = ''; input.dataset.proyectoId = String(id); }
+    if (err) err.classList.add('d-none');
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+}
+
+async function eliminarProyectoConfirmado() {
+    try {
+        const input = document.getElementById('input-confirmar-eliminar');
+        const chk = document.getElementById('chk-confirmar-eliminar');
+        const err = document.getElementById('error-eliminar-proyecto');
+        const id = parseInt(input?.dataset?.proyectoId || '0', 10);
+        const okText = (input?.value || '').trim().toUpperCase() === 'ELIMINAR';
+        if (!chk?.checked || !okText || !id) {
+            if (err) { err.classList.remove('d-none'); }
+            return;
+        }
+        mostrarCargando(true);
+        await fetchAPI(`/proyectos/${id}`, { method: 'DELETE' });
+        mostrarNotificacion('Proyecto eliminado correctamente', 'success');
+        const modalEl = document.getElementById('modal-eliminar-proyecto');
+        try { bootstrap.Modal.getInstance(modalEl)?.hide(); } catch (_) {}
+        cargarProyectos();
+    } catch (error) {
+        mostrarNotificacion('Error al eliminar proyecto: ' + (error.message || ''), 'danger');
     } finally {
         mostrarCargando(false);
     }

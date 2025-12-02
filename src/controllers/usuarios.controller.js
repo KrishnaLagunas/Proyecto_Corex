@@ -351,12 +351,15 @@ const usuariosController = {
         primer_apellido,
         segundo_apellido,
         email,
+        rut,
         telefono,
         direccion,
         id_rol,
         municipalidad_id,
+        role,
         estado
       } = req.body;
+      try { logger.info(`[Usuarios][UPDATE][RAW] ${JSON.stringify(req.body)}`); console.log('[DEBUG][USUARIOS][UPDATE][RAW]', req.body); } catch (_) {}
       
       // Verificar permisos
       const esAdmin = ['administrador','superadministrador'].includes(req.user.rol_nombre);
@@ -432,6 +435,10 @@ const usuariosController = {
         if (apellidoConcat) usuario.apellido = cleanName(apellidoConcat);
       }
       if (email) usuario.email = email;
+      if (rut) {
+        const rutNorm = String(rut).replace(/[^0-9kK-]/g, '').toLowerCase();
+        usuario.rut = rutNorm;
+      }
       if (telefono) usuario.telefono = telefono;
       if (direccion) usuario.direccion = direccion;
       
@@ -439,6 +446,18 @@ const usuariosController = {
       if (esAdmin) {
         if (id_rol) usuario.id_rol = id_rol;
         if (municipalidad_id) usuario.municipalidad_id = municipalidad_id;
+        if (!municipalidad_id && req.body.departamento_id) usuario.municipalidad_id = req.body.departamento_id;
+        if (role) {
+          const input = String(role).toLowerCase();
+          const map = {
+            admin: 'administrador',
+            superadmin: 'superadministrador'
+          };
+          const nombreRol = map[input] || input;
+          const RolModel = require('../models').Rol;
+          const rolFound = await RolModel.findOne({ where: { nombre: nombreRol } });
+          if (rolFound) usuario.id_rol = rolFound.id;
+        }
         if (estado) usuario.estado = estado;
       }
 
@@ -455,7 +474,7 @@ const usuariosController = {
       // Guardar los cambios
       await usuario.save();
       
-      logger.info(`Usuario actualizado: ${usuario.email}`);
+      try { logger.info(`[Usuarios][UPDATE][SAVED] ${usuario.email}`); console.log('[DEBUG][USUARIOS][UPDATE][SAVED]', usuario.toJSON ? usuario.toJSON() : usuario); } catch (_) {}
       
       // Obtener el usuario actualizado (sin la contraseña)
       const usuarioActualizado = await Usuario.findByPk(id, {
@@ -505,38 +524,72 @@ const usuariosController = {
       
       // Verificar referencias reales antes de eliminar (integridad referencial)
       // Usamos consultas SQL directas para evitar cualquier conflicto de asociaciones
-      const [[{ tramitesCiudadano }]] = await sequelize.query(
+      let tramitesCiudadano = 0;
+      let tramitesFuncionario = 0;
+      let pagosCiudadano = 0;
+      let pagosFuncionario = 0;
+      let documentos = 0;
+      let presupuestosResp = 0;
+      let contratosResp = 0;
+      let proyectosResp = 0;
+      try {
+        const [[row]] = await sequelize.query(
         'SELECT COUNT(*) AS tramitesCiudadano FROM tramites WHERE ciudadano_id = ?',
         { replacements: [id] }
-      );
-      const [[{ tramitesFuncionario }]] = await sequelize.query(
+        );
+        tramitesCiudadano = row.tramitesCiudadano || 0;
+      } catch (_) {}
+      try {
+        const [[row]] = await sequelize.query(
         'SELECT COUNT(*) AS tramitesFuncionario FROM tramites WHERE funcionario_id = ?',
         { replacements: [id] }
-      );
-      const [[{ pagosCiudadano }]] = await sequelize.query(
+        );
+        tramitesFuncionario = row.tramitesFuncionario || 0;
+      } catch (_) {}
+      try {
+        const [[row]] = await sequelize.query(
         'SELECT COUNT(*) AS pagosCiudadano FROM pagos WHERE ciudadano_id = ?',
         { replacements: [id] }
-      );
-      const [[{ pagosFuncionario }]] = await sequelize.query(
+        );
+        pagosCiudadano = row.pagosCiudadano || 0;
+      } catch (_) {}
+      try {
+        const [[row]] = await sequelize.query(
         'SELECT COUNT(*) AS pagosFuncionario FROM pagos WHERE funcionario_id = ?',
         { replacements: [id] }
-      );
-      const [[{ documentos }]] = await sequelize.query(
+        );
+        pagosFuncionario = row.pagosFuncionario || 0;
+      } catch (_) {}
+      try {
+        const [[row]] = await sequelize.query(
         'SELECT COUNT(*) AS documentos FROM documentos WHERE usuario_id = ?',
         { replacements: [id] }
-      );
-      const [[{ presupuestosResp }]] = await sequelize.query(
+        );
+        documentos = row.documentos || 0;
+      } catch (_) {}
+      try {
+        const [[row]] = await sequelize.query(
         'SELECT COUNT(*) AS presupuestosResp FROM presupuestos WHERE responsable_id = ?',
         { replacements: [id] }
-      );
-      const [[{ contratosResp }]] = await sequelize.query(
+        );
+        presupuestosResp = row.presupuestosResp || 0;
+      } catch (err) {
+        presupuestosResp = 0;
+      }
+      try {
+        const [[row]] = await sequelize.query(
         'SELECT COUNT(*) AS contratosResp FROM contratos WHERE responsable_id = ?',
         { replacements: [id] }
-      );
-      const [[{ proyectosResp }]] = await sequelize.query(
+        );
+        contratosResp = row.contratosResp || 0;
+      } catch (_) {}
+      try {
+        const [[row]] = await sequelize.query(
         'SELECT COUNT(*) AS proyectosResp FROM proyectos WHERE responsable_id = ?',
         { replacements: [id] }
-      );
+        );
+        proyectosResp = row.proyectosResp || 0;
+      } catch (_) {}
 
       const totalReferencias = tramitesCiudadano + tramitesFuncionario + pagosCiudadano + pagosFuncionario + documentos + presupuestosResp + contratosResp + proyectosResp;
       if (totalReferencias > 0) {
