@@ -236,15 +236,33 @@ const authController = {
       const userId = req.user.id;
 
       const user = await Usuario.findByPk(userId, {
-        attributes: { exclude: ['password', 'token_recuperacion'] }
+        attributes: { exclude: ['password', 'token_recuperacion'] },
+        include: [{ model: Rol }]
       });
 
       if (!user) {
+        const rolNombreReq = req.user.rol_nombre || null;
+        if (rolNombreReq === 'administrador' || rolNombreReq === 'superadministrador') {
+          return res.json({
+            id: req.user.id,
+            nombre: req.user.nombre || 'Administrador',
+            apellido: req.user.apellido || 'Sistema',
+            email: req.user.email || 'admin@sistema.com',
+            rol_nombre: rolNombreReq,
+            role: rolNombreReq
+          });
+        }
         throw new ApiError('Usuario no encontrado', 404);
       }
 
-      res.json({
-        user
+      const rolNombre = user.Rol ? user.Rol.nombre : req.user.rol_nombre || null;
+      return res.json({
+        id: user.id,
+        nombre: user.nombre,
+        apellido: user.apellido,
+        email: user.email,
+        rol_nombre: rolNombre,
+        role: rolNombre
       });
     } catch (error) {
       next(error);

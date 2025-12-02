@@ -32,7 +32,7 @@ router.get(
  * @access Privado (admin o el propio usuario)
  */
 router.get(
-  '/:id',
+  '/:id(\\d+)',
   isAuthenticated,
   validateParams(idSchema),
   usuariosController.getUsuarioById
@@ -57,7 +57,7 @@ router.post(
  * @access Privado (admin o el propio usuario con restricciones)
  */
 router.put(
-  '/:id',
+  '/:id(\\d+)',
   isAuthenticated,
   validateParams(idSchema),
   validateSchema(updateUsuarioSchema),
@@ -70,7 +70,7 @@ router.put(
  * @access Privado (solo admin)
  */
 router.delete(
-  '/:id',
+  '/:id(\\d+)',
   isAuthenticated,
   hasRole(['administrador', 'superadministrador']),
   validateParams(idSchema),
@@ -83,7 +83,7 @@ router.delete(
  * @access Privado (admin o el propio usuario)
  */
 router.put(
-  '/:id/password',
+  '/:id(\\d+)/password',
   isAuthenticated,
   validateParams(idSchema),
   validateSchema(changePasswordSchema),
@@ -96,7 +96,7 @@ router.put(
  * @access Privado (solo admin)
  */
 router.put(
-  '/:id/estado',
+  '/:id(\\d+)/estado',
   isAuthenticated,
   hasRole(['admin']),
   validateParams(idSchema),

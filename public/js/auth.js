@@ -59,6 +59,29 @@ document.addEventListener('DOMContentLoaded', () => {
     if (registerForm) {
         registerForm.addEventListener('submit', manejarRegistro);
     }
+    (async () => {
+        try {
+            const t = localStorage.getItem('token') || getCookie('corex_session');
+            if (!t) return;
+            const usrStr = localStorage.getItem('usuario');
+            if (usrStr) {
+                const u = JSON.parse(usrStr);
+                if (u && u.role) {
+                    redirigirSegunRol(u);
+                    return;
+                }
+            }
+            const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
+            if (perfil && perfil.id) {
+                const rol = (perfil.rol || perfil.role || perfil.rol_nombre || '').toString().toLowerCase();
+                const roleFinal = rol === 'administrador' ? 'admin' : rol;
+                const u = { id: perfil.id, nombre: perfil.nombre || '', apellido: perfil.apellido || '', email: perfil.email, role: roleFinal };
+                localStorage.setItem('usuario', JSON.stringify(u));
+                redirigirSegunRol(u);
+            }
+        } catch (_) {}
+    })();
+});
 
     // Asegurar evento del botón Cerrar sesión en la barra blanca
     const btnLogoutNavStatic = document.getElementById('btn-logout-nav');
@@ -89,6 +112,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    document.addEventListener('submit', (e) => {
+        const form = e.target && e.target.closest && e.target.closest('#login-form');
+        if (form) {
+            e.preventDefault();
+            manejarLogin(e);
+        }
+    }, true);
 
     // Normalización y validación en tiempo real para campo RUT del registro
     const rutInput = document.getElementById('rut');
@@ -159,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mostrarFormularioRecuperarPassword();
         });
     }
-});
+
 
 function programarMostrarLogin(delay) {
     try { if (window._loginRenderTimeoutId) clearTimeout(window._loginRenderTimeoutId); } catch (_) {}
