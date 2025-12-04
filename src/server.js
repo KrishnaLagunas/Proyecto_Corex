@@ -9,13 +9,25 @@ const logger = require('./utils/logger');
 // Configuración de variables de entorno
 require('dotenv').config();
 
-const PORT = process.env.PORT || 3001;
+const BASE_PORT = parseInt(process.env.PORT, 10) || 3001;
 
-// Arranque del servidor (sin dependencia de base de datos)
-app.listen(PORT, () => {
-  logger.info(`Servidor ERP Municipal ejecutándose en el puerto ${PORT}`);
-  console.log(`🚀 Servidor iniciado en http://localhost:${PORT}`);
-});
+function startServer(port, attemptsLeft = 5) {
+  const server = app.listen(port, () => {
+    logger.info(`Servidor ERP Municipal ejecutándose en el puerto ${port}`);
+    console.log(`🚀 Servidor iniciado en http://localhost:${port}`);
+  });
+  server.on('error', (err) => {
+    if (err && err.code === 'EADDRINUSE' && attemptsLeft > 0) {
+      const nextPort = port + 1;
+      console.warn(`Puerto ${port} en uso, intentando ${nextPort}...`);
+      startServer(nextPort, attemptsLeft - 1);
+    } else {
+      throw err;
+    }
+  });
+}
+
+startServer(BASE_PORT);
 
 // Intentar conexión a base de datos en segundo plano (sin sincronización automática)
 sequelize.authenticate()

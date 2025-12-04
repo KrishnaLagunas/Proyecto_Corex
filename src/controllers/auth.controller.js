@@ -1,4 +1,4 @@
-const { Usuario, Rol } = require('../models');
+const { Usuario, Rol, Municipalidad } = require('../models');
 const { generateToken, verifyToken } = require('../config/jwt');
 const bcrypt = require('bcryptjs');
 const logger = require('../utils/logger');
@@ -93,8 +93,8 @@ const authController = {
     try {
       const { email, password } = req.body;
 
-      // Buscar el usuario por email
-      const user = await Usuario.findOne({ where: { email }, include: [{ model: Rol }] });
+      // Buscar el usuario por email (incluye rol y municipalidad)
+      const user = await Usuario.findOne({ where: { email }, include: [{ model: Rol }, { model: Municipalidad, attributes: ['id', 'nombre'] }] });
       if (!user) {
         throw new ApiError('Credenciales inválidas', 401);
       }
@@ -120,7 +120,8 @@ const authController = {
         id: user.id,
         email: user.email,
         id_rol: user.id_rol,
-        rol_nombre: user.Rol ? user.Rol.nombre : null
+        rol_nombre: user.Rol ? user.Rol.nombre : null,
+        municipalidad_id: user.municipalidad_id || null
       });
 
       logger.info(`Inicio de sesión exitoso: ${email}`);
@@ -151,7 +152,9 @@ const authController = {
           email: user.email,
           id_rol: user.id_rol,
           rol_nombre: rolNombre,
-          rut: user.rut
+          rut: user.rut,
+          municipalidad_id: user.municipalidad_id || null,
+          municipalidad_nombre: user.Municipalidad ? user.Municipalidad.nombre : null
         },
         token,
         portal,
@@ -237,7 +240,7 @@ const authController = {
 
       const user = await Usuario.findByPk(userId, {
         attributes: { exclude: ['password', 'token_recuperacion'] },
-        include: [{ model: Rol }]
+        include: [{ model: Rol }, { model: Municipalidad, attributes: ['id', 'nombre'] }]
       });
 
       if (!user) {
@@ -249,7 +252,9 @@ const authController = {
             apellido: req.user.apellido || 'Sistema',
             email: req.user.email || 'admin@sistema.com',
             rol_nombre: rolNombreReq,
-            role: rolNombreReq
+            role: rolNombreReq,
+            municipalidad_id: req.user.municipalidad_id || null,
+            municipalidad_nombre: null
           });
         }
         throw new ApiError('Usuario no encontrado', 404);
@@ -262,7 +267,9 @@ const authController = {
         apellido: user.apellido,
         email: user.email,
         rol_nombre: rolNombre,
-        role: rolNombre
+        role: rolNombre,
+        municipalidad_id: user.municipalidad_id || null,
+        municipalidad_nombre: user.Municipalidad ? user.Municipalidad.nombre : null
       });
     } catch (error) {
       next(error);

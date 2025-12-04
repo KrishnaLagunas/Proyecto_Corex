@@ -90,6 +90,9 @@ const usuarioQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).messages(mensajesError),
   limit: Joi.number().integer().min(1).max(100).messages(mensajesError),
   id_rol: Joi.number().integer().min(1).messages(mensajesError),
+  rol_nombre: Joi.string().valid(
+    'superadministrador','administrador','funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal','ciudadano','admin','superadmin'
+  ).messages(mensajesError),
   municipalidad_id: Joi.number().integer().min(1).messages(mensajesError),
   estado: Joi.string().valid('activo', 'inactivo', 'bloqueado').messages(mensajesError),
   search: Joi.string().min(1).max(100).messages(mensajesError),
@@ -114,15 +117,15 @@ const createUsuarioSchema = Joi.object({
   rut: rutValidation.required(),
   telefono: Joi.string().min(7).max(20).required().messages(mensajesError),
   direccion: Joi.string().min(5).max(200).required().messages(mensajesError),
-  id_rol: Joi.number().integer().min(1).required().messages(mensajesError),
+  id_rol: Joi.number().integer().min(1).messages(mensajesError),
+  role: Joi.string().valid(
+    'superadministrador','administrador','funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal','ciudadano','admin','superadmin'
+  ).messages(mensajesError),
   municipalidad_id: Joi.number().integer().min(1)
-    .when('id_rol', {
-      is: Joi.exist(),
-      then: Joi.required(),
-      otherwise: Joi.allow(null)
-    })
+    .when('id_rol', { is: Joi.exist(), then: Joi.required(), otherwise: Joi.allow(null) })
+    .when('role', { is: Joi.exist(), then: Joi.required(), otherwise: Joi.allow(null) })
     .messages(mensajesError)
-}).messages(mensajesError);
+}).or('id_rol','role').messages(mensajesError);
 
 // Esquema para validar la actualización de un usuario
 const updateUsuarioSchema = Joi.object({

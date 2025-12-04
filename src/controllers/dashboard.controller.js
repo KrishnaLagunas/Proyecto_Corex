@@ -18,42 +18,48 @@ const dashboardController = {
 
       const isSuperAdmin = rol === 'superadministrador';
       const isAdmin = rol === 'administrador';
+      const isFuncionario = rol === 'funcionario' || rol === 'secretaria comunitaria' || rol === 'secretaria de obras' || rol === 'secretaria de transito' || rol === 'secretaria partes' || rol === 'tesoreria municipal';
 
-      // Filtros por municipalidad para administradores
-      const tramiteWhere = isAdmin && muniId ? { municipalidad_id: muniId } : {};
-      const proyectoWhere = isAdmin && muniId ? { estado: 'en_ejecucion', municipalidad_id: muniId } : { estado: 'en_ejecucion' };
-      const usuarioWhere = isAdmin && muniId ? { municipalidad_id: muniId } : {};
+      // Filtros por municipalidad para administradores (si no tiene asignada, devolver métricas en 0)
+      const emptyFilter = { municipalidad_id: -1 };
+      const filtraPorMuni = (isAdmin || isFuncionario);
+      const tramiteWhere = filtraPorMuni ? (muniId ? { municipalidad_id: muniId } : emptyFilter) : {};
+      const proyectoWhere = filtraPorMuni ? (muniId ? { estado: 'en_ejecucion', municipalidad_id: muniId } : { estado: 'en_ejecucion', municipalidad_id: -1 }) : { estado: 'en_ejecucion' };
+      const usuarioWhere = filtraPorMuni ? (muniId ? { municipalidad_id: muniId } : emptyFilter) : {};
+
+      const safeEval = async (fn) => { try { return await fn(); } catch (_) { return 0; } };
 
       // Conteos y sumas
-      const totalTramites = await Tramite.count({ where: tramiteWhere });
+      const totalTramites = await safeEval(() => Tramite.count({ where: tramiteWhere }));
       let totalPagosMonto = 0;
       let totalPagosCount = 0;
-      if (isAdmin && muniId) {
-        totalPagosMonto = await Pago.sum('monto', {
-          include: [{ model: Tramite, required: true, where: { municipalidad_id: muniId } }]
-        }) || 0;
-        totalPagosCount = await Pago.count({
-          include: [{ model: Tramite, required: true, where: { municipalidad_id: muniId } }]
-        });
+      if (filtraPorMuni && muniId) {
+        totalPagosMonto = await safeEval(() => Pago.sum('monto', { include: [{ model: Tramite, required: true, where: { municipalidad_id: muniId } }] })) || 0;
+        totalPagosCount = await safeEval(() => Pago.count({ include: [{ model: Tramite, required: true, where: { municipalidad_id: muniId } }] })) || 0;
       } else {
-        totalPagosMonto = (await Pago.sum('monto')) || 0;
-        totalPagosCount = await Pago.count();
+        totalPagosMonto = await safeEval(() => Pago.sum('monto')) || 0;
+        totalPagosCount = await safeEval(() => Pago.count()) || 0;
       }
-      const proyectosActivos = Proyecto ? await Proyecto.count({ where: proyectoWhere }) : 0;
-      const totalUsuarios = await Usuario.count({ where: usuarioWhere });
-      const totalMunicipalidades = isAdmin && muniId ? 1 : (Municipalidad ? await Municipalidad.count() : 0);
-      const totalDepartamentos = Departamento ? await Departamento.count() : 0;
+      const proyectosActivos = await safeEval(() => Proyecto.count({ where: proyectoWhere }));
+      const totalUsuarios = await safeEval(() => Usuario.count({ where: usuarioWhere }));
+      const totalMunicipalidades = filtraPorMuni ? (muniId ? 1 : 0) : await safeEval(() => Municipalidad.count());
+      const totalDepartamentos = filtraPorMuni && muniId
+        ? await safeEval(() => Departamento.count({ where: { municipalidad_id: muniId } }))
+        : await safeEval(() => Departamento.count());
 
       // Estadísticas de trámites por estado (filtradas para admin)
       
-      const tramitesPorEstado = await Tramite.findAll({
-        attributes: [
-          'estado',
-          [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'cantidad']
-        ],
-        where: tramiteWhere,
-        group: ['estado']
-      });
+      let tramitesPorEstado = [];
+      try {
+        tramitesPorEstado = await Tramite.findAll({
+          attributes: [
+            'estado',
+            [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'cantidad']
+          ],
+          where: tramiteWhere,
+          group: ['estado']
+        });
+      } catch (_) { tramitesPorEstado = []; }
 
       // Obtener estadísticas de pagos por mes (últimos 6 meses)
       const fechaInicio = new Date();
@@ -72,10 +78,11 @@ const dashboardController = {
         group: [require('sequelize').fn('DATE_FORMAT', require('sequelize').col('fecha_pago'), '%Y-%m')],
         order: [[require('sequelize').fn('DATE_FORMAT', require('sequelize').col('fecha_pago'), '%Y-%m'), 'ASC']]
       };
-      if (isAdmin && muniId) {
+      if (filtraPorMuni && muniId) {
         pagosPorMesOptions.include = [{ model: Tramite, required: true, where: { municipalidad_id: muniId } }];
       }
-      const pagosPorMes = await Pago.findAll(pagosPorMesOptions);
+      let pagosPorMes = [];
+      try { pagosPorMes = await Pago.findAll(pagosPorMesOptions); } catch (_) { pagosPorMes = []; }
 
       // Pagos recientes (últimos 30 días) como conteo
       const fechaRecientes = new Date();
@@ -89,7 +96,7 @@ const dashboardController = {
             }
           }
         };
-        if (isAdmin && muniId) {
+        if (filtraPorMuni && muniId) {
           recientesOptions.include = [{ model: Tramite, required: true, where: { municipalidad_id: muniId } }];
         }
         pagosRecientes = await Pago.count(recientesOptions);
@@ -113,13 +120,20 @@ const dashboardController = {
         }))
       };
 
-      res.json({
-        success: true,
-        data: resumen
-      });
+      res.json({ success: true, data: resumen });
     } catch (error) {
-      console.error('Error al obtener resumen del dashboard:', error);
-      next(error);
+      const resumen = {
+        totalTramites: 0,
+        totalPagos: 0,
+        totalPagosCount: 0,
+        totalUsuarios: 0,
+        proyectosActivos: 0,
+        totalDepartamentos: 0,
+        pagosRecientes: 0,
+        tramitesPorEstado: [],
+        pagosPorMes: []
+      };
+      res.json({ success: true, data: resumen });
     }
   },
 

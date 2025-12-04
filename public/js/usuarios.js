@@ -469,9 +469,9 @@ async function mostrarListaUsuarios() {
             </div>
         </div>
 
-        <div class="row g-2 align-items-end mb-2">
-            <div class="col-md-5">
-                <input type="text" class="form-control" id="buscar-usuario" placeholder="Buscar por nombre, apellido, email o RUT">
+        <div class="row g-2 align-items-end mb-2" style="position:relative; z-index:1100;">
+            <div class="col-md-5" id="buscar-usuario-wrap" style="position:relative; z-index:1100;">
+                <input type="text" class="form-control" id="buscar-usuario" placeholder="Buscar por nombre, apellido, email o RUT" autocomplete="off" tabindex="0" aria-label="Buscar usuarios" style="position:relative; z-index:1100;">
             </div>
             <div class="col-md-3">
                 <select class="form-select" id="filtro-rol-usuario">
@@ -524,9 +524,27 @@ async function mostrarListaUsuarios() {
     `;
 
     document.getElementById('btn-nuevo-usuario').addEventListener('click', () => mostrarFormularioUsuario());
-    document.getElementById('buscar-usuario').addEventListener('input', () => actualizarTablaUsuarios(1));
+    const buscarInput = document.getElementById('buscar-usuario');
+    buscarInput.removeAttribute('disabled');
+    buscarInput.style.pointerEvents = 'auto';
+    buscarInput.addEventListener('input', () => actualizarTablaUsuarios(1));
+    // Asegurar foco inmediato y clic en el wrapper
+    try { buscarInput.focus(); } catch (_) {}
+    const buscarWrap = document.getElementById('buscar-usuario-wrap');
+    if (buscarWrap) {
+        buscarWrap.addEventListener('click', () => { try { buscarInput.focus(); } catch (_) {} });
+        buscarWrap.style.pointerEvents = 'auto';
+    }
     document.getElementById('filtro-rol-usuario').addEventListener('change', () => actualizarTablaUsuarios(1));
     document.getElementById('filtro-estado-usuario').addEventListener('change', () => actualizarTablaUsuarios(1));
+
+    // Cerrar cualquier overlay de navegación que bloquee clics
+    try {
+        if (window.mobileNav && typeof window.mobileNav.close === 'function') window.mobileNav.close();
+        const overlay = document.getElementById('nav-overlay');
+        if (overlay) overlay.classList.remove('active');
+        document.body.style.overflow = '';
+    } catch (_) {}
 
     await actualizarTablaUsuarios(1);
 }
@@ -546,20 +564,11 @@ async function actualizarTablaUsuarios(page = 1) {
         params.set('page', page);
         params.set('limit', (CONFIG?.PAGINACION?.ITEMS_POR_PAGINA) || 10);
         if (buscar) params.set('search', buscar);
-        // El backend espera 'id_rol' numérico; como no lo tenemos aquí,
-        // filtramos por rol en el cliente y no enviamos este parámetro.
+        if (rol) params.set('rol_nombre', String(rol).toLowerCase());
         if (estado) params.set('estado', estado);
 
         const resp = await fetchAPI(`/usuarios?${params.toString()}`);
         let usuarios = resp.usuarios || [];
-        // Filtro por rol en cliente usando nombre del rol devuelto por relación Rol
-        if (rol) {
-            const rolLower = String(rol).toLowerCase();
-            usuarios = usuarios.filter(u => {
-                const nombreRol = (u.Rol?.nombre || u.rol_nombre || '').toLowerCase();
-                return nombreRol === rolLower;
-            });
-        }
         const pagination = resp.pagination || { total: usuarios.length, currentPage: page, limit: (CONFIG?.PAGINACION?.ITEMS_POR_PAGINA) || 10 };
 
         if (!tbody) return;
@@ -740,7 +749,7 @@ async function mostrarFormularioUsuario(usuarioId = null) {
         }
 
         const currentUser = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
-        const esSuperadmin = currentUser?.rol_nombre === 'superadministrador';
+        const esSuperadmin = (currentUser?.rol_nombre || currentUser?.role) === 'superadministrador';
         // Cargar departamentos para el select
         let departamentos = [];
         let municipalidades = [];
@@ -750,7 +759,7 @@ async function mostrarFormularioUsuario(usuarioId = null) {
         } catch (_) { /* opcional */ }
         if (esSuperadmin) {
             try {
-                const respMuni = await fetchAPI('/municipalidades');
+                const respMuni = await fetchAPI('/superadmin/municipalidades');
                 municipalidades = respMuni.departamentos || [];
             } catch (_) { /* opcional */ }
         }
@@ -1036,11 +1045,8 @@ async function guardarUsuario(e) {
     }
 
     const currentUser = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
-    const esSuperadmin = currentUser?.rol_nombre === 'superadministrador';
-    if (role === 'funcionario' && !departamento_id) {
-        mostrarNotificacion('El departamento es obligatorio para funcionarios', 'warning');
-        return;
-    }
+    const esSuperadmin = (currentUser?.rol_nombre || currentUser?.role) === 'superadministrador';
+    // El departamento no es obligatorio; la municipalidad sí
     if (esSuperadmin && role === 'admin' && !municipalidad_id) {
         mostrarNotificacion('La municipalidad es obligatoria para administradores', 'warning');
         const el = form?.querySelector('#municipalidad_id');
@@ -1063,8 +1069,8 @@ async function guardarUsuario(e) {
         primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
         email, rut, telefono, direccion: direccionCompuesta, role 
     };
-    if (esSuperadmin && role === 'admin') payload.municipalidad_id = municipalidad_id;
-    if (!esSuperadmin && departamento_id) payload.municipalidad_id = departamento_id;
+    if (esSuperadmin && municipalidad_id) payload.municipalidad_id = municipalidad_id;
+    // No mapear departamento a municipalidad; el backend asigna municipalidad del admin
     if (!usuarioId) payload.password = password;
 
     try {
@@ -1106,7 +1112,7 @@ async function mostrarFormularioCrearAdministrador() {
         // Cargar municipalidades para el select
         let municipalidades = [];
         try {
-            const respDept = await fetchAPI('/departamentos');
+            const respDept = await fetchAPI('/superadmin/municipalidades');
             municipalidades = respDept.departamentos || [];
         } catch (_) { /* opcional */ }
 

@@ -112,7 +112,7 @@ router.put(
 router.get(
   '/stats/general',
   isAuthenticated,
-  hasRole(['administrador', 'superadministrador']),
+  hasRole(['administrador', 'superadministrador', 'funcionario']),
   usuariosController.getUsuariosStats
 );
 

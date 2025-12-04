@@ -4,12 +4,13 @@
  */
 
 const { verifyToken } = require('../config/jwt');
+const { Usuario } = require('../models');
 const logger = require('../utils/logger');
 
 /**
  * Middleware para verificar si el usuario está autenticado
  */
-const isAuthenticated = (req, res, next) => {
+const isAuthenticated = async (req, res, next) => {
   try {
     // Obtener el token del header de autorización o x-access-token
     const authHeader = req.headers.authorization;
@@ -60,6 +61,16 @@ const isAuthenticated = (req, res, next) => {
     // Normalizar datos del usuario y mantener compatibilidad
     req.user = decoded;
     const nombreRol = decoded.rol_nombre || null;
+
+    // Enriquecer con municipalidad si falta
+    if (!req.user.municipalidad_id && decoded && decoded.id) {
+      try {
+        const u = await Usuario.findByPk(decoded.id);
+        if (u && u.municipalidad_id) {
+          req.user.municipalidad_id = u.municipalidad_id;
+        }
+      } catch (_) {}
+    }
     
     next();
   } catch (error) {
@@ -80,7 +91,7 @@ const isAuthenticated = (req, res, next) => {
  * Middleware para verificar roles de usuario
  * @param {Array} roles - Array de roles permitidos
  */
-const hasRole = (roles) => {
+  const hasRole = (roles) => {
   return (req, res, next) => {
     try {
       // Verificar primero si el usuario está autenticado
@@ -96,7 +107,14 @@ const hasRole = (roles) => {
       const expandedAllowed = roles.flatMap(r => {
         if (r === 'admin') return ['administrador'];
         if (r === 'superadmin') return ['superadministrador'];
-        if (r === 'funcionario') return ['secretaria comunitaria'];
+        if (r === 'funcionario') return [
+          'funcionario',
+          'secretaria comunitaria',
+          'secretaria de obras',
+          'secretaria de transito',
+          'secretaria partes',
+          'tesoreria municipal'
+        ];
         return [r];
       });
       if (!expandedAllowed.includes(userRolNombre)) {

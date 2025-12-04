@@ -16,7 +16,7 @@ const DepartamentoUsuario = sequelize.define('DepartamentoUsuario', {
     allowNull: false,
     references: {
       model: 'departamentos',
-      key: 'id'
+      key: 'id_departamento'
     }
   },
   usuario_id: {

@@ -97,7 +97,7 @@ router.post(
 router.get(
   '/stats/general',
   isAuthenticated,
-  hasRole(['administrador', 'superadministrador']),
+  hasRole(['administrador', 'superadministrador', 'funcionario']),
   departamentosController.getDepartamentosStats
 );
 

@@ -60,7 +60,8 @@ async function cargarDashboard() {
 
     // Título y mensaje según rol
     const headerTitle = esFuncionario ? 'Panel de Funcionario' : 'Panel Administrativo';
-    const headerInfo = '';
+    const muniName = currentUser?.municipalidad_nombre || '';
+    const headerInfo = (!esFuncionario && muniName) ? `${muniName}` : '';
 
     // Tarjetas según rol
     const cardsHTML = esFuncionario
@@ -142,6 +143,7 @@ async function cargarDashboard() {
           <div class="col-4"></div>
           <div class="col-4 text-center">
             <h2 class="section-title">${headerTitle}</h2>
+            ${headerInfo ? `<div class="muni-badge"><i class="bi bi-building"></i><span>${headerInfo}</span></div>` : ''}
           </div>
           <div class="col-4 text-end">
             <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded border bg-light" id="dashboard-datetime-container">

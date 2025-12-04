@@ -49,20 +49,47 @@ const departamentosController = {
       const sortOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
       
       // Ejecutar consulta
-      const consulta = esMunicipalidades(req) ? Municipalidad : Departamento;
-      const { count, rows } = await consulta.findAndCountAll({
-        where,
-        order: [[sortField, sortOrder]],
-        limit: parseInt(limit),
-        offset: offset
-      });
+      const esMun = esMunicipalidades(req);
+      const consulta = esMun ? Municipalidad : Departamento;
+
+      if (!esMun && req.user && req.user.rol_nombre === 'administrador') {
+        const muniId = req.user.municipalidad_id;
+        if (!muniId) {
+          return res.json({ departamentos: [], pagination: { total: 0, totalPages: 0, currentPage: parseInt(page), limit: parseInt(limit) } });
+        }
+        const hasMuniAttr = !!(Departamento && Departamento.rawAttributes && Departamento.rawAttributes.municipalidad_id);
+        if (!hasMuniAttr) {
+          return res.json({ departamentos: [], pagination: { total: 0, totalPages: 0, currentPage: parseInt(page), limit: parseInt(limit) } });
+        }
+        where.municipalidad_id = muniId;
+      }
+      let count = 0; let rows = [];
+      try {
+        const result = await consulta.findAndCountAll({
+          where,
+          order: [[sortField, sortOrder]],
+          limit: parseInt(limit),
+          offset: offset
+        });
+        count = result.count;
+        rows = result.rows;
+      } catch (err) {
+        const code = (err?.original?.code) || (err?.parent?.code) || '';
+        const msg = err?.message || '';
+        if (!esMun && (/ER_NO_SUCH_TABLE/i.test(code) || /doesn'?t exist/i.test(msg) || /Unknown column .*municipalidad_id/i.test(msg))) {
+          try { logger.warn('[Departamentos] Tabla departamentos no existe; devolviendo lista vacía'); } catch (_) {}
+          count = 0; rows = [];
+        } else {
+          throw err;
+        }
+      }
       const rowsPlain = rows.map(r => {
         const j = typeof r.toJSON === 'function' ? r.toJSON() : r;
         const email = j.email ?? j.email_contacto ?? null;
         const telefono = j.telefono ?? j.telefono_contacto ?? null;
         return { ...j, email, telefono };
       });
-      try { logger.info(`[Departamentos] ${esMunicipalidades(req) ? 'Municipalidades' : 'Departamentos'} obtenidos: ${JSON.stringify(rowsPlain)}`); } catch (_) {}
+      try { logger.info(`[Departamentos] ${esMun ? 'Municipalidades' : 'Departamentos'} obtenidos: ${JSON.stringify(rowsPlain)}`); } catch (_) {}
       
       // Calcular total de páginas
       const totalPages = Math.ceil(count / limit);
@@ -91,7 +118,8 @@ const departamentosController = {
   getDepartamentoById: async (req, res, next) => {
     try {
       const { id } = req.params;
-      const modelo = esMunicipalidades(req) ? Municipalidad : Departamento;
+      const esMun = esMunicipalidades(req);
+      const modelo = esMun ? Municipalidad : Departamento;
       const departamentoRaw = await modelo.findByPk(id);
       const departamento = departamentoRaw && typeof departamentoRaw.toJSON === 'function'
         ? (() => {
@@ -106,6 +134,12 @@ const departamentosController = {
         throw new ApiError('Departamento no encontrado', 404);
       }
       
+      // Control de acceso: admin solo ve departamentos de su municipalidad
+      if (!esMun && req.user && req.user.rol_nombre === 'administrador') {
+        if (!req.user.municipalidad_id || departamento.municipalidad_id !== req.user.municipalidad_id) {
+          throw new ApiError('No tienes permiso para ver departamentos de otra municipalidad', 403);
+        }
+      }
       try { res.set('Cache-Control', 'no-store'); } catch (_) {}
       res.json(departamento);
       try { logger.info(`[Departamentos] Detalle ${esMunicipalidades(req) ? 'municipalidad' : 'departamento'} ${id}: ${JSON.stringify(departamento)}`); } catch (_) {}
@@ -122,7 +156,7 @@ const departamentosController = {
    */
   createDepartamento: async (req, res, next) => {
     try {
-      if (req.user.rol_nombre !== 'superadministrador') {
+      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para crear departamentos', 403);
       }
       if (esMunicipalidades(req)) {
@@ -206,13 +240,17 @@ const departamentosController = {
           throw new ApiError(out, 400);
         }
       } else {
-        const { nombre } = req.body;
-        const existente = await Departamento.findOne({ where: { nombre } });
+        const { nombre, municipalidad_id, estado } = req.body;
+        const muniId = req.user.rol_nombre === 'superadministrador' ? municipalidad_id : req.user.municipalidad_id;
+        if (!muniId) {
+          throw new ApiError('El administrador no tiene municipalidad asignada', 403);
+        }
+        const existente = await Departamento.findOne({ where: { nombre, municipalidad_id: muniId } });
         if (existente) {
           throw new ApiError('Ya existe un departamento con el nombre proporcionado', 400);
         }
-        const nuevo = await Departamento.create({ nombre });
-        logger.info(`Nuevo departamento creado: ${nombre}`);
+        const nuevo = await Departamento.create({ nombre, municipalidad_id: muniId, estado: (estado || 'activo') });
+        logger.info(`Nuevo departamento creado: ${nombre} (muni ${muniId})`);
         const completo = await Departamento.findByPk(nuevo.id);
         return res.status(201).json({
           message: 'Departamento creado exitosamente',
@@ -243,8 +281,8 @@ const departamentosController = {
       if (!departamento) {
         throw new ApiError('Departamento no encontrado', 404);
       }
-      if (req.user.rol_nombre === 'administrador') {
-        if (!req.user.municipalidad_id || req.user.municipalidad_id !== parseInt(id)) {
+      if (req.user.rol_nombre === 'administrador' && !esMun) {
+        if (!req.user.municipalidad_id || departamento.municipalidad_id !== req.user.municipalidad_id) {
           throw new ApiError('No tienes permiso para modificar departamentos de otra municipalidad', 403);
         }
       }
@@ -280,7 +318,7 @@ const departamentosController = {
         }
         if (estado !== undefined) departamento.estado = estado;
       } else {
-        const { nombre } = req.body;
+        const { nombre, estado } = req.body;
         if (nombre && nombre !== departamento.nombre) {
           const existenteNombre = await Departamento.findOne({
             where: { nombre, id: { [Op.ne]: id } }
@@ -290,6 +328,7 @@ const departamentosController = {
           }
         }
         if (nombre) departamento.nombre = nombre;
+        if (estado !== undefined) departamento.estado = estado;
       }
       
       // Guardar los cambios
@@ -330,47 +369,40 @@ const departamentosController = {
       if (!departamento) {
         throw new ApiError('Departamento no encontrado', 404);
       }
-      if (req.user.rol_nombre === 'administrador') {
-        if (!req.user.municipalidad_id || req.user.municipalidad_id !== parseInt(id)) {
+      if (req.user.rol_nombre === 'administrador' && !esMun) {
+        if (!req.user.municipalidad_id || departamento.municipalidad_id !== req.user.municipalidad_id) {
           throw new ApiError('No tienes permiso para eliminar departamentos de otra municipalidad', 403);
         }
       }
       
-      // Verificar si hay proyectos asociados a la municipalidad (si la tabla existe)
-      let proyectosAsociados = 0;
-      try {
-        proyectosAsociados = await Proyecto.count({ where: { municipalidad_id: id } });
-      } catch (err) {
-        const code = (err?.original?.code) || (err?.parent?.code) || '';
-        const msg = err?.message || '';
-        if (/ER_NO_SUCH_TABLE/i.test(code) || /doesn'?t exist/i.test(msg)) {
-          try { logger.warn('[Eliminar Municipalidad] Tabla proyectos no existe; se omite verificación de proyectos.'); } catch (_) {}
-          proyectosAsociados = 0;
-        } else {
-          throw err;
+      if (esMun) {
+        // Verificaciones solo aplican a municipalidades
+        let proyectosAsociados = 0;
+        try {
+          proyectosAsociados = await Proyecto.count({ where: { municipalidad_id: id } });
+        } catch (err) {
+          const code = (err?.original?.code) || (err?.parent?.code) || '';
+          const msg = err?.message || '';
+          if (/ER_NO_SUCH_TABLE/i.test(code) || /doesn'?t exist/i.test(msg)) {
+            try { logger.warn('[Eliminar Municipalidad] Tabla proyectos no existe; se omite verificación de proyectos.'); } catch (_) {}
+            proyectosAsociados = 0;
+          } else {
+            throw err;
+          }
         }
-      }
-      
-      if (proyectosAsociados > 0) {
-        throw new ApiError(
-          `No se puede eliminar el departamento porque tiene ${proyectosAsociados} proyecto(s) asociado(s)`,
-          400
-        );
-      }
-      
-      // Verificar si hay funcionarios asociados al departamento
-      const funcionariosAsociados = await Usuario.count({
-        where: { 
-          municipalidad_id: id
-        },
-        include: [{ model: Rol, where: { nombre: 'secretaria comunitaria' } }]
-      });
-      
-      if (funcionariosAsociados > 0) {
-        throw new ApiError(
-          `No se puede eliminar el departamento porque tiene ${funcionariosAsociados} funcionario(s) asociado(s)`,
-          400
-        );
+        if (proyectosAsociados > 0) {
+          throw new ApiError(
+            `No se puede eliminar la municipalidad porque tiene ${proyectosAsociados} proyecto(s) asociado(s)`,
+            400
+          );
+        }
+        const funcionariosAsociados = await Usuario.count({ where: { municipalidad_id: id }, include: [{ model: Rol, where: { nombre: 'secretaria comunitaria' } }] });
+        if (funcionariosAsociados > 0) {
+          throw new ApiError(
+            `No se puede eliminar la municipalidad porque tiene ${funcionariosAsociados} funcionario(s) asociado(s)`,
+            400
+          );
+        }
       }
       
       // Eliminar la municipalidad/departamento
@@ -408,7 +440,7 @@ const departamentosController = {
         throw new ApiError('Departamento no encontrado', 404);
       }
       if (req.user.rol_nombre === 'administrador') {
-        if (!req.user.municipalidad_id || req.user.municipalidad_id !== parseInt(id)) {
+        if (!req.user.municipalidad_id || departamento.municipalidad_id !== req.user.municipalidad_id) {
           throw new ApiError('No tienes permiso para asignar funcionarios de otra municipalidad', 403);
         }
       }
@@ -457,18 +489,47 @@ const departamentosController = {
    */
   getDepartamentosStats: async (req, res, next) => {
     try {
-      // Solo administradores pueden ver estadísticas
-      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
+      // Administradores y funcionarios pueden ver estadísticas
+      if (!['administrador','superadministrador','funcionario'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
-      
-      const proyectosPorDepartamento = [];
-      const funcionariosPorDepartamento = [];
-      const estadoPorDepartamento = [];
-      
+
+      const muniId = req.user?.municipalidad_id || null;
+      const isAdmin = req.user.rol_nombre === 'administrador';
+      const isFuncionario = req.user.rol_nombre === 'funcionario';
+
+      // Si es admin/funcionario y no tiene municipalidad asignada, devolver ceros
+      if ((isAdmin || isFuncionario) && !muniId) {
+        return res.json({
+          proyectosPorDepartamento: [],
+          funcionariosPorDepartamento: [],
+          estadoPorDepartamento: [
+            { estado: 'activo', dataValues: { total: 0 } },
+            { estado: 'inactivo', dataValues: { total: 0 } }
+          ]
+        });
+      }
+
+      const where = (isAdmin || isFuncionario) ? { municipalidad_id: muniId } : {};
+
+      // Conteo por estado
+      let estadoPorDepartamento = [];
+      try {
+        estadoPorDepartamento = await Departamento.findAll({
+          attributes: [
+            'estado',
+            [sequelize.fn('COUNT', sequelize.col('id_departamento')), 'total']
+          ],
+          where,
+          group: ['estado']
+        });
+      } catch (_) {
+        estadoPorDepartamento = [];
+      }
+
       res.json({
-        proyectosPorDepartamento,
-        funcionariosPorDepartamento,
+        proyectosPorDepartamento: [],
+        funcionariosPorDepartamento: [],
         estadoPorDepartamento
       });
     } catch (error) {

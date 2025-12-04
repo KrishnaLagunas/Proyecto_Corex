@@ -29,6 +29,7 @@ const usuariosController = {
         page = 1, 
         limit = 10, 
         id_rol,
+        rol_nombre,
         municipalidad_id,
         search,
         sort = 'createdAt',
@@ -42,6 +43,19 @@ const usuariosController = {
       // Filtro por rol
       if (id_rol) {
         where.id_rol = id_rol;
+      } else if (rol_nombre) {
+        const map = {
+          admin: 'administrador',
+          superadmin: 'superadministrador'
+        };
+        const nombreRol = map[String(rol_nombre).toLowerCase()] || String(rol_nombre).toLowerCase();
+        const RolModel = require('../models').Rol;
+        const rolFound = await RolModel.findOne({ where: { nombre: nombreRol } });
+        if (rolFound) {
+          where.id_rol = rolFound.id;
+        } else {
+          return res.json({ usuarios: [], pagination: { total: 0, totalPages: 0, currentPage: parseInt(page), limit: parseInt(limit) } });
+        }
       }
       
       // Filtro por municipalidad
@@ -52,7 +66,8 @@ const usuariosController = {
       // restringir automáticamente al ámbito de su municipalidad
       if (req.user.rol_nombre === 'administrador' && !municipalidad_id) {
         if (!req.user.municipalidad_id) {
-          throw new ApiError('El administrador no tiene municipalidad asignada', 403);
+          // Sin municipalidad asignada: devolver lista vacía en lugar de error
+          return res.json({ usuarios: [], pagination: { total: 0, totalPages: 0, currentPage: parseInt(page), limit: parseInt(limit) } });
         }
         where.municipalidad_id = req.user.municipalidad_id;
       }
@@ -185,7 +200,8 @@ const usuariosController = {
         telefono,
         direccion,
         id_rol,
-        municipalidad_id
+        municipalidad_id,
+        role
       } = req.body;
 
       // Payload recibido (sin contraseña)
@@ -209,6 +225,19 @@ const usuariosController = {
         throw new ApiError('El RUT ya está registrado', 400);
       }
       
+      // Mapear role a id_rol si no se envía id_rol
+      let idRolFinal = id_rol;
+      try {
+        if (!idRolFinal && role) {
+          const input = String(role).toLowerCase();
+          const map = { admin: 'administrador', superadmin: 'superadministrador' };
+          const nombreRol = map[input] || input;
+          const RolModel = require('../models').Rol;
+          const rolFound = await RolModel.findOne({ where: { nombre: nombreRol } });
+          if (rolFound) idRolFinal = rolFound.id;
+        }
+      } catch (_) {}
+
       // Verificar que la municipalidad existe si se proporciona
       if (municipalidad_id) {
         const municipalidad = await Municipalidad.findByPk(municipalidad_id);
@@ -219,8 +248,8 @@ const usuariosController = {
       }
 
       // Reglas de negocio: secretaria comunitaria debe tener municipalidad
-      if (id_rol) {
-        const rolRegla = await require('../models').Rol.findByPk(id_rol);
+      if (idRolFinal) {
+        const rolRegla = await require('../models').Rol.findByPk(idRolFinal);
         if (rolRegla && rolRegla.nombre === 'secretaria comunitaria' && (municipalidad_id === null || municipalidad_id === undefined)) {
           logger.warn('[Usuarios] Falta municipalidad para rol secretaria comunitaria');
           throw new ApiError('La municipalidad es obligatoria para usuarios con rol secretaria comunitaria', 400);
@@ -229,18 +258,27 @@ const usuariosController = {
 
       // Restricciones por rol del creador
       const rolCreador = req.user.rol_nombre;
-      const rolDestino = await require('../models').Rol.findByPk(id_rol);
+      const rolDestino = idRolFinal ? await require('../models').Rol.findByPk(idRolFinal) : null;
       if (!rolDestino) {
         throw new ApiError('El rol especificado no existe', 400);
       }
 
       if (rolCreador === 'superadministrador') {
-        // Superadministrador: solo crea administradores y debe asignar municipalidad
-        if (rolDestino.nombre !== 'administrador') {
-          throw new ApiError('El superadministrador solo puede crear usuarios administradores', 403);
+        // Superadministrador: puede crear administradores y funcionarios/secretarías, requiriendo municipalidad
+        const allowedRolesSuper = [
+          'administrador',
+          'funcionario',
+          'secretaria comunitaria',
+          'secretaria de obras',
+          'secretaria de transito',
+          'secretaria partes',
+          'tesoreria municipal'
+        ];
+        if (!allowedRolesSuper.includes(rolDestino.nombre)) {
+          throw new ApiError('Rol no permitido para creación por superadministrador', 403);
         }
         if (!municipalidad_id) {
-          throw new ApiError('Debe especificar la municipalidad para el administrador', 400);
+          throw new ApiError('Debe especificar la municipalidad para el usuario', 400);
         }
         const muni = await Municipalidad.findByPk(municipalidad_id);
         if (!muni) {
@@ -289,7 +327,7 @@ const usuariosController = {
         rut,
         telefono,
         direccion,
-        id_rol,
+        id_rol: idRolFinal,
         municipalidad_id: muniAsignada,
         estado: 'activo'
       };
@@ -306,12 +344,12 @@ const usuariosController = {
         rut,
         telefono,
         direccion,
-        id_rol,
+        id_rol: idRolFinal,
         municipalidad_id: muniAsignada,
         estado: 'activo' // Por defecto, el usuario se crea activo
       });
       
-      logger.info(`Nuevo usuario creado: ${email} (id_rol=${id_rol || 'N/A'})`);
+      logger.info(`Nuevo usuario creado: ${email} (id_rol=${idRolFinal || 'N/A'})`);
       
       // Obtener el usuario creado (sin la contraseña)
       const usuarioCreado = await Usuario.findByPk(nuevoUsuario.id, {
@@ -733,11 +771,28 @@ const usuariosController = {
    */
   getUsuariosStats: async (req, res, next) => {
     try {
-      // Solo administradores pueden ver estadísticas
-      if (!['administrador','superadministrador'].includes(req.user.rol_nombre)) {
+      // Administradores y funcionarios pueden ver estadísticas
+      if (!['administrador','superadministrador','funcionario'].includes(req.user.rol_nombre)) {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
-      
+      const muniId = req.user?.municipalidad_id || null;
+      const isAdmin = req.user.rol_nombre === 'administrador';
+      const isFuncionario = req.user.rol_nombre === 'funcionario';
+      const filterWhere = ((isAdmin || isFuncionario) && muniId) ? { municipalidad_id: muniId } : ((isAdmin || isFuncionario) ? { municipalidad_id: -1 } : {});
+
+      // Si es administrador y no tiene municipalidad, devolver estadísticas vacías
+      if ((isAdmin || isFuncionario) && !muniId) {
+        return res.json({
+          rolPorUsuario: [],
+          estadoPorUsuario: [
+            { estado: 'activo', dataValues: { total: 0 } },
+            { estado: 'inactivo', dataValues: { total: 0 } }
+          ],
+          municipalidadPorUsuario: [],
+          usuariosRecientes: []
+        });
+      }
+
       // Estadísticas por rol
       const { Rol } = require('../models');
       const rolStats = await Usuario.findAll({
@@ -746,6 +801,7 @@ const usuariosController = {
           [sequelize.fn('COUNT', sequelize.col('Usuario.id')), 'total']
         ],
         include: [{ model: Rol, attributes: ['nombre'] }],
+        where: filterWhere,
         group: ['id_rol', 'Rol.id', 'Rol.nombre']
       });
       
@@ -755,6 +811,7 @@ const usuariosController = {
           'estado',
           [sequelize.fn('COUNT', sequelize.col('id')), 'total']
         ],
+        where: filterWhere,
         group: ['estado']
       });
       
@@ -768,6 +825,7 @@ const usuariosController = {
           model: Municipalidad,
           attributes: ['nombre']
         }],
+        where: filterWhere,
         group: ['municipalidad_id', 'Municipalidad.id', 'Municipalidad.nombre']
       });
       

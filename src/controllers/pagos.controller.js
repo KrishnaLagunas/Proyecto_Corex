@@ -626,29 +626,38 @@ const pagosController = {
       if (req.user.rol_nombre === 'ciudadano') {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
+      const muniId = req.user?.municipalidad_id || null;
       
       // Estadísticas por estado
-      const estadoStats = await Pago.findAll({
+      const estadoStatsOptions = {
         attributes: [
           'estado',
           [sequelize.fn('COUNT', sequelize.col('id')), 'total'],
           [sequelize.fn('SUM', sequelize.col('monto')), 'monto_total']
         ],
         group: ['estado']
-      });
+      };
+      if (req.user.rol_nombre === 'administrador' && muniId) {
+        estadoStatsOptions.include = [{ model: Tramite, required: true, attributes: [], where: { municipalidad_id: muniId } }];
+      }
+      const estadoStats = await Pago.findAll(estadoStatsOptions);
       
       // Estadísticas por método de pago
-      const metodoPagoStats = await Pago.findAll({
+      const metodoPagoOptions = {
         attributes: [
           'metodo_pago',
           [sequelize.fn('COUNT', sequelize.col('id')), 'total'],
           [sequelize.fn('SUM', sequelize.col('monto')), 'monto_total']
         ],
         group: ['metodo_pago']
-      });
+      };
+      if (req.user.rol_nombre === 'administrador' && muniId) {
+        metodoPagoOptions.include = [{ model: Tramite, required: true, attributes: [], where: { municipalidad_id: muniId } }];
+      }
+      const metodoPagoStats = await Pago.findAll(metodoPagoOptions);
       
       // Pagos por mes (últimos 12 meses)
-      const pagosPorMes = await Pago.findAll({
+      const pagosPorMesOptions = {
         attributes: [
           [sequelize.fn('DATE_FORMAT', sequelize.col('fecha_pago'), '%Y-%m'), 'mes'],
           [sequelize.fn('COUNT', sequelize.col('id')), 'total'],
@@ -662,7 +671,11 @@ const pagosController = {
         },
         group: [sequelize.fn('DATE_FORMAT', sequelize.col('fecha_pago'), '%Y-%m')],
         order: [[sequelize.fn('DATE_FORMAT', sequelize.col('fecha_pago'), '%Y-%m'), 'ASC']]
-      });
+      };
+      if (req.user.rol_nombre === 'administrador' && muniId) {
+        pagosPorMesOptions.include = [{ model: Tramite, required: true, attributes: [], where: { municipalidad_id: muniId } }];
+      }
+      const pagosPorMes = await Pago.findAll(pagosPorMesOptions);
       
       res.json({
         estadoPorPago: estadoStats,

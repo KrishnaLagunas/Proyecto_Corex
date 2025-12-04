@@ -20,7 +20,8 @@ async function cargarDepartamentos() {
             telefono: d.telefono || d.telefono_contacto || '',
             direccion: d.direccion || '',
             region: d.region || '',
-            comuna: d.comuna || ''
+            comuna: d.comuna || '',
+            estado: d.estado || 'activo'
         }));
         
         // Verificar si el elemento main-content existe
@@ -42,9 +43,9 @@ async function cargarDepartamentos() {
                     </div>
                 </div>
 
-                <div class="row g-2 align-items-end mb-2">
-                    <div class="col-md-6">
-                        <input type="text" class="form-control" id="buscar-departamento" placeholder="Buscar departamento...">
+                <div class="row g-2 align-items-end mb-2" style="position:relative; z-index:1100;">
+                    <div class="col-md-6" id="buscar-departamento-wrap" style="position:relative; z-index:1100;">
+                        <input type="text" class="form-control" id="buscar-departamento" placeholder="Buscar departamento..." autocomplete="off" tabindex="0" aria-label="Buscar departamento" style="position:relative; z-index:1100;">
                     </div>
                 </div>
 
@@ -61,6 +62,7 @@ async function cargarDepartamentos() {
                         <tr>
                             <th class="text-center">ID</th>
                             <th>Nombre</th>
+                            <th>Estado</th>
                             <th class="text-center col-actions">Acciones</th>
                         </tr>
                     </thead>
@@ -92,6 +94,7 @@ async function cargarDepartamentos() {
             <tr>
                 <td class="text-center">${departamento.id}</td>
                 <td class="cell-wrap">${departamento.nombre}</td>
+                <td class="cell-wrap"><span class="status-dot ${(departamento.estado || 'activo')}"></span> ${((departamento.estado || 'activo') === 'activo') ? 'Activo' : 'Inactivo'}</td>
                 
                 <td class="text-center col-actions">
                     <div class="btn-group btn-group-sm table-actions" role="group" aria-label="Acciones">
@@ -112,7 +115,56 @@ async function cargarDepartamentos() {
         // Agregar eventos para filtros
         const buscarDepartamento = document.getElementById('buscar-departamento');
         if (buscarDepartamento) {
-            buscarDepartamento.addEventListener('input', filtrarDepartamentos);
+            // Asegurar que el input sea interactivo y tenga foco
+            try {
+                buscarDepartamento.removeAttribute('disabled');
+                buscarDepartamento.style.pointerEvents = 'auto';
+                buscarDepartamento.focus();
+                const wrap = document.getElementById('buscar-departamento-wrap');
+                if (wrap) {
+                    wrap.addEventListener('click', () => { try { buscarDepartamento.focus(); } catch (_) {} });
+                    wrap.style.pointerEvents = 'auto';
+                }
+            } catch (_) {}
+
+            let debounceId;
+            buscarDepartamento.addEventListener('input', () => {
+                const q = (buscarDepartamento.value || '').trim();
+                clearTimeout(debounceId);
+                debounceId = setTimeout(async () => {
+                    try {
+                        const resp = await fetchAPI(`/departamentos?search=${encodeURIComponent(q)}&limit=50`, { suppressErrorLog: true });
+                        const nuevos = (resp.departamentos || []).map(d => ({ id: d.id, nombre: d.nombre, estado: d.estado || 'activo' }));
+                        const tabla = document.getElementById('tabla-departamentos');
+                        if (tabla) {
+                            tabla.innerHTML = nuevos.map(departamento => `
+                                <tr>
+                                    <td class="text-center">${departamento.id}</td>
+                                    <td class="cell-wrap">${departamento.nombre}</td>
+                                    <td class="cell-wrap"><span class="status-dot ${(departamento.estado || 'activo')}"></span> ${((departamento.estado || 'activo') === 'activo') ? 'Activo' : 'Inactivo'}</td>
+                                    <td class="text-center col-actions">
+                                        <div class="btn-group btn-group-sm table-actions" role="group" aria-label="Acciones">
+                                            <button class="btn btn-view" onclick="verDetalleDepartamento(${departamento.id})" title="Ver detalles">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <button class="btn btn-edit" onclick="editarDepartamento(${departamento.id})" title="Editar departamento">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-danger" onclick="eliminarDepartamento(${departamento.id})" title="Eliminar departamento">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('');
+                        }
+                    } catch (e) {
+                        // Fallback a filtrado local si falla la búsqueda remota
+                        filtrarDepartamentos();
+                        mostrarNotificacion('Error al buscar departamentos: ' + (e.message || ''), 'warning');
+                    }
+                }, 250);
+            });
         }
         
     } catch (error) {
@@ -148,7 +200,7 @@ async function mostrarFormularioDepartamento(departamentoId = null) {
     try {
         mostrarCargando(true);
         
-        let departamento = { nombre: '' };
+        let departamento = { nombre: '', estado: 'activo' };
         
         let titulo = 'Nuevo Departamento';
         let accion = 'crear';
@@ -186,8 +238,16 @@ async function mostrarFormularioDepartamento(departamentoId = null) {
                                                    value="${departamento.nombre}" required>
                                         </div>
                                     </div>
-                                    <div class="col-md-6"></div>
-                                </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="estado" class="form-label">Estado *</label>
+                                            <select class="form-select" id="estado" name="estado" required>
+                                                <option value="activo" ${departamento.estado === 'activo' ? 'selected' : ''}>Activo</option>
+                                                <option value="inactivo" ${departamento.estado === 'inactivo' ? 'selected' : ''}>Inactivo</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    </div>
                                 
                                 <div class="row">
                                     
@@ -316,7 +376,7 @@ async function guardarDepartamento(event) {
         const accion = form.dataset.accion;
         const departamentoId = form.dataset.id;
         
-    const departamentoData = { nombre: formData.get('nombre') };
+    const departamentoData = { nombre: formData.get('nombre'), estado: formData.get('estado') };
         
         let response;
         if (accion === 'crear') {
@@ -418,15 +478,14 @@ async function cargarMunicipalidades() {
             `;
         }
         const tabla = document.getElementById('tabla-departamentos');
-        if ((departamentos || []).length === 0) {
-            tabla.innerHTML = `
+        const renderMunicipios = (list) => {
+            if (!list || list.length === 0) {
+                return `
                 <tr>
                     <td colspan="9" class="text-center">No hay municipalidades registradas</td>
-                </tr>
-            `;
-            return;
-        }
-        tabla.innerHTML = departamentos.map(d => `
+                </tr>`;
+            }
+            return list.map(d => `
             <tr>
                 <td class="text-center">${d.id}</td>
                 <td class="cell-wrap">${d.nombre}</td>
@@ -450,13 +509,35 @@ async function cargarMunicipalidades() {
                         </button>
                     </div>
                 </td>
-            </tr>
-        `).join('');
+            </tr>`).join('');
+        };
+        tabla.innerHTML = renderMunicipios(departamentos);
         const buscar = document.getElementById('buscar-departamento');
         if (buscar) {
             buscar.removeAttribute('disabled');
             buscar.style.pointerEvents = 'auto';
-            buscar.addEventListener('input', filtrarDepartamentos);
+            buscar.addEventListener('input', async () => {
+                const q = (buscar.value || '').trim();
+                try {
+                    const resp = await fetchAPI(`/municipalidades?search=${encodeURIComponent(q)}&limit=50`);
+                    const nuevos = (resp.departamentos || []).map(d => ({
+                        id: d.id,
+                        nombre: d.nombre,
+                        rut: d.rut ?? '',
+                        rutFmt: formatRut(d.rut ?? ''),
+                        email: d.email ?? d.email_contacto ?? '',
+                        telefono: d.telefono ?? d.telefono_contacto ?? '',
+                        direccion: d.direccion ?? '',
+                        region: d.region ?? '',
+                        comuna: d.comuna ?? '',
+                        estado: d.estado || 'activo'
+                    }));
+                    const t = document.getElementById('tabla-departamentos');
+                    if (t) t.innerHTML = renderMunicipios(nuevos);
+                } catch (e) {
+                    mostrarNotificacion('Error al buscar municipalidades: ' + (e.message || ''), 'warning');
+                }
+            });
             // Asegurar foco inmediato en desktop
             try { buscar.focus(); } catch (_) {}
             const wrap = document.getElementById('buscar-departamento-wrap');

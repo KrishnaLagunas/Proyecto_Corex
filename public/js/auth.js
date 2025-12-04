@@ -73,11 +73,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
             if (perfil && perfil.id) {
-                const rol = (perfil.rol || perfil.role || perfil.rol_nombre || '').toString().toLowerCase();
-                const roleFinal = rol === 'administrador' ? 'admin' : rol;
-                const u = { id: perfil.id, nombre: perfil.nombre || '', apellido: perfil.apellido || '', email: perfil.email, role: roleFinal };
-                localStorage.setItem('usuario', JSON.stringify(u));
-                redirigirSegunRol(u);
+              const rol = (perfil.rol || perfil.role || perfil.rol_nombre || '').toString().toLowerCase();
+              const roleFinal = rol === 'administrador' ? 'admin' : rol;
+              const u = {
+                id: perfil.id,
+                nombre: perfil.nombre || '',
+                apellido: perfil.apellido || '',
+                email: perfil.email,
+                role: roleFinal,
+                municipalidad_id: perfil.municipalidad_id || (perfil.Municipalidad && perfil.Municipalidad.id) || null,
+                municipalidad_nombre: perfil.municipalidad_nombre || (perfil.Municipalidad && perfil.Municipalidad.nombre) || null
+              };
+              localStorage.setItem('usuario', JSON.stringify(u));
+              redirigirSegunRol(u);
             }
         } catch (_) {}
     })();
@@ -328,7 +336,9 @@ async function manejarLogin(e) {
             apellido: user.apellido || user.apellido_paterno || '',
             email: user.email,
             role: roleFinal,
-            nombre_completo: user.nombre_completo || `${user.nombre || user.primer_nombre || ''} ${user.apellido || user.apellido_paterno || ''}`.trim()
+            nombre_completo: user.nombre_completo || `${user.nombre || user.primer_nombre || ''} ${user.apellido || user.apellido_paterno || ''}`.trim(),
+            municipalidad_id: user.municipalidad_id || null,
+            municipalidad_nombre: user.municipalidad_nombre || null
         };
 
         // Guardar el token y usuario
@@ -368,7 +378,7 @@ document.addEventListener('input', (e) => {
  * Redirige al usuario a la sección correspondiente según su rol
  * @param {Object} usuario - Información del usuario
  */
-function redirigirSegunRol(usuario) {
+async function redirigirSegunRol(usuario) {
     cancelarMostrarLogin();
     limpiarFondoLogin();
     // Ocultar el formulario de login
@@ -384,6 +394,20 @@ function redirigirSegunRol(usuario) {
     if (header) header.classList.add('d-none');
     if (footer) footer.classList.remove('d-none');
     
+    // Completar datos faltantes del admin (municipalidad)
+    try {
+        const esAdmin = String(usuario?.role || '').toLowerCase() === 'admin';
+        const faltaMuni = esAdmin && (!usuario.municipalidad_nombre || !usuario.municipalidad_id);
+        if (faltaMuni) {
+            const perfil = await fetchAPI('/usuarios/perfil');
+            if (perfil && perfil.id) {
+                usuario.municipalidad_id = perfil.municipalidad_id || (perfil.Municipalidad && perfil.Municipalidad.id) || usuario.municipalidad_id || null;
+                usuario.municipalidad_nombre = perfil.municipalidad_nombre || (perfil.Municipalidad && perfil.Municipalidad.nombre) || usuario.municipalidad_nombre || '';
+                try { localStorage.setItem('usuario', JSON.stringify(usuario)); } catch (_) {}
+            }
+        }
+    } catch (_) {}
+
     // Configurar información del usuario en la barra de navegación
     const userInfo = document.getElementById('user-info');
     if (userInfo) {
@@ -393,6 +417,7 @@ function redirigirSegunRol(usuario) {
                     <div class="user-name">${usuario.nombre} ${usuario.apellido}</div>
                     <div class="user-role">${obtenerNombreRol(usuario.role)}</div>
                     <div class="user-email d-none d-md-block">${usuario.email}</div>
+                    ${usuario.role === 'admin' ? `<div class="user-muni d-none d-md-block">Municipalidad: ${usuario.municipalidad_nombre || ''}</div>` : ''}
                 </div>
                 <button id="btn-logout" class="btn btn-outline-light">
                     <i class="bi bi-box-arrow-right"></i> Salir
@@ -2730,10 +2755,43 @@ function confirmarCerrarSesion() {
             txt.innerHTML = `¿Deseas cerrar sesión de <strong>${nombre || 'usuario'}</strong> <span class="text-muted">${correo}</span>?`;
         }
         const modal = typeof bootstrap !== 'undefined' ? new bootstrap.Modal(modalEl) : null;
+        try {
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                try {
+                    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                } catch (_) {}
+                try {
+                    const navOverlay = document.getElementById('nav-overlay');
+                    const mainNavbar = document.getElementById('main-navbar');
+                    if (navOverlay) navOverlay.classList.remove('active');
+                    if (mainNavbar) mainNavbar.classList.remove('active');
+                } catch (_) {}
+                try { mostrarCargando(false); } catch (_) {}
+            }, { once: true });
+        } catch (_) {}
         if (modal) modal.show();
         const confirmBtn = document.getElementById('confirm-logout');
         if (confirmBtn) {
             confirmBtn.onclick = () => cerrarSesion();
+        }
+        const cancelBtn = modalEl.querySelector('[data-bs-dismiss="modal"]');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                try {
+                    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                } catch (_) {}
+                try {
+                    const navOverlay = document.getElementById('nav-overlay');
+                    const mainNavbar = document.getElementById('main-navbar');
+                    if (navOverlay) navOverlay.classList.remove('active');
+                    if (mainNavbar) mainNavbar.classList.remove('active');
+                } catch (_) {}
+                try { mostrarCargando(false); } catch (_) {}
+            }, { once: true });
         }
     } catch (_) { cerrarSesion(); }
 }

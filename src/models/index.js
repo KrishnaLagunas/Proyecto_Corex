@@ -52,6 +52,9 @@ Municipalidad.hasMany(Tramite, { foreignKey: 'municipalidad_id' });
 Municipalidad.hasMany(Presupuesto, { foreignKey: 'municipalidad_id' });
 Municipalidad.hasMany(Contrato, { foreignKey: 'municipalidad_id' });
 Municipalidad.hasMany(Proyecto, { foreignKey: 'municipalidad_id' });
+// Relaciones de Departamento
+Municipalidad.hasMany(Departamento, { foreignKey: 'municipalidad_id' });
+Departamento.belongsTo(Municipalidad, { foreignKey: 'municipalidad_id' });
 
 // Relaciones de Trámite
 Tramite.belongsTo(Usuario, { as: 'ciudadano', foreignKey: 'ciudadano_id' });
