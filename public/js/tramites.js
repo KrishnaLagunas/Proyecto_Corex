@@ -1123,9 +1123,9 @@ async function verDetalleTramite(tramiteId) {
                                         <thead>
                                             <tr>
                                                 <th>ID</th>
-                                                <th>Concepto</th>
+                                                <th>Código</th>
                                                 <th>Monto</th>
-                                                <th>Fecha</th>
+                                                <th>Fecha Pago</th>
                                                 <th>Estado</th>
                                                 <th>Acciones</th>
                                             </tr>
@@ -1134,16 +1134,16 @@ async function verDetalleTramite(tramiteId) {
                                             ${pagos.map(pago => `
                                                 <tr>
                                                     <td>${pago.id}</td>
-                                                    <td>${pago.concepto}</td>
+                                                    <td>${pago.codigo || ''}</td>
                                                     <td>${formatearMoneda(pago.monto)}</td>
-                                                    <td>${formatearFecha(pago.fecha)}</td>
+                                                    <td>${formatearFecha(pago.fecha_pago)}</td>
                                                     <td><span class="estado-${pago.estado}">${pago.estado}</span></td>
                                                     <td>
-                                                        <button class="btn btn-sm btn-info" onclick="verDetallePagoTramite(${pago.id})">
+                                                        <button class="btn btn-sm btn-info" onclick="verDetallePago(${pago.id})">
                                                             <i class="bi bi-eye"></i>
                                                         </button>
                                                         ${pago.estado === 'completado' ? `
-                                                            <button class="btn btn-sm btn-secondary" onclick="descargarComprobantePagoTramite(${pago.id})">
+                                                            <button class="btn btn-sm btn-secondary" onclick="descargarComprobantePago(${pago.id})">
                                                                 <i class="bi bi-download"></i>
                                                             </button>
                                                         ` : ''}

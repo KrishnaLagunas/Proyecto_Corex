@@ -74,8 +74,7 @@ const tramitesController = {
       if (req.user.rol_nombre === 'ciudadano') {
         // Los ciudadanos solo pueden ver sus propios trámites
         where.ciudadano_id = req.user.id;
-      } else if (req.user.rol_nombre === 'secretaria comunitaria') {
-        // Los funcionarios ven los trámites asignados a ellos, de su departamento (si tiene) y sin asignar
+      } else if (['funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal'].includes(String(req.user.rol_nombre).toLowerCase())) {
         const funcionario = await Usuario.findByPk(req.user.id, {
           include: [{ model: Municipalidad }],
           attributes: ['id', 'municipalidad_id']
@@ -90,7 +89,6 @@ const tramitesController = {
             { funcionario_id: null }
           ];
         } else {
-          // Si el funcionario no está asociado a una municipalidad, incluir también los no asignados
           where[Op.or] = [
             { funcionario_id: req.user.id },
             { funcionario_id: null }
@@ -100,7 +98,10 @@ const tramitesController = {
       // Administrador: restringir a su municipalidad asignada
       if (req.user.rol_nombre === 'administrador') {
         if (req.user.municipalidad_id) {
-          where.municipalidad_id = req.user.municipalidad_id;
+          where[Op.or] = [
+            { municipalidad_id: req.user.municipalidad_id },
+            { municipalidad_id: null }
+          ];
         } else {
           throw new ApiError('El administrador no tiene municipalidad asignada', 403);
         }
@@ -222,7 +223,7 @@ const tramitesController = {
    */
   createTramite: async (req, res, next) => {
     try {
-      const { 
+      let { 
         titulo, 
         descripcion, 
         tipo, 
@@ -231,6 +232,18 @@ const tramitesController = {
         monto = 0,
         municipalidad_id 
       } = req.body;
+
+      if (!municipalidad_id && req.user.rol_nombre === 'ciudadano') {
+        try {
+          const muniByName = await Municipalidad.findOne({ where: { nombre: { [Op.like]: '%Ovalle%' } } });
+          if (muniByName && muniByName.id) {
+            municipalidad_id = muniByName.id;
+          } else {
+            const anyMuni = await Municipalidad.findOne();
+            if (anyMuni && anyMuni.id) municipalidad_id = anyMuni.id;
+          }
+        } catch (_) {}
+      }
       
       // Verificar que el departamento existe
       const municipalidad = await Municipalidad.findByPk(municipalidad_id);

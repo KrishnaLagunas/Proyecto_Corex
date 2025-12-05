@@ -52,17 +52,9 @@ const departamentosController = {
       const esMun = esMunicipalidades(req);
       const consulta = esMun ? Municipalidad : Departamento;
 
-      if (!esMun && req.user && req.user.rol_nombre === 'administrador') {
-        const muniId = req.user.municipalidad_id;
-        if (!muniId) {
-          return res.json({ departamentos: [], pagination: { total: 0, totalPages: 0, currentPage: parseInt(page), limit: parseInt(limit) } });
-        }
-        const hasMuniAttr = !!(Departamento && Departamento.rawAttributes && Departamento.rawAttributes.municipalidad_id);
-        if (!hasMuniAttr) {
-          return res.json({ departamentos: [], pagination: { total: 0, totalPages: 0, currentPage: parseInt(page), limit: parseInt(limit) } });
-        }
-        where.municipalidad_id = muniId;
-      }
+      // Para administradores: mostrar departamentos globales sin filtrar por municipalidad
+      // Todas las municipalidades comparten los mismos departamentos
+      // (no se aplica where.municipalidad_id)
       let count = 0; let rows = [];
       try {
         const result = await consulta.findAndCountAll({
@@ -134,12 +126,8 @@ const departamentosController = {
         throw new ApiError('Departamento no encontrado', 404);
       }
       
-      // Control de acceso: admin solo ve departamentos de su municipalidad
-      if (!esMun && req.user && req.user.rol_nombre === 'administrador') {
-        if (!req.user.municipalidad_id || departamento.municipalidad_id !== req.user.municipalidad_id) {
-          throw new ApiError('No tienes permiso para ver departamentos de otra municipalidad', 403);
-        }
-      }
+      // Control de acceso: admin
+      // Visualización global de departamentos; no restringir por municipalidad
       try { res.set('Cache-Control', 'no-store'); } catch (_) {}
       res.json(departamento);
       try { logger.info(`[Departamentos] Detalle ${esMunicipalidades(req) ? 'municipalidad' : 'departamento'} ${id}: ${JSON.stringify(departamento)}`); } catch (_) {}
@@ -241,21 +229,31 @@ const departamentosController = {
         }
       } else {
         const { nombre, municipalidad_id, estado } = req.body;
-        const muniId = req.user.rol_nombre === 'superadministrador' ? municipalidad_id : req.user.municipalidad_id;
-        if (!muniId) {
-          throw new ApiError('El administrador no tiene municipalidad asignada', 403);
+        const hasMuniAttr = !!(Departamento && Departamento.rawAttributes && Departamento.rawAttributes.municipalidad_id);
+        if (hasMuniAttr) {
+          const muniId = req.user.rol_nombre === 'superadministrador' ? municipalidad_id : req.user.municipalidad_id;
+          if (!muniId) {
+            throw new ApiError('El administrador no tiene municipalidad asignada', 403);
+          }
+          const existente = await Departamento.findOne({ where: { nombre, municipalidad_id: muniId } });
+          if (existente) {
+            throw new ApiError('Ya existe un departamento con el nombre proporcionado', 400);
+          }
+          const nuevo = await Departamento.create({ nombre, municipalidad_id: muniId, estado: (estado || 'activo') });
+          logger.info(`Nuevo departamento creado: ${nombre} (muni ${muniId})`);
+          const completo = await Departamento.findByPk(nuevo.id);
+          return res.status(201).json({ message: 'Departamento creado exitosamente', departamento: completo });
+        } else {
+          // Tabla de departamentos global (sin municipalidad_id): crear registro compartido
+          const existente = await Departamento.findOne({ where: { nombre } });
+          if (existente) {
+            throw new ApiError('Ya existe un departamento con el nombre proporcionado', 400);
+          }
+          const nuevo = await Departamento.create({ nombre, estado: (estado || 'activo') });
+          logger.info(`Nuevo departamento global creado: ${nombre}`);
+          const completo = await Departamento.findByPk(nuevo.id);
+          return res.status(201).json({ message: 'Departamento creado exitosamente', departamento: completo });
         }
-        const existente = await Departamento.findOne({ where: { nombre, municipalidad_id: muniId } });
-        if (existente) {
-          throw new ApiError('Ya existe un departamento con el nombre proporcionado', 400);
-        }
-        const nuevo = await Departamento.create({ nombre, municipalidad_id: muniId, estado: (estado || 'activo') });
-        logger.info(`Nuevo departamento creado: ${nombre} (muni ${muniId})`);
-        const completo = await Departamento.findByPk(nuevo.id);
-        return res.status(201).json({
-          message: 'Departamento creado exitosamente',
-          departamento: completo
-        });
       }
     } catch (error) {
       next(error);
@@ -282,8 +280,11 @@ const departamentosController = {
         throw new ApiError('Departamento no encontrado', 404);
       }
       if (req.user.rol_nombre === 'administrador' && !esMun) {
-        if (!req.user.municipalidad_id || departamento.municipalidad_id !== req.user.municipalidad_id) {
-          throw new ApiError('No tienes permiso para modificar departamentos de otra municipalidad', 403);
+        const hasMuniAttr = !!(Departamento && Departamento.rawAttributes && Departamento.rawAttributes.municipalidad_id);
+        if (hasMuniAttr) {
+          if (!req.user.municipalidad_id || departamento.municipalidad_id !== req.user.municipalidad_id) {
+            throw new ApiError('No tienes permiso para modificar departamentos de otra municipalidad', 403);
+          }
         }
       }
       
@@ -370,8 +371,11 @@ const departamentosController = {
         throw new ApiError('Departamento no encontrado', 404);
       }
       if (req.user.rol_nombre === 'administrador' && !esMun) {
-        if (!req.user.municipalidad_id || departamento.municipalidad_id !== req.user.municipalidad_id) {
-          throw new ApiError('No tienes permiso para eliminar departamentos de otra municipalidad', 403);
+        const hasMuniAttr = !!(Departamento && Departamento.rawAttributes && Departamento.rawAttributes.municipalidad_id);
+        if (hasMuniAttr) {
+          if (!req.user.municipalidad_id || departamento.municipalidad_id !== req.user.municipalidad_id) {
+            throw new ApiError('No tienes permiso para eliminar departamentos de otra municipalidad', 403);
+          }
         }
       }
       
@@ -440,8 +444,11 @@ const departamentosController = {
         throw new ApiError('Departamento no encontrado', 404);
       }
       if (req.user.rol_nombre === 'administrador') {
-        if (!req.user.municipalidad_id || departamento.municipalidad_id !== req.user.municipalidad_id) {
-          throw new ApiError('No tienes permiso para asignar funcionarios de otra municipalidad', 403);
+        const hasMuniAttr = !!(Departamento && Departamento.rawAttributes && Departamento.rawAttributes.municipalidad_id);
+        if (hasMuniAttr) {
+          if (!req.user.municipalidad_id || departamento.municipalidad_id !== req.user.municipalidad_id) {
+            throw new ApiError('No tienes permiso para asignar funcionarios de otra municipalidad', 403);
+          }
         }
       }
       

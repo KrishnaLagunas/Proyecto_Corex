@@ -1,4 +1,4 @@
-const { Usuario, Municipalidad, Tramite, Pago, Documento, Presupuesto, Contrato, Proyecto } = require('../models');
+const { Usuario, Municipalidad, Tramite, Pago, Documento, Proyecto } = require('../models');
 const { ApiError } = require('../middlewares/errorHandler');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');

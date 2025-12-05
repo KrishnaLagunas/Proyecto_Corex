@@ -40,7 +40,9 @@ async function cargarDashboard() {
       tramitesPorEstado = [],
       pagosPorMes = [],
       totalDepartamentos = 0,
-      pagosRecientes = undefined
+      pagosRecientes = undefined,
+      tramitesPagoCount = 0,
+      tramitesGratisCount = 0
     } = data || {};
 
     const pendientes = (tramitesPorEstado.find(e => e.estado === 'pendiente')?.cantidad) || 0;
@@ -219,6 +221,30 @@ async function cargarDashboard() {
           <div class="col-lg-6 mb-3">
             <div class="card shadow-sm chart-card">
               <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Trámites: Gratis vs Pago</h5>
+                <small class="text-muted">Distribución actual</small>
+              </div>
+              <div class="card-body">
+                <div class="row text-center donut-row g-2">
+                  <div class="col-6">
+                    <div class="chart-container chart-mini">
+                      <canvas id="chart-tramites-gratis"></canvas>
+                    </div>
+                    <div class="mt-1"><small>Gratis: <span id="count-tram-gratis">0</span></small></div>
+                  </div>
+                  <div class="col-6">
+                    <div class="chart-container chart-mini">
+                      <canvas id="chart-tramites-pago"></canvas>
+                    </div>
+                    <div class="mt-1"><small>Pago: <span id="count-tram-pago">0</span></small></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6 mb-3">
+            <div class="card shadow-sm chart-card">
+              <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Usuarios activos vs inactivos</h5>
                 <small class="text-muted">Estado actual</small>
               </div>
@@ -359,6 +385,8 @@ async function cargarDashboard() {
       chartInitDonut('chart-tramites-proceso', getCount('en_proceso'), '#1E3A8A');
       chartInitDonut('chart-tramites-pendiente', getCount('pendiente'), '#FF9800');
       chartInitDonut('chart-tramites-finalizado', getCount('finalizado'), '#2E7D32');
+      chartInitDonut('chart-tramites-gratis', parseInt(tramitesGratisCount) || 0, '#607D8B');
+      chartInitDonut('chart-tramites-pago', parseInt(tramitesPagoCount) || 0, '#8E24AA');
 
       const chartInitPagosDonut = (id, val, color) => {
         const el = document.getElementById(id);
@@ -534,6 +562,10 @@ async function cargarDashboard() {
         updDonut('chart-tramites-proceso', getC('en_proceso'), '#1E3A8A', 'count-tram-proceso');
         updDonut('chart-tramites-pendiente', getC('pendiente'), '#FF9800', 'count-tram-pendiente');
         updDonut('chart-tramites-finalizado', getC('finalizado'), '#2E7D32', 'count-tram-finalizado');
+        const tGratis = parseInt(d.tramitesGratisCount || 0) || 0;
+        const tPago = parseInt(d.tramitesPagoCount || 0) || 0;
+        updDonut('chart-tramites-gratis', tGratis, '#607D8B', 'count-tram-gratis');
+        updDonut('chart-tramites-pago', tPago, '#8E24AA', 'count-tram-pago');
 
         // Departamentos activos vs inactivos
         const departamentosCanvas = document.getElementById('chart-departamentos-estado');
@@ -580,7 +612,7 @@ async function cargarDashboard() {
         let pagosEstadoArr = Array.isArray(pagosStats?.estadoStats) ? pagosStats.estadoStats : [];
         if (!pagosEstadoArr.length) {
           try {
-            const respPagosListado = await fetchAPI('/pagos?limit=200&order=DESC', { suppressErrorLog: true });
+            const respPagosListado = await fetchAPI('/pagos?limit=100&order=DESC', { suppressErrorLog: true });
             const arrListado = Array.isArray(respPagosListado) ? respPagosListado : (respPagosListado?.pagos || []);
             const mapa = new Map();
             arrListado.forEach(p => {

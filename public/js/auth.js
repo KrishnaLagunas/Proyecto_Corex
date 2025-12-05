@@ -700,7 +700,12 @@ async function cargarPortalCiudadano(usuario) {
             <div class="container py-4">
                 <div class="row">
                     <div class="col-12">
-                        <h2 class="mb-4">Portal Ciudadano</h2>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h2 class="mb-0">Portal Ciudadano</h2>
+                            <button id="btn-logout-portal" class="btn btn-outline-danger">
+                                <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+                            </button>
+                        </div>
                         <div class="alert alert-success">
                             <i class="bi bi-person-check-fill me-2"></i>
                             Bienvenido/a, ${usuario.nombre} ${usuario.apellido}. Accede a tus trámites y servicios municipales.
@@ -765,6 +770,7 @@ async function cargarPortalCiudadano(usuario) {
         const btnMisPagos = document.getElementById('btn-mis-pagos');
         const btnVerTodosTramites = document.getElementById('btn-ver-todos-tramites');
         const botonesVerDetalle = document.querySelectorAll('.ver-detalle-tramite');
+        const btnLogoutPortal = document.getElementById('btn-logout-portal');
         
         if (btnMisTramites) {
             btnMisTramites.addEventListener('click', (e) => {
@@ -793,7 +799,7 @@ async function cargarPortalCiudadano(usuario) {
                 cargarMisTramites(usuario);
             });
         }
-        
+
         if (botonesVerDetalle && botonesVerDetalle.length > 0) {
             botonesVerDetalle.forEach(boton => {
                 boton.addEventListener('click', (e) => {
@@ -802,6 +808,13 @@ async function cargarPortalCiudadano(usuario) {
                     // Abrir modal con diseño y detalle del trámite
                     mostrarDetalleTramiteModal(parseInt(tramiteId));
                 });
+            });
+        }
+
+        if (btnLogoutPortal) {
+            btnLogoutPortal.addEventListener('click', (e) => {
+                e.preventDefault();
+                cerrarSesion();
             });
         }
 

@@ -20,7 +20,7 @@ async function cargarPagos(filtros = {}) {
         if (filtros.estado) queryParams.append('estado', filtros.estado);
         if (filtros.fechaDesde) queryParams.append('fechaDesde', filtros.fechaDesde);
         if (filtros.fechaHasta) queryParams.append('fechaHasta', filtros.fechaHasta);
-        if (filtros.concepto) queryParams.append('concepto', filtros.concepto);
+        if (filtros.concepto) queryParams.append('search', filtros.concepto);
         if (filtros.ciudadanoId) queryParams.append('ciudadanoId', filtros.ciudadanoId);
         
         const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
@@ -99,7 +99,7 @@ async function cargarPagos(filtros = {}) {
                                 <thead>
                                     <tr>
                                         <th>ID</th>
-                                        <th>Concepto</th>
+                                        <th>Código</th>
                                         <th>Monto</th>
                                         <th>Fecha</th>
                                         <th>Ciudadano</th>
@@ -111,9 +111,9 @@ async function cargarPagos(filtros = {}) {
                                     ${pagos.map(pago => `
                                         <tr>
                                             <td>${pago.id}</td>
-                                            <td>${pago.concepto || pago.codigo || ''}</td>
+                                            <td>${pago.codigo || ''}</td>
                                             <td>${formatearMoneda(pago.monto)}</td>
-                                            <td>${formatearFecha(pago.fecha || pago.fecha_pago)}</td>
+                                            <td>${formatearFecha(pago.fecha_pago)}</td>
                                             <td>${pago.ciudadano?.nombre} ${pago.ciudadano?.apellido}</td>
                                             <td><span class="estado-${pago.estado}">${pago.estado}</span></td>
                                             <td>

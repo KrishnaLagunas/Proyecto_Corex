@@ -1,4 +1,4 @@
-const { Tramite, Pago, Usuario, Proyecto, Municipalidad, Departamento } = require('../models');
+const { Tramite, Pago, Usuario, Municipalidad, Departamento } = require('../models');
 const { Op } = require('sequelize');
 
 /**
@@ -24,7 +24,7 @@ const dashboardController = {
       const emptyFilter = { municipalidad_id: -1 };
       const filtraPorMuni = (isAdmin || isFuncionario);
       const tramiteWhere = filtraPorMuni ? (muniId ? { municipalidad_id: muniId } : emptyFilter) : {};
-      const proyectoWhere = filtraPorMuni ? (muniId ? { estado: 'en_ejecucion', municipalidad_id: muniId } : { estado: 'en_ejecucion', municipalidad_id: -1 }) : { estado: 'en_ejecucion' };
+      // Proyectos deshabilitados
       const usuarioWhere = filtraPorMuni ? (muniId ? { municipalidad_id: muniId } : emptyFilter) : {};
 
       const safeEval = async (fn) => { try { return await fn(); } catch (_) { return 0; } };
@@ -40,7 +40,7 @@ const dashboardController = {
         totalPagosMonto = await safeEval(() => Pago.sum('monto')) || 0;
         totalPagosCount = await safeEval(() => Pago.count()) || 0;
       }
-      const proyectosActivos = await safeEval(() => Proyecto.count({ where: proyectoWhere }));
+      const proyectosActivos = 0;
       const totalUsuarios = await safeEval(() => Usuario.count({ where: usuarioWhere }));
       const totalMunicipalidades = filtraPorMuni ? (muniId ? 1 : 0) : await safeEval(() => Municipalidad.count());
       const totalDepartamentos = filtraPorMuni && muniId
@@ -102,6 +102,16 @@ const dashboardController = {
         pagosRecientes = await Pago.count(recientesOptions);
       } catch (e) { pagosRecientes = 0; }
 
+      // Métricas de trámites gratis vs de pago
+      let tramitesPagoCount = 0;
+      let tramitesGratisCount = 0;
+      try {
+        tramitesPagoCount = await Tramite.count({ where: { ...tramiteWhere, requiere_pago: true } });
+      } catch (_) { tramitesPagoCount = 0; }
+      try {
+        tramitesGratisCount = await Tramite.count({ where: { ...tramiteWhere, [Op.or]: [{ requiere_pago: false }, { monto: { [Op.lte]: 0 } }] } });
+      } catch (_) { tramitesGratisCount = 0; }
+
       const resumen = {
         totalTramites,
         totalPagos: parseFloat(totalPagosMonto) || 0,
@@ -110,6 +120,8 @@ const dashboardController = {
         proyectosActivos,
         totalDepartamentos,
         pagosRecientes,
+        tramitesPagoCount: parseInt(tramitesPagoCount) || 0,
+        tramitesGratisCount: parseInt(tramitesGratisCount) || 0,
         tramitesPorEstado: tramitesPorEstado.map(item => ({
           estado: item.estado,
           cantidad: parseInt(item.dataValues.cantidad)
@@ -240,15 +252,7 @@ const dashboardController = {
         group: ['Tramite.municipalidad_id']
       });
 
-      // Proyectos por municipalidad
-      const proyectos = await Proyecto.findAll({
-        attributes: [
-          'municipalidad_id',
-          [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'proyectos']
-        ],
-        where: { createdAt: { [Op.between]: [start, end] } },
-        group: ['municipalidad_id']
-      });
+      // Proyectos deshabilitados
 
       // Usuarios activos por municipalidad (último login)
       const usuarios = await Usuario.findAll({
@@ -271,7 +275,7 @@ const dashboardController = {
 
       tramites.forEach(t => add(t.municipalidad_id, 'tramites', t.dataValues.tramites));
       pagos.forEach(p => add(p.dataValues.Tramite.municipalidad_id, 'pagos', p.dataValues.pagos));
-      proyectos.forEach(pj => add(pj.municipalidad_id, 'proyectos', pj.dataValues.proyectos));
+      // Proyectos deshabilitados
       usuarios.forEach(u => add(u.municipalidad_id, 'usuarios_activos', u.dataValues.usuarios_activos));
 
       const ids = Array.from(map.keys());
@@ -285,7 +289,7 @@ const dashboardController = {
         pagos: r.pagos,
         proyectos: r.proyectos,
         usuarios_activos: r.usuarios_activos,
-        score: r.tramites + r.pagos * 2 + r.proyectos + Math.min(r.usuarios_activos, 100) * 0.1
+        score: r.tramites + r.pagos * 2 + Math.min(r.usuarios_activos, 100) * 0.1
       })).sort((a, b) => b.score - a.score);
 
       res.json({ success: true, ranking });

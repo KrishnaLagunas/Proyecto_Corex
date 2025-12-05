@@ -866,24 +866,26 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                             <select class="form-select" id="role" required>
                                                 ${(() => {
                                                     const actual = (usuario?.Rol?.nombre || usuario?.rol_nombre || '').toLowerCase();
-                                                    const opts = [
-                                                        'superadministrador',
-                                                        'administrador',
-                                                        'funcionario',
-                                                        'secretaria comunitaria',
-                                                        'secretaria de obras',
-                                                        'secretaria de transito',
-                                                        'secretaria partes',
-                                                        'tesoreria municipal',
-                                                        'ciudadano'
-                                                    ];
-                                                    if (esSuperadmin) {
-                                                        return opts.map(n => `<option value="${n}" ${n==='administrador'?'selected':''}>${n}</option>`).join('');
-                                                    } else {
-                                                        return ['','superadministrador','administrador','funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal','ciudadano']
+                                                    const rolActual = (currentUser?.rol_nombre || currentUser?.role || '').toLowerCase();
+                                                    const esSuperadminLocal = rolActual === 'superadministrador' || rolActual === 'superadmin';
+                                                    const esAdminLocal = rolActual === 'administrador' || rolActual === 'admin';
+                                                    if (esSuperadminLocal) {
+                                                        const allowed = ['administrador','funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal'];
+                                                        return ['']
+                                                            .concat(allowed)
                                                             .map(n => n ? `<option value="${n}" ${actual===n?'selected':''}>${n}</option>` : '<option value="">Selecciona rol</option>')
                                                             .join('');
                                                     }
+                                                    if (esAdminLocal) {
+                                                        const allowed = ['secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal'];
+                                                        return ['']
+                                                            .concat(allowed)
+                                                            .map(n => n ? `<option value="${n}" ${actual===n?'selected':''}>${n}</option>` : '<option value="">Selecciona rol</option>')
+                                                            .join('');
+                                                    }
+                                                    return ['']
+                                                        .map(n => n ? `<option value="${n}" ${actual===n?'selected':''}>${n}</option>` : '<option value="">Selecciona rol</option>')
+                                                        .join('');
                                                 })()}
                                             </select>
                                         </div>
@@ -1076,17 +1078,25 @@ async function guardarUsuario(e) {
     try {
         mostrarCargando(true);
         if (accion === 'actualizar' && usuarioId) {
-            try { console.log('[USUARIOS][UPDATE][PAYLOAD]', { id: usuarioId, ...payload }); } catch (_) {}
-            await fetchAPI(`/usuarios/${usuarioId}`, { method: 'PUT', body: payload });
-            mostrarNotificacion('Usuario actualizado correctamente', 'success');
+          try { console.log('[USUARIOS][UPDATE][PAYLOAD]', { id: usuarioId, ...payload }); } catch (_) {}
+          await fetchAPI(`/usuarios/${usuarioId}`, { method: 'PUT', body: payload });
+          mostrarNotificacion('Usuario actualizado correctamente', 'success');
         } else {
-            try { console.log('[USUARIOS][CREATE][PAYLOAD]', payload); } catch (_) {}
-            if (esSuperadmin && role === 'admin') {
-                await fetchAPI('/superadmin/usuarios/administradores', { method: 'POST', body: payload });
-            } else {
-                await fetchAPI('/usuarios', { method: 'POST', body: payload });
-            }
-            mostrarNotificacion('Usuario creado correctamente', 'success');
+          try { console.log('[USUARIOS][CREATE][PAYLOAD]', payload); } catch (_) {}
+          let creado = null;
+          if (esSuperadmin && role === 'admin') {
+              creado = await fetchAPI('/superadmin/usuarios/administradores', { method: 'POST', body: payload });
+          } else {
+              creado = await fetchAPI('/usuarios', { method: 'POST', body: payload });
+          }
+          // Asignar departamento si fue seleccionado y el creador es administrador
+          try {
+              const nuevoId = creado?.usuario?.id || creado?.id;
+              if (nuevoId && departamento_id) {
+                  await fetchAPI(`/departamentos/${departamento_id}/funcionarios`, { method: 'POST', body: { usuarios: [nuevoId] } });
+              }
+          } catch (e) { console.warn('Asignación de departamento fallida (no bloquea creación):', e); }
+          mostrarNotificacion('Usuario creado correctamente', 'success');
         }
         cargarUsuarios();
     } catch (error) {

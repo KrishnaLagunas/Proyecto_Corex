@@ -76,9 +76,14 @@ const pagosController = {
       if (req.user.rol_nombre === 'ciudadano') {
         // Los ciudadanos solo pueden ver sus propios pagos
         where.ciudadano_id = req.user.id;
-      } else if (req.user.rol_nombre === 'secretaria comunitaria') {
-        // Los funcionarios pueden ver todos los pagos
-        // No aplicar restricción por funcionario_id
+      } else if (['funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal'].includes(String(req.user.rol_nombre).toLowerCase())) {
+        // Funcionarios: restringir por su municipalidad (a través del trámite) y permitir pagos asignados/no asignados
+        const funcionario = await Usuario.findByPk(req.user.id, { attributes: ['id', 'municipalidad_id'], include: [] });
+        const muniIdFunc = funcionario?.municipalidad_id || req.user.municipalidad_id || null;
+        if (muniIdFunc) {
+          // Aplicar filtro de municipalidad vía include de Tramite
+          // Se define más abajo en findOptions y countOptions
+        }
       }
       // Administrador: restringir a su municipalidad (a través del trámite)
       const adminMuniId = (req.user.rol_nombre === 'administrador') ? req.user.municipalidad_id : null;
@@ -105,7 +110,13 @@ const pagosController = {
         if (!adminMuniId) {
           throw new ApiError('El administrador no tiene municipalidad asignada', 403);
         }
-        countOptions.include = [{ model: Tramite, required: true, where: { municipalidad_id: adminMuniId } }];
+        countOptions.include = [{ model: Tramite, required: true, where: { [Op.or]: [{ municipalidad_id: adminMuniId }, { municipalidad_id: null }] } }];
+      }
+      // Funcionarios: si tienen municipalidad, aplicar include similar
+      const isFuncionario = ['funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal'].includes(String(req.user.rol_nombre).toLowerCase());
+      const funcMuniId = isFuncionario ? (req.user.municipalidad_id || null) : null;
+      if (isFuncionario && funcMuniId && !countOptions.include) {
+        countOptions.include = [{ model: Tramite, required: true, where: { municipalidad_id: funcMuniId } }];
       }
       const count = await Pago.count(countOptions);
       
@@ -116,7 +127,7 @@ const pagosController = {
           { 
             model: Tramite,
             attributes: ['id', 'codigo', 'titulo', 'tipo'],
-            ...(adminMuniId ? { required: true, where: { municipalidad_id: adminMuniId } } : {})
+            ...(adminMuniId ? { required: true, where: { [Op.or]: [{ municipalidad_id: adminMuniId }, { municipalidad_id: null }] } } : {})
           },
           { 
             model: Usuario, 
@@ -133,6 +144,14 @@ const pagosController = {
         limit: parseInt(limit),
         offset: offset
       };
+      if (!adminMuniId && isFuncionario && funcMuniId) {
+        // Aplicar filtro de municipalidad para funcionarios cuando no es admin
+        const tramInclude = findOptions.include.find(i => i.model && i.model.name === 'Tramite');
+        if (tramInclude) {
+          tramInclude.required = true;
+          tramInclude.where = { municipalidad_id: funcMuniId };
+        }
+      }
       const rows = await Pago.findAll(findOptions);
       
       // Calcular total de páginas
@@ -632,8 +651,8 @@ const pagosController = {
       const estadoStatsOptions = {
         attributes: [
           'estado',
-          [sequelize.fn('COUNT', sequelize.col('id')), 'total'],
-          [sequelize.fn('SUM', sequelize.col('monto')), 'monto_total']
+          [sequelize.fn('COUNT', sequelize.col('Pago.id')), 'total'],
+          [sequelize.fn('SUM', sequelize.col('Pago.monto')), 'monto_total']
         ],
         group: ['estado']
       };
@@ -646,8 +665,8 @@ const pagosController = {
       const metodoPagoOptions = {
         attributes: [
           'metodo_pago',
-          [sequelize.fn('COUNT', sequelize.col('id')), 'total'],
-          [sequelize.fn('SUM', sequelize.col('monto')), 'monto_total']
+          [sequelize.fn('COUNT', sequelize.col('Pago.id')), 'total'],
+          [sequelize.fn('SUM', sequelize.col('Pago.monto')), 'monto_total']
         ],
         group: ['metodo_pago']
       };
@@ -659,9 +678,9 @@ const pagosController = {
       // Pagos por mes (últimos 12 meses)
       const pagosPorMesOptions = {
         attributes: [
-          [sequelize.fn('DATE_FORMAT', sequelize.col('fecha_pago'), '%Y-%m'), 'mes'],
-          [sequelize.fn('COUNT', sequelize.col('id')), 'total'],
-          [sequelize.fn('SUM', sequelize.col('monto')), 'monto_total']
+          [sequelize.fn('DATE_FORMAT', sequelize.col('Pago.fecha_pago'), '%Y-%m'), 'mes'],
+          [sequelize.fn('COUNT', sequelize.col('Pago.id')), 'total'],
+          [sequelize.fn('SUM', sequelize.col('Pago.monto')), 'monto_total']
         ],
         where: {
           fecha_pago: {
@@ -669,8 +688,8 @@ const pagosController = {
           },
           estado: 'completado'
         },
-        group: [sequelize.fn('DATE_FORMAT', sequelize.col('fecha_pago'), '%Y-%m')],
-        order: [[sequelize.fn('DATE_FORMAT', sequelize.col('fecha_pago'), '%Y-%m'), 'ASC']]
+        group: [sequelize.fn('DATE_FORMAT', sequelize.col('Pago.fecha_pago'), '%Y-%m')],
+        order: [[sequelize.fn('DATE_FORMAT', sequelize.col('Pago.fecha_pago'), '%Y-%m'), 'ASC']]
       };
       if (req.user.rol_nombre === 'administrador' && muniId) {
         pagosPorMesOptions.include = [{ model: Tramite, required: true, attributes: [], where: { municipalidad_id: muniId } }];

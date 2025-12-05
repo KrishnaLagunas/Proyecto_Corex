@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pagosController = require('../controllers/pagos.controller');
 const { isAuthenticated, hasRole } = require('../middlewares/auth.middleware');
-const { validateSchema, validateParams } = require('../middlewares/validator.middleware');
+const { validateSchema, validateParams, validateQuery } = require('../middlewares/validator.middleware');
 const { pagoSchemas } = require('../validations/pago.validation');
 
 /**
@@ -12,7 +12,7 @@ const { pagoSchemas } = require('../validations/pago.validation');
  */
 router.get('/', 
   isAuthenticated, 
-  validateSchema(pagoSchemas.queryPagos), 
+  validateQuery(pagoSchemas.queryPagos), 
   pagosController.getAllPagos
 );
 
