@@ -66,7 +66,7 @@ async function cargarTiposTramites() {
                             <td class="text-uppercase">${tipo.nombre}</td>
                             <td>${tipo.descripcion.substring(0, 50)}${tipo.descripcion.length > 50 ? '...' : ''}</td>
                             <td>${formatearMoneda(tipo.costo)}</td>
-                            <td>${tipo.tiempo_estimado} días</td>
+                            <td>${(tipo.tiempo_estimado ?? tipo.tiempoEstimado) || '-'} días</td>
                             <td><span class="estado-${tipo.estado}">${tipo.estado}</span></td>
                             <td>
                                 <button class="btn btn-sm btn-info" onclick="verDetalleTipoTramite(${tipo.id})">
@@ -103,6 +103,30 @@ async function cargarTiposTramites() {
     }
 }
 
+function activarSeccionTipoDetalle(seccion) {
+    const tabs = document.querySelectorAll('#tipo-tramite-tabs .tab-link');
+    tabs.forEach(btn => {
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-outline-primary');
+    });
+    const map = {
+        general: 'tipo-section-general',
+        requisitos: 'tipo-section-requisitos',
+        documentos: 'tipo-section-documentos',
+        tramites: 'tipo-section-tramites'
+    };
+    Object.values(map).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('d-none');
+    });
+    const target = document.getElementById(map[seccion]);
+    if (target) target.classList.remove('d-none');
+    const activeBtn = document.querySelector(`#tipo-tramite-tabs .tab-link[data-tab='${seccion}']`);
+    if (activeBtn) {
+        activeBtn.classList.remove('btn-outline-primary');
+        activeBtn.classList.add('btn-primary');
+    }
+}
 /**
  * Función para filtrar tipos de trámites según criterios de búsqueda
  */
@@ -150,24 +174,41 @@ async function mostrarFormularioTipoTramite(tipoTramiteId = null) {
         let accion = 'crear';
         
         if (tipoTramiteId) {
-            tipoTramite = await fetchAPI(`/tipos-tramites/${tipoTramiteId}`);
+            const tipos = await fetchAPI('/tramites/tipos');
+            const encontrado = Array.isArray(tipos) ? tipos.find(t => String(t.id) === String(tipoTramiteId)) : null;
+            if (encontrado) {
+                // Adaptar nombres de propiedades al formulario
+                tipoTramite = {
+                    id: encontrado.id,
+                    nombre: encontrado.nombre || '',
+                    descripcion: encontrado.descripcion || '',
+                    costo: encontrado.costo ?? 0,
+                    tiempo_estimado: parseInt(encontrado.tiempo_estimado ?? encontrado.tiempoEstimado ?? 1),
+                    requisitos: encontrado.requisitos || '',
+                    documentos_requeridos: encontrado.documentos_requeridos || '',
+                    estado: encontrado.estado || 'activo'
+                };
+            }
             titulo = 'Editar Tipo de Trámite';
             accion = 'actualizar';
         }
         
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-12">
-                    <button class="btn btn-outline-secondary mb-3" onclick="cargarTiposTramites()">
+            <div class="row mb-4 align-items-center">
+                <div class="col-4">
+                    <button class="btn btn-outline-secondary" onclick="cargarTiposTramites()">
                         <i class="bi bi-arrow-left"></i> Volver a la lista
                     </button>
-                    <h2>${titulo}</h2>
                 </div>
+                <div class="col-4 text-center">
+                    <h2 class="section-title">${titulo}</h2>
+                </div>
+                <div class="col-4"></div>
             </div>
             
             <div class="row">
-                <div class="col-md-10 offset-md-1">
+                <div class="col-md-10 offset-md-1 col-lg-8 offset-lg-2">
                     <div class="card">
                         <div class="card-body">
                             <form id="form-tipo-tramite">
@@ -336,138 +377,130 @@ async function verDetalleTipoTramite(tipoTramiteId) {
     try {
         mostrarCargando(true);
         
-        const tipoTramite = await fetchAPI(`/tipos-tramites/${tipoTramiteId}`);
-        const tramites = await fetchAPI(`/tipos-tramites/${tipoTramiteId}/tramites`);
+        const tipos = await fetchAPI('/tramites/tipos');
+        const tipoTramite = Array.isArray(tipos) ? tipos.find(t => String(t.id) === String(tipoTramiteId)) : null;
+        const tramites = [];
+        if (!tipoTramite) {
+            mostrarNotificacion('Tipo de trámite no encontrado', 'danger');
+            cargarTiposTramites();
+            return;
+        }
         
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-12">
-                    <button class="btn btn-outline-secondary mb-3" onclick="cargarTiposTramites()">
+            <div class="row mb-4 align-items-center">
+                <div class="col-4">
+                    <button class="btn btn-outline-secondary" onclick="cargarTiposTramites()">
                         <i class="bi bi-arrow-left"></i> Volver a la lista
                     </button>
-                    <h2>Detalle del Tipo de Trámite</h2>
                 </div>
+                <div class="col-4 text-center">
+                    <h2 class="section-title">Detalle del Tipo de Trámite</h2>
+                </div>
+                <div class="col-4"></div>
             </div>
             
             <div class="row">
-                <div class="col-md-10 offset-md-1">
-                    <div class="card mb-4">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">Información General</h5>
-                            <div>
-                                <button class="btn btn-primary" onclick="editarTipoTramite(${tipoTramite.id})">
-                                    <i class="bi bi-pencil"></i> Editar
-                                </button>
-                                <button class="btn btn-${tipoTramite.estado === 'activo' ? 'warning' : 'success'}" 
-                                        onclick="cambiarEstadoTipoTramite(${tipoTramite.id}, '${tipoTramite.estado === 'activo' ? 'inactivo' : 'activo'}')">
-                                    <i class="bi bi-${tipoTramite.estado === 'activo' ? 'x-circle' : 'check-circle'}"></i> 
-                                    ${tipoTramite.estado === 'activo' ? 'Desactivar' : 'Activar'}
-                                </button>
-                                <button class="btn btn-info" onclick="generarReporteTipoTramite(${tipoTramite.id})">
-                                    <i class="bi bi-file-earmark-text"></i> Generar Reporte
-                                </button>
+                <div class="col-md-10 offset-md-1 col-lg-8 offset-lg-2">
+                    <div class="d-flex justify-content-center flex-wrap gap-4 mb-4" id="tipo-tramite-tabs">
+                        <button class="btn btn-primary tab-link px-4" style="min-width: 180px;" data-tab="general" onclick="activarSeccionTipoDetalle('general')">Información General</button>
+                        <button class="btn btn-outline-primary tab-link px-4" style="min-width: 180px;" data-tab="requisitos" onclick="activarSeccionTipoDetalle('requisitos')">Requisitos</button>
+                        <button class="btn btn-outline-primary tab-link px-4" style="min-width: 180px;" data-tab="documentos" onclick="activarSeccionTipoDetalle('documentos')">Documentos Requeridos</button>
+                        <button class="btn btn-outline-primary tab-link px-4" style="min-width: 180px;" data-tab="tramites" onclick="activarSeccionTipoDetalle('tramites')">Trámites Asociados</button>
+                    </div>
+
+                    <div id="tipo-section-general" class="mt-4">
+                        <div class="card no-hover mb-4 shadow-sm rounded-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Información General</h5>
+                                <div>
+                                    <button class="btn btn-primary" onclick="editarTipoTramite(${tipoTramite.id})">
+                                        <i class="bi bi-pencil"></i> Editar
+                                    </button>
+                                    <button class="btn btn-${tipoTramite.estado === 'activo' ? 'warning' : 'success'}" onclick="cambiarEstadoTipoTramite(${tipoTramite.id}, '${tipoTramite.estado === 'activo' ? 'inactivo' : 'activo'}')">
+                                        <i class="bi bi-${tipoTramite.estado === 'activo' ? 'x-circle' : 'check-circle'}"></i> ${tipoTramite.estado === 'activo' ? 'Desactivar' : 'Activar'}
+                                    </button>
+                                    <button class="btn btn-info" onclick="generarReporteTipoTramite(${tipoTramite.id})">
+                                        <i class="bi bi-file-earmark-text"></i> Generar Reporte
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                        <div class="card-body">
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">ID:</div>
-                                <div class="col-md-8">${tipoTramite.id}</div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">Nombre:</div>
-                                <div class="col-md-8">${tipoTramite.nombre}</div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">Estado:</div>
-                                <div class="col-md-8"><span class="estado-${tipoTramite.estado}">${tipoTramite.estado}</span></div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">Costo:</div>
-                                <div class="col-md-8">${formatearMoneda(tipoTramite.costo)}</div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">Tiempo Estimado:</div>
-                                <div class="col-md-8">${tipoTramite.tiempo_estimado} días</div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">Descripción:</div>
-                                <div class="col-md-8">${tipoTramite.descripcion}</div>
+                            <div class="card-body">
+                                <div class="row mb-3"><div class="col-md-4 fw-bold">ID:</div><div class="col-md-8">${tipoTramite.id}</div></div>
+                                <div class="row mb-3"><div class="col-md-4 fw-bold">Nombre:</div><div class="col-md-8">${tipoTramite.nombre}</div></div>
+                                <div class="row mb-3"><div class="col-md-4 fw-bold">Estado:</div><div class="col-md-8"><span class="estado-${tipoTramite.estado}">${tipoTramite.estado}</span></div></div>
+                                <div class="row mb-3"><div class="col-md-4 fw-bold">Costo:</div><div class="col-md-8">${formatearMoneda(tipoTramite.costo)}</div></div>
+                                <div class="row mb-3"><div class="col-md-4 fw-bold">Tiempo Estimado:</div><div class="col-md-8">${(tipoTramite.tiempo_estimado ?? tipoTramite.tiempoEstimado) || '-'} días</div></div>
+                                <div class="row mb-3"><div class="col-md-4 fw-bold">Descripción:</div><div class="col-md-8">${tipoTramite.descripcion}</div></div>
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5>Requisitos</h5>
-                        </div>
-                        <div class="card-body">
-                            ${!tipoTramite.requisitos ? `
-                                <p>No hay requisitos especificados para este tipo de trámite.</p>
-                            ` : `
+
+                    <div id="tipo-section-requisitos" class="d-none mt-4">
+                        <div class="card no-hover mb-4 shadow-sm rounded-3">
+                            <div class="card-header"><h5 class="mb-0">Requisitos</h5></div>
+                            <div class="card-body">
+                                ${!tipoTramite.requisitos ? `<p>No hay requisitos especificados para este tipo de trámite.</p>` : `
                                 <ul>
                                     ${tipoTramite.requisitos.split('\n').map(req => `
                                         <li>${req.trim()}</li>
                                     `).join('')}
-                                </ul>
-                            `}
+                                </ul>`}
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h5>Documentos Requeridos</h5>
-                        </div>
-                        <div class="card-body">
-                            ${!tipoTramite.documentos_requeridos ? `
-                                <p>No hay documentos requeridos especificados para este tipo de trámite.</p>
-                            ` : `
+
+                    <div id="tipo-section-documentos" class="d-none mt-4">
+                        <div class="card no-hover mb-4 shadow-sm rounded-3">
+                            <div class="card-header"><h5 class="mb-0">Documentos Requeridos</h5></div>
+                            <div class="card-body">
+                                ${!tipoTramite.documentos_requeridos ? `<p>No hay documentos requeridos especificados para este tipo de trámite.</p>` : `
                                 <ul>
                                     ${tipoTramite.documentos_requeridos.split('\n').map(doc => `
                                         <li>${doc.trim()}</li>
                                     `).join('')}
-                                </ul>
-                            `}
+                                </ul>`}
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="card">
-                        <div class="card-header">
-                            <h5>Trámites Asociados</h5>
-                        </div>
-                        <div class="card-body">
-                            ${!tramites || tramites.length === 0 ? `
-                                <p>No hay trámites asociados a este tipo.</p>
-                            ` : `
-                                <div class="table-responsive">
-                                    <table class="table table-striped table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>ID</th>
-                                                <th>Ciudadano</th>
-                                                <th>Fecha Solicitud</th>
-                                                <th>Estado</th>
-                                                <th>Acciones</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${tramites.map(tramite => `
+
+                    <div id="tipo-section-tramites" class="d-none mt-4">
+                        <div class="card no-hover mb-4 shadow-sm rounded-3">
+                            <div class="card-header"><h5 class="mb-0">Trámites Asociados</h5></div>
+                            <div class="card-body">
+                                ${!tramites || tramites.length === 0 ? `
+                                    <p>No hay trámites asociados a este tipo.</p>
+                                ` : `
+                                    <div class="table-responsive">
+                                        <table class="table table-striped table-hover">
+                                            <thead>
                                                 <tr>
-                                                    <td>${tramite.id}</td>
-                                                    <td>${tramite.ciudadano?.nombre} ${tramite.ciudadano?.apellido}</td>
-                                                    <td>${formatearFecha(tramite.fecha_solicitud)}</td>
-                                                    <td><span class="estado-${tramite.estado}" data-estado="${tramite.estado}">${obtenerNombreEstadoTramite(tramite.estado)}</span></td>
-                                                    <td>
-                                                        <button class="btn btn-sm btn-info" onclick="verDetalleTramite(${tramite.id})">
-                                                            <i class="bi bi-eye"></i>
-                                                        </button>
-                                                    </td>
+                                                    <th>ID</th>
+                                                    <th>Ciudadano</th>
+                                                    <th>Fecha Solicitud</th>
+                                                    <th>Estado</th>
+                                                    <th>Acciones</th>
                                                 </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            `}
+                                            </thead>
+                                            <tbody>
+                                                ${tramites.map(tramite => `
+                                                    <tr>
+                                                        <td>${tramite.id}</td>
+                                                        <td>${tramite.ciudadano?.nombre} ${tramite.ciudadano?.apellido}</td>
+                                                        <td>${formatearFecha(tramite.fecha_solicitud)}</td>
+                                                        <td><span class="estado-${tramite.estado}" data-estado="${tramite.estado}">${obtenerNombreEstadoTramite(tramite.estado)}</span></td>
+                                                        <td>
+                                                            <button class="btn btn-sm btn-info" onclick="verDetalleTramite(${tramite.id})">
+                                                                <i class="bi bi-eye"></i>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                `}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -983,206 +1016,185 @@ async function verDetalleTramite(tramiteId) {
         const pagos = await fetchAPI(`/tramites/${tramiteId}/pagos`);
         const historial = await fetchAPI(`/tramites/${tramiteId}/historial`);
         
-        // Resumen de documentos para cabecera
         const documentoResumen = (!documentos || documentos.length === 0)
             ? 'Ninguno'
             : documentos.map(d => d.nombre).join(', ');
+        const documentosOrdenados = Array.isArray(documentos) ? [...documentos].sort((a,b) => new Date(b.fecha_subida) - new Date(a.fecha_subida)) : [];
+        const pagosOrdenados = Array.isArray(pagos) ? [...pagos].sort((a,b) => new Date(b.fecha_pago) - new Date(a.fecha_pago)) : [];
+        const historialOrdenado = Array.isArray(historial) ? [...historial].sort((a,b) => new Date(b.fecha) - new Date(a.fecha)) : [];
         
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-12">
-                    <button class="btn btn-outline-secondary mb-3" onclick="cargarTramites()">
+            <div class="row mb-4 align-items-center">
+                <div class="col-4">
+                    <button class="btn btn-outline-secondary" onclick="cargarTramites()">
                         <i class="bi bi-arrow-left"></i> Volver a la lista
                     </button>
-                    <h2>Detalle del Trámite</h2>
                 </div>
+                <div class="col-4 text-center">
+                    <h2 class="section-title">Detalle del Trámite</h2>
+                </div>
+                <div class="col-4"></div>
             </div>
             
             <div class="row">
                 <div class="col-md-10 offset-md-1">
-                    <div class="row g-3">
-                    <div class="col-12 col-md-6">
-                    <div class="card compact-card h-100">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">Información General</h5>
-                            <div>
-                                <button class="btn btn-primary btn-sm" onclick="actualizarEstadoTramite(${tramite.id})">
-                                    <i class="bi bi-pencil"></i> Actualizar Estado
-                                </button>
-                                <button class="btn btn-info btn-sm" onclick="generarReporteTramite(${tramite.id})">
-                                    <i class="bi bi-file-earmark-text"></i> Generar Reporte
-                                </button>
-                            </div>
-                        </div>
-                        <div class="card-body">
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">ID:</div>
-                                <div class="col-md-8">${tramite.id}</div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">Tipo de Trámite:</div>
-                                <div class="col-md-8">${obtenerNombreTipoTramite(tramite.tipo) || 'N/A'}</div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">Ciudadano:</div>
-                                <div class="col-md-8">${tramite.ciudadano?.nombre} ${tramite.ciudadano?.apellido}</div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">Documento:</div>
-                                <div class="col-md-8">${documentoResumen}</div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">Estado:</div>
-                                <div class="col-md-8"><span class="estado-${tramite.estado}">${obtenerNombreEstadoTramite(tramite.estado)}</span></div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">Fecha de Solicitud:</div>
-                                <div class="col-md-8">${formatearFecha(tramite.fecha_solicitud)}</div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">Fecha de Actualización:</div>
-                                <div class="col-md-8">${formatearFecha(tramite.fecha_actualizacion)}</div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">Descripción:</div>
-                                <div class="col-md-8">${tramite.descripcion}</div>
-                            </div>
-                            <div class="row mb-3">
-                                <div class="col-md-4 fw-bold">Observaciones:</div>
-                                <div class="col-md-8">${tramite.observaciones || 'Sin observaciones'}</div>
-                            </div>
-                        </div>
+                    <div class="d-flex justify-content-center flex-wrap gap-4 mb-4" id="detalle-tramite-tabs">
+                        <button class="btn btn-primary tab-link px-4" style="min-width: 160px;" data-tab="general" onclick="activarSeccionDetalle('general')">Información General</button>
+                        <button class="btn btn-outline-primary tab-link px-4" style="min-width: 160px;" data-tab="documentos" onclick="activarSeccionDetalle('documentos')">Documentos</button>
+                        <button class="btn btn-outline-primary tab-link px-4" style="min-width: 160px;" data-tab="pagos" onclick="activarSeccionDetalle('pagos')">Pagos</button>
+                        <button class="btn btn-outline-primary tab-link px-4" style="min-width: 160px;" data-tab="historial" onclick="activarSeccionDetalle('historial')">Historial</button>
                     </div>
-                    </div>
-                    
-                    <div class="col-12 col-md-6">
-                    <div class="card compact-card h-100">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">Documentos</h5>
-                            <button class="btn btn-primary btn-sm" onclick="mostrarFormularioDocumento(${tramite.id})">
-                                <i class="bi bi-plus-circle"></i> Agregar Documento
-                            </button>
-                        </div>
-                        <div class="card-body">
-                            ${!documentos || documentos.length === 0 ? `
-                                <p>No hay documentos asociados a este trámite.</p>
-                            ` : `
-                                <div class="table-responsive">
-                                    <table class="table table-striped table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>ID</th>
-                                                <th>Nombre</th>
-                                                <th>Tipo</th>
-                                                <th>Fecha</th>
-                                                <th>Acciones</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${documentos.map(documento => `
-                                                <tr>
-                                                    <td>${documento.id}</td>
-                                                    <td>${documento.nombre}</td>
-                                                    <td>${documento.tipo}</td>
-                                                    <td>${formatearFecha(documento.fecha_subida)}</td>
-                                                    <td>
-                                                        <button class="btn btn-sm btn-info" onclick="verDocumento(${documento.id})">
-                                                            <i class="bi bi-eye"></i>
-                                                        </button>
-                                                        <button class="btn btn-sm btn-secondary" onclick="descargarDocumento(${documento.id})">
-                                                            <i class="bi bi-download"></i>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
+
+                    <div id="detalle-section-general" class="mt-4">
+                        <div class="card no-hover mb-4 shadow-sm rounded-3">
+                            <div class="card-body">
+                                <div class="list-group">
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div class="fw-semibold">Información General</div>
+                                    <div>
+                                        <button class="btn btn-primary btn-sm" onclick="actualizarEstadoTramite(${tramite.id})">
+                                            <i class="bi bi-pencil"></i> Actualizar Estado
+                                        </button>
+                                        <button class="btn btn-info btn-sm" onclick="generarReporteTramite(${tramite.id})">
+                                            <i class="bi bi-file-earmark-text"></i> Generar Reporte
+                                        </button>
+                                    </div>
                                 </div>
-                            `}
-                        </div>
-                    </div>
-                    </div>
-                    
-                    <div class="col-12 col-md-6">
-                    <div class="card compact-card h-100">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">Pagos</h5>
-                            ${tramite.estado !== 'rechazado' && !pagos.some(p => p.estado === 'completado') ? `
-                                <button class="btn btn-primary btn-sm" onclick="mostrarFormularioPagoTramite(${tramite.id})">
-                                    <i class="bi bi-check-circle-fill"></i> Pago completado
-                                </button>
-                            ` : ''}
-                        </div>
-                        <div class="card-body">
-                            ${!pagos || pagos.length === 0 ? `
-                                <p>No hay pagos asociados a este trámite.</p>
-                            ` : `
-                                <div class="table-responsive">
-                                    <table class="table table-striped table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>ID</th>
-                                                <th>Código</th>
-                                                <th>Monto</th>
-                                                <th>Fecha Pago</th>
-                                                <th>Estado</th>
-                                                <th>Acciones</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${pagos.map(pago => `
-                                                <tr>
-                                                    <td>${pago.id}</td>
-                                                    <td>${pago.codigo || ''}</td>
-                                                    <td>${formatearMoneda(pago.monto)}</td>
-                                                    <td>${formatearFecha(pago.fecha_pago)}</td>
-                                                    <td><span class="estado-${pago.estado}">${pago.estado}</span></td>
-                                                    <td>
-                                                        <button class="btn btn-sm btn-info" onclick="verDetallePago(${pago.id})">
-                                                            <i class="bi bi-eye"></i>
-                                                        </button>
-                                                        ${pago.estado === 'completado' ? `
-                                                            <button class="btn btn-sm btn-secondary" onclick="descargarComprobantePago(${pago.id})">
-                                                                <i class="bi bi-download"></i>
-                                                            </button>
-                                                        ` : ''}
-                                                    </td>
-                                                </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
+                            <div class="list-group-item py-3 mb-2">
+                                <div class="small text-muted">ID</div>
+                                <div class="fw-semibold">${tramite.id}</div>
+                            </div>
+                            <div class="list-group-item py-3 mb-2">
+                                <div class="small text-muted">Tipo de Trámite</div>
+                                <div class="fw-semibold">${obtenerNombreTipoTramite(tramite.tipo) || 'N/A'}</div>
+                            </div>
+                            <div class="list-group-item py-3 mb-2">
+                                <div class="small text-muted">Ciudadano</div>
+                                <div class="fw-semibold">${tramite.ciudadano?.nombre} ${tramite.ciudadano?.apellido}</div>
+                            </div>
+                            <div class="list-group-item py-3 mb-2">
+                                <div class="small text-muted">Documento</div>
+                                <div class="fw-semibold">${documentoResumen}</div>
+                            </div>
+                            <div class="list-group-item py-3 mb-2">
+                                <div class="small text-muted">Estado</div>
+                                <div class="fw-semibold"><span class="estado-${tramite.estado}">${obtenerNombreEstadoTramite(tramite.estado)}</span></div>
+                            </div>
+                            <div class="list-group-item py-3 mb-2">
+                                <div class="small text-muted">Fecha de Solicitud</div>
+                                <div class="fw-semibold">${formatearFecha(tramite.fecha_solicitud)}</div>
+                            </div>
+                            <div class="list-group-item py-3 mb-2">
+                                <div class="small text-muted">Fecha de Actualización</div>
+                                <div class="fw-semibold">${formatearFecha(tramite.fecha_actualizacion)}</div>
+                            </div>
+                            <div class="list-group-item py-3 mb-2">
+                                <div class="small text-muted">Descripción</div>
+                                <div>${tramite.descripcion || '-'}</div>
+                            </div>
+                            <div class="list-group-item py-3">
+                                <div class="small text-muted">Observaciones</div>
+                                <div>${tramite.observaciones || 'Sin observaciones'}</div>
+                            </div>
                                 </div>
-                            `}
+                            </div>
                         </div>
                     </div>
-                    </div>
-                    
-                    <div class="col-12 col-md-6">
-                    <div class="card compact-card h-100">
-                        <div class="card-header">
-                            <h5>Historial</h5>
-                        </div>
-                        <div class="card-body">
-                            ${!historial || historial.length === 0 ? `
-                                <p>No hay registros en el historial de este trámite.</p>
+
+                    <div id="detalle-section-documentos" class="d-none mt-4">
+                        <div class="card no-hover mb-4 shadow-sm rounded-3">
+                            <div class="card-body">
+                                <div class="list-group">
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div class="fw-semibold">Documentos</div>
+                                <button class="btn btn-success btn-sm" onclick="mostrarFormularioDocumento(${tramite.id})">
+                                    <i class="bi bi-plus-circle"></i> Agregar Documento
+                                </button>
+                            </div>
+                            ${!documentosOrdenados || documentosOrdenados.length === 0 ? `
+                                <div class="list-group-item">No hay documentos asociados a este trámite.</div>
                             ` : `
-                                <div class="timeline">
-                                    ${historial.map((registro, index) => `
-                                        <div class="timeline-item">
-                                            <div class="timeline-date">${formatearFecha(registro.fecha)}</div>
-                                            <div class="timeline-content">
-                                                <h6>${registro.accion}</h6>
-                                                <p>${registro.descripcion}</p>
-                                                <small>Por: ${registro.usuario?.nombre} ${registro.usuario?.apellido}</small>
-                                            </div>
+                                ${documentosOrdenados.map(documento => `
+                                    <div class="list-group-item d-flex justify-content-between align-items-center py-3 mb-2">
+                                        <div>
+                                            <div class="fw-semibold">${documento.nombre}</div>
+                                            <div class="small text-muted">${documento.tipo} • ${formatearFecha(documento.fecha_subida)}</div>
                                         </div>
-                                    `).join('')}
-                                </div>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-info" onclick="verDocumento(${documento.id})">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <button class="btn btn-secondary" onclick="descargarDocumento(${documento.id})">
+                                                <i class="bi bi-download"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                `).join('')}
                             `}
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    <div id="detalle-section-pagos" class="d-none mt-4">
+                        <div class="card no-hover mb-4 shadow-sm rounded-3">
+                            <div class="card-body">
+                                <div class="list-group">
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div class="fw-semibold">Pagos</div>
+                                ${tramite.estado !== 'rechazado' && !pagos.some(p => p.estado === 'completado') ? `
+                                    <button class="btn btn-primary btn-sm" onclick="mostrarFormularioPagoTramite(${tramite.id})">
+                                        <i class="bi bi-check-circle-fill"></i> Pago completado
+                                    </button>
+                                ` : ''}
+                            </div>
+                            ${!pagosOrdenados || pagosOrdenados.length === 0 ? `
+                                <div class="list-group-item">No hay pagos asociados a este trámite.</div>
+                            ` : `
+                                ${pagosOrdenados.map(pago => `
+                                    <div class="list-group-item d-flex justify-content-between align-items-center py-3 mb-2">
+                                        <div>
+                                            <div class="fw-semibold">${formatearMoneda(pago.monto)} • <span class="estado-${pago.estado}">${pago.estado}</span></div>
+                                            <div class="small text-muted">${pago.codigo || ''} • ${formatearFecha(pago.fecha_pago)}</div>
+                                        </div>
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-info" onclick="verDetallePago(${pago.id})">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            ${pago.estado === 'completado' ? `
+                                                <button class="btn btn-secondary" onclick="descargarComprobantePago(${pago.id})">
+                                                    <i class="bi bi-download"></i>
+                                                </button>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            `}
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
+                    <div id="detalle-section-historial" class="d-none mt-4">
+                        <div class="card no-hover mb-4 shadow-sm rounded-3">
+                            <div class="card-body">
+                                <div class="list-group">
+                                ${!historialOrdenado || historialOrdenado.length === 0 ? `
+                                    <div class="list-group-item">No hay registros en el historial de este trámite.</div>
+                                ` : `
+                                    ${historialOrdenado.map((registro) => `
+                                    <div class="list-group-item py-3 mb-2">
+                                        <div class="fw-semibold">${registro.accion}</div>
+                                        <div>${registro.descripcion}</div>
+                                        <div class="small text-muted mb-1"><i class="bi bi-calendar3 me-1"></i>${formatearFecha(registro.fecha)}</div>
+                                        <div class="small text-muted"><i class="bi bi-person-fill me-1"></i>${registro.usuario?.nombre} ${registro.usuario?.apellido}</div>
+                                    </div>
+                                `).join('')}
+                                `}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1193,6 +1205,31 @@ async function verDetalleTramite(tramiteId) {
         mostrarNotificacion('Error al cargar detalle: ' + error.message, 'danger');
     } finally {
         mostrarCargando(false);
+    }
+}
+
+function activarSeccionDetalle(seccion) {
+    const tabs = document.querySelectorAll('#detalle-tramite-tabs .tab-link');
+    tabs.forEach(btn => {
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-outline-primary');
+    });
+    const map = {
+        general: 'detalle-section-general',
+        documentos: 'detalle-section-documentos',
+        pagos: 'detalle-section-pagos',
+        historial: 'detalle-section-historial'
+    };
+    Object.values(map).forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('d-none');
+    });
+    const target = document.getElementById(map[seccion]);
+    if (target) target.classList.remove('d-none');
+    const activeBtn = document.querySelector(`#detalle-tramite-tabs .tab-link[data-tab='${seccion}']`);
+    if (activeBtn) {
+        activeBtn.classList.remove('btn-outline-primary');
+        activeBtn.classList.add('btn-primary');
     }
 }
 
@@ -1208,13 +1245,16 @@ async function actualizarEstadoTramite(tramiteId) {
         
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-12">
-                    <button class="btn btn-outline-secondary mb-3" onclick="verDetalleTramite(${tramiteId})">
+            <div class="row mb-4 align-items-center">
+                <div class="col-4">
+                    <button class="btn btn-outline-secondary" onclick="verDetalleTramite(${tramiteId})">
                         <i class="bi bi-arrow-left"></i> Volver al trámite
                     </button>
-                    <h2>Actualizar Estado del Trámite</h2>
                 </div>
+                <div class="col-4 text-center">
+                    <h2 class="section-title">Actualizar Estado del Trámite</h2>
+                </div>
+                <div class="col-4"></div>
             </div>
             
             <div class="row">

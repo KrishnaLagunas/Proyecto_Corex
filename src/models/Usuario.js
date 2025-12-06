@@ -139,8 +139,7 @@ Usuario.prototype.generateRecoveryToken = function() {
                Math.random().toString(36).substring(2, 15);
 
   this.token_recuperacion = token;
-  // Expira en 24 horas
-  this.expiracion_token = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  this.expiracion_token = new Date(Date.now() + 15 * 60 * 1000);
 
   return token;
 };

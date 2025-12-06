@@ -1,4 +1,5 @@
 const { Usuario, Rol, Municipalidad } = require('../models');
+const nodemailer = require('nodemailer');
 const { generateToken, verifyToken } = require('../config/jwt');
 const bcrypt = require('bcryptjs');
 const logger = require('../utils/logger');
@@ -334,8 +335,29 @@ const authController = {
       const recoveryToken = await user.generateRecoveryToken();
       await user.save();
 
-      // Aquí se enviaría el email con el token (implementación pendiente)
-      // En un entorno real, se usaría un servicio de email como Nodemailer
+      const transporter = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_PASS
+        }
+      });
+
+      const appUrl = process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
+      const mailOptions = {
+        from: `${process.env.MAIL_FROM_NAME || 'Corex'} <${process.env.GMAIL_USER}>`,
+        to: email,
+        subject: 'Recuperación de contraseña',
+        html: `
+          <p>Has solicitado recuperar tu contraseña.</p>
+          <p>Este enlace expira en 15 minutos.</p>
+          <p><a href="${appUrl}/?resetToken=${encodeURIComponent(recoveryToken)}" target="_blank" rel="noopener">Restablecer contraseña</a></p>
+        `
+      };
+
+      try { await transporter.sendMail(mailOptions); } catch (e) { logger.warn('Fallo envío de email de recuperación', e); }
       logger.info(`Token de recuperación generado para: ${email}`);
 
       // Por ahora, solo devolvemos el token en la respuesta (solo para desarrollo)
@@ -358,6 +380,7 @@ const authController = {
   resetPassword: async (req, res, next) => {
     try {
       const { token, newPassword } = req.body;
+      try { logger.info(`[Auth][RESET][REQ] token=${String(token).slice(0,8)}...`); } catch(_) {}
 
       // Buscar usuario con ese token de recuperación
       const user = await Usuario.findOne({ where: { token_recuperacion: token } });
@@ -382,11 +405,26 @@ const authController = {
       user.token_recuperacion = null;
       user.expiracion_token = null;
       await user.save();
+      try { const ok = await user.comparePassword(newPassword); logger.info(`[Auth][RESET][SAVED] email=${user.email} hash_ok=${ok}`); } catch(_) {}
+
+      // Sincronizar también con Ciudadano si existe un registro con el mismo email
+      try {
+        const { Ciudadano } = require('../models');
+        const ciudadano = await Ciudadano.findOne({ where: { email: user.email } });
+        if (ciudadano) {
+          ciudadano.password = newPassword; // hash por hook beforeUpdate
+          ciudadano.token_verificacion = null;
+          await ciudadano.save();
+          try { const ok2 = await ciudadano.comparePassword(newPassword); logger.info(`[Auth][RESET][SYNC-CIUDADANO] email=${user.email} hash_ok=${ok2}`); } catch(_) {}
+        }
+      } catch (syncErr) {
+        logger.warn('No se pudo sincronizar password de Usuario a Ciudadano:', syncErr);
+      }
 
       logger.info(`Contraseña restablecida para: ${user.email}`);
 
       res.json({
-        message: 'Contraseña restablecida exitosamente'
+        message: 'Contraseña restablecida correctamente'
       });
     } catch (error) {
       next(error);

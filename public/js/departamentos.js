@@ -787,13 +787,16 @@ async function verDetalleMunicipalidad(id) {
         const d = await fetchAPI(`/municipalidades/${id}`);
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-12">
-                    <button class="btn btn-outline-secondary mb-3" onclick="cargarMunicipalidades()">
+            <div class="row mb-4 align-items-center">
+                <div class="col-4">
+                    <button class="btn btn-outline-secondary" onclick="cargarMunicipalidades()">
                         <i class="bi bi-arrow-left"></i> Volver a la lista
                     </button>
-                    <h2>Detalles de la Municipalidad</h2>
                 </div>
+                <div class="col-4 text-center">
+                    <h2 class="section-title">Detalles de la Municipalidad</h2>
+                </div>
+                <div class="col-4"></div>
             </div>
             <div class="row">
                 <div class="col-md-8 offset-md-2">
@@ -920,13 +923,16 @@ async function verDetalleDepartamento(departamentoId) {
         
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-12">
-                    <button class="btn btn-outline-secondary mb-3" onclick="cargarGestionDepartamentos()">
+            <div class="row mb-4 align-items-center">
+                <div class="col-4">
+                    <button class="btn btn-outline-secondary" onclick="cargarGestionDepartamentos()">
                         <i class="bi bi-arrow-left"></i> Volver a la lista
                     </button>
-                    <h2>Detalles del Departamento</h2>
                 </div>
+                <div class="col-4 text-center">
+                    <h2 class="section-title">Detalles del Departamento</h2>
+                </div>
+                <div class="col-4"></div>
             </div>
             
             <div class="row">

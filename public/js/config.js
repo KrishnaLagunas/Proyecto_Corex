@@ -27,7 +27,8 @@ const CONFIG = {
         PENDIENTE: 'pendiente',
         EN_PROCESO: 'en_proceso',
         APROBADO: 'aprobado',
-        RECHAZADO: 'rechazado'
+        RECHAZADO: 'rechazado',
+        COMPLETADO: 'completado'
     },
     
     // Estados de pagos

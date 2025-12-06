@@ -20,10 +20,19 @@ const dashboardController = {
       const isAdmin = rol === 'administrador';
       const isFuncionario = rol === 'funcionario' || rol === 'secretaria comunitaria' || rol === 'secretaria de obras' || rol === 'secretaria de transito' || rol === 'secretaria partes' || rol === 'tesoreria municipal';
 
-      // Filtros por municipalidad para administradores (si no tiene asignada, devolver métricas en 0)
+      // Filtros por municipalidad
       const emptyFilter = { municipalidad_id: -1 };
       const filtraPorMuni = (isAdmin || isFuncionario);
-      const tramiteWhere = filtraPorMuni ? (muniId ? { municipalidad_id: muniId } : emptyFilter) : {};
+      let tramiteWhere = {};
+      if (filtraPorMuni) {
+        if (!muniId) {
+          tramiteWhere = emptyFilter;
+        } else if (isAdmin) {
+          tramiteWhere = { [require('sequelize').Op.or]: [ { municipalidad_id: muniId }, { municipalidad_id: null } ] };
+        } else {
+          tramiteWhere = { municipalidad_id: muniId };
+        }
+      }
       // Proyectos deshabilitados
       const usuarioWhere = filtraPorMuni ? (muniId ? { municipalidad_id: muniId } : emptyFilter) : {};
 
@@ -47,8 +56,7 @@ const dashboardController = {
         ? await safeEval(() => Departamento.count({ where: { municipalidad_id: muniId } }))
         : await safeEval(() => Departamento.count());
 
-      // Estadísticas de trámites por estado (filtradas para admin)
-      
+      // Estadísticas de trámites por estado (filtradas)
       let tramitesPorEstado = [];
       try {
         tramitesPorEstado = await Tramite.findAll({

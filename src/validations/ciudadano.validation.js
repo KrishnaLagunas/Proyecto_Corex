@@ -121,14 +121,17 @@ const comunaIdValidation = Joi.number()
     'number.base': 'El id de comuna debe ser numérico'
   });
 
-// Validación para contraseña
+// Validación para contraseña (fuerte)
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-\[\]{};:'",.<>/?`~|=])[A-Za-z\d!@#$%^&*()_+\-\[\]{};:'",.<>/?`~|=]{8,}$/;
 const passwordValidation = Joi.string()
-  .min(6)
+  .min(8)
   .max(50)
+  .pattern(passwordRegex)
   .required()
   .messages({
-    'string.min': 'La contraseña debe tener al menos 6 caracteres',
+    'string.min': 'La contraseña debe tener al menos 8 caracteres',
     'string.max': 'La contraseña no puede exceder 50 caracteres',
+    'string.pattern.base': 'La contraseña debe incluir mayúsculas, minúsculas, números y un carácter especial',
     'any.required': 'La contraseña es obligatoria'
   });
 

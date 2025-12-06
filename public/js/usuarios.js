@@ -1475,13 +1475,16 @@ async function verDetalleUsuario(usuarioId) {
         
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = `
-            <div class="row mb-4">
-                <div class="col-12">
-                    <button class="btn btn-outline-secondary mb-3" onclick="cargarUsuarios()">
+            <div class="row mb-4 align-items-center">
+                <div class="col-4">
+                    <button class="btn btn-outline-secondary" onclick="cargarUsuarios()">
                         <i class="bi bi-arrow-left"></i> Volver a la lista
                     </button>
-                    <h2>Detalle del Usuario</h2>
                 </div>
+                <div class="col-4 text-center">
+                    <h2 class="section-title">Detalle del Usuario</h2>
+                </div>
+                <div class="col-4"></div>
             </div>
             
             <div class="row">

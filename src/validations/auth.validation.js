@@ -54,7 +54,9 @@ const rutValidation = Joi.string().custom((value, helpers) => {
 
 // Expresión regular para contraseñas seguras
 // Al menos 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial
-const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+// Reglas de contraseña: al menos una mayúscula, una minúscula, un número y un símbolo
+// Símbolos permitidos ampliados para admitir puntos y otros caracteres comunes
+const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-\[\]{};:'",.<>/?`~|=])[A-Za-z\d!@#$%^&*()_+\-\[\]{};:'",.<>/?`~|=]{8,}$/;
 
 /**
  * Esquemas de validación para las rutas de autenticación

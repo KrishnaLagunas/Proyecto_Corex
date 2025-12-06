@@ -36,6 +36,14 @@ const usuariosPrueba = [
 
 // Inicializar el módulo de autenticación
 document.addEventListener('DOMContentLoaded', () => {
+    try {
+        const params = new URLSearchParams(window.location.search || '');
+        const resetToken = params.get('resetToken');
+        if (resetToken) {
+            mostrarFormularioResetConToken(resetToken);
+            return;
+        }
+    } catch (_) {}
     programarMostrarLogin(0);
     
     // Configurar el evento de submit del formulario de login
@@ -462,14 +470,17 @@ async function cargarInterfazSuperadmin(usuario) {
             mainContent.classList.remove('d-none');
             mainContent.innerHTML = `
               <div class="container py-4">
-                <div class="row">
-                  <div class="col-12">
-                    <h2 class="mb-4">Panel de Superadministrador</h2>
-                    <div class="alert alert-success">
-                      <i class="bi bi-shield-check me-2"></i>
-                      Bienvenido/a, ${usuario.nombre} ${usuario.apellido}.
+                <div class="row mb-3 align-items-center">
+                  <div class="col-4">
+                    <div class="d-flex align-items-center gap-2">
+                      <i class="bi bi-hand-thumbs-up"></i>
+                      <span>Bienvenido ${(usuario.nombre + ' ' + usuario.apellido).toLowerCase()}</span>
                     </div>
                   </div>
+                  <div class="col-4 text-center">
+                    <h2 class="section-title">Panel de Superadministrador</h2>
+                  </div>
+                  <div class="col-4"></div>
                 </div>
                 <div class="row">
                   <div class="col-md-6 mb-4">
@@ -486,13 +497,15 @@ async function cargarInterfazSuperadmin(usuario) {
                     <div class="card shadow-sm">
                       <div class="card-body text-center">
                         <i class="bi bi-people fs-1 text-success mb-3"></i>
-                        <h5 class="card-title">Crear Usuarios Administradores</h5>
-                        <p class="card-text">Asignar administradores a municipalidades.</p>
+                        <h5 class="card-title">Crear Nuevos Usuarios</h5>
+                        <p class="card-text">Crear usuarios y asignarlos.</p>
                         <a href="#" class="btn btn-success" id="btn-crear-administradores">Acceder</a>
                       </div>
                     </div>
                   </div>
-                  <div class="col-md-6 mb-4">
+                </div>
+                <div class="row">
+                  <div class="col-md-6 offset-md-3 mb-4">
                     <div class="card shadow-sm">
                       <div class="card-body text-center">
                         <i class="bi bi-bar-chart-line fs-1 text-info mb-3"></i>
@@ -520,8 +533,16 @@ async function cargarInterfazSuperadmin(usuario) {
             if (btnCrearAdministradores) {
                 btnCrearAdministradores.addEventListener('click', (e) => {
                     e.preventDefault();
-                    if (typeof mostrarFormularioCrearAdministrador === 'function') {
-                        mostrarFormularioCrearAdministrador();
+                    try { localStorage.setItem('currentPage', 'usuarios'); } catch (_) {}
+                    const menu = document.getElementById('menu-items');
+                    if (menu) {
+                        const links = menu.querySelectorAll('.nav-link');
+                        links.forEach(l => l.classList.remove('active'));
+                        const adminsLink = menu.querySelector('.nav-link[data-page="usuarios"]');
+                        if (adminsLink) adminsLink.classList.add('active');
+                    }
+                    if (typeof mostrarFormularioUsuario === 'function') {
+                        mostrarFormularioUsuario();
                     } else if (typeof cargarUsuarios === 'function') {
                         cargarUsuarios();
                     }
@@ -942,32 +963,18 @@ function mostrarFormularioRecuperarPassword() {
                         </div>
                         <div class="card-body p-4">
                             <h4 class="text-center mb-4">Recuperar Contraseña</h4>
-                            <form id="direct-reset-form">
+                            <form id="smtp-reset-form">
                                 <div class="mb-3">
-                                    <label for="recovery-email" class="form-label">Correo Electrónico</label>
+                                    <label for="smtp-recovery-email" class="form-label">Introduzca el correo electrónico</label>
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-                                        <input type="email" class="form-control" id="recovery-email" name="email" required>
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="direct-password" class="form-label">Nueva Contraseña</label>
-                                    <div class="input-group">
-                                        <span class="input-group-text"><i class="bi bi-key"></i></span>
-                                        <input type="password" class="form-control" id="direct-password" required>
-                                    </div>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="direct-confirm-password" class="form-label">Confirmar Contraseña</label>
-                                    <div class="input-group">
-                                        <span class="input-group-text"><i class="bi bi-shield-lock"></i></span>
-                                        <input type="password" class="form-control" id="direct-confirm-password" required>
+                                        <input type="email" class="form-control" id="smtp-recovery-email" name="email" required>
                                     </div>
                                 </div>
                                 <div class="d-grid gap-2 mt-2">
-                                    <button type="submit" id="btn-direct-reset" class="btn btn-success">Cambiar Contraseña</button>
+                                    <button type="submit" id="btn-smtp-reset" class="btn btn-primary">Enviar enlace</button>
                                 </div>
-                                <div id="direct-message" class="alert mt-3 d-none"></div>
+                                <div id="smtp-message" class="alert mt-3 d-none"></div>
                             </form>
                         </div>
                         <div class="card-footer text-center py-3">
@@ -982,81 +989,50 @@ function mostrarFormularioRecuperarPassword() {
         
         // Configurar eventos
         const backToLogin = document.getElementById('back-to-login-recovery');
-        const directForm = document.getElementById('direct-reset-form');
-        const directMessage = document.getElementById('direct-message');
+        const smtpForm = document.getElementById('smtp-reset-form');
+        const smtpMessage = document.getElementById('smtp-message');
         
-        if (directForm) {
-            directForm.addEventListener('submit', async (e) => {
+        if (smtpForm) {
+            smtpForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const email = document.getElementById('recovery-email').value;
-                const password = document.getElementById('direct-password').value;
-                const confirm = document.getElementById('direct-confirm-password').value;
-
+                const email = document.getElementById('smtp-recovery-email').value;
                 if (!email) {
-                    if (directMessage) {
-                        directMessage.textContent = 'Debe ingresar su correo electrónico.';
-                        directMessage.className = 'alert alert-warning mt-3';
-                        directMessage.classList.remove('d-none');
+                    if (smtpMessage) {
+                        smtpMessage.textContent = 'Debe ingresar su correo electrónico.';
+                        smtpMessage.className = 'alert alert-warning mt-3';
+                        smtpMessage.classList.remove('d-none');
                     }
                     return;
                 }
-
-                if (password !== confirm) {
-                    if (directMessage) {
-                        directMessage.textContent = 'Las contraseñas no coinciden.';
-                        directMessage.className = 'alert alert-danger mt-3';
-                        directMessage.classList.remove('d-none');
-                    }
-                    return;
-                }
-
                 mostrarCargando(true);
                 try {
                     let resp;
-                    // Intentar reset para usuarios del sistema
                     try {
-                        resp = await fetchAPI('/auth/reset-password-direct', {
-                            method: 'POST',
-                            body: { email, newPassword: password, confirmPassword: confirm },
-                            suppressErrorLog: true
-                        });
-                    } catch (err1) {
-                        // Ignorar y continuar con ciudadanos
+                        resp = await fetchAPI('/auth/request-reset', { method: 'POST', body: { email }, suppressErrorLog: true });
+                    } catch (_) {}
+                    if (!resp) {
+                        try {
+                            resp = await fetchAPI('/ciudadanos/request-reset', { method: 'POST', body: { email }, suppressErrorLog: true });
+                        } catch (_) {}
                     }
-                    // Intentar reset para ciudadanos
-                    try {
-                        resp = await fetchAPI('/ciudadanos/reset-password-direct', {
-                            method: 'POST',
-                            body: { email, newPassword: password, confirmPassword: confirm },
-                            suppressErrorLog: true
-                        });
-                    } catch (err2) {
-                        // Ignorar
-                    }
-
-                    if (directMessage) {
-                        directMessage.textContent = (resp?.message || resp?.msg || 'Si el correo existe, la contraseña fue actualizada.');
-                        directMessage.className = 'alert alert-success mt-3';
-                        directMessage.classList.remove('d-none');
-                    }
-                    // Redirigir al login si el backend confirma actualización exitosa
-                    const okMsg = (resp?.message || resp?.msg || '').toLowerCase();
-                    if (okMsg.includes('actualizada exitosamente')) {
-                        setTimeout(() => {
-                            mostrarFormularioLogin();
-                        }, 1200);
+                    if (smtpMessage) {
+                        smtpMessage.textContent = 'Correo enviado exitosamente';
+                        smtpMessage.className = 'alert alert-success mt-3';
+                        smtpMessage.classList.remove('d-none');
                     }
                 } catch (error) {
-                    if (directMessage) {
-                        directMessage.textContent = 'No se pudo actualizar la contraseña.';
-                        directMessage.className = 'alert alert-danger mt-3';
-                        directMessage.classList.remove('d-none');
+                    if (smtpMessage) {
+                        smtpMessage.textContent = 'No se pudo enviar el correo.';
+                        smtpMessage.className = 'alert alert-danger mt-3';
+                        smtpMessage.classList.remove('d-none');
                     }
                 } finally {
                     mostrarCargando(false);
                 }
             });
         }
+
+        // Sin formulario de token: solo envío de correo
         
         if (backToLogin) {
             backToLogin.addEventListener('click', (e) => {
@@ -1132,6 +1108,160 @@ function mostrarFormularioRecuperarPassword() {
                 } else {
                     // Fallback
                     mostrarFormularioLogin();
+                }
+            });
+        }
+    }
+}
+
+function mostrarFormularioResetConToken(token) {
+    const loginContainer = document.getElementById('login-container');
+    if (loginContainer) {
+        const header = document.querySelector('.header');
+        const navbar = document.getElementById('main-navbar');
+        const mainContent = document.getElementById('main-content');
+        if (header) header.classList.add('d-none');
+        if (navbar) navbar.classList.add('d-none');
+        if (mainContent) mainContent.classList.add('d-none');
+
+        try {
+            const urls = ['/images/muni1.jpg','/images/muni2.jpg','/images/muni3.jpg','/images/muni4.jpg','/images/muni5.jpg'];
+            const bg1 = document.getElementById('login-bg');
+            const bg2 = document.getElementById('login-bg2');
+            if (bg1 && bg2) {
+                let idx = 0;
+                let cur = bg1, next = bg2;
+                const apply = (el, url) => { el.style.backgroundImage = `url('${url}')`; };
+                apply(cur, urls[idx]);
+                cur.classList.add('active');
+                next.classList.remove('active');
+                if (window.__loginBgInterval) { try { clearInterval(window.__loginBgInterval); } catch (_) {} }
+                window.__loginBgInterval = setInterval(() => {
+                    idx = (idx + 1) % urls.length;
+                    apply(next, urls[idx]);
+                    next.classList.add('active');
+                    cur.classList.remove('active');
+                    const tmp = cur; cur = next; next = tmp;
+                }, 8000);
+            } else {
+                const bgUrl = urls[0];
+                document.body.style.backgroundImage = `url('${bgUrl}')`;
+                document.body.style.backgroundRepeat = 'no-repeat';
+                document.body.style.backgroundPosition = 'center center';
+                document.body.style.backgroundSize = 'cover';
+            }
+        } catch (_) {}
+
+        if (!loginContainer.dataset.originalHtml) {
+            loginContainer.dataset.originalHtml = loginContainer.innerHTML;
+        }
+        loginContainer.innerHTML = `
+            <div class="row justify-content-center">
+                <div class="col-md-6 col-lg-5">
+                    <div class="card shadow">
+                        <div class="card-header bg-primary text-white text-center py-3">
+                            <h3 class="mb-0"><i class="bi bi-building me-2"></i>Sistema ERP Municipal</h3>
+                            <p class="mb-0">Gestión Municipal Inteligente</p>
+                        </div>
+                        <div class="card-body p-4">
+                            <h4 class="text-center mb-4">Cambiar Contraseña</h4>
+                            <form id="token-reset-form">
+                                <div class="mb-3">
+                                    <label for="token-new-password" class="form-label">Nueva Contraseña</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="bi bi-key"></i></span>
+                                        <input type="password" class="form-control" id="token-new-password" required>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="token-confirm-password" class="form-label">Confirmar Contraseña</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="bi bi-shield-lock"></i></span>
+                                        <input type="password" class="form-control" id="token-confirm-password" required>
+                                    </div>
+                                </div>
+                        <div class="d-grid gap-2 mt-2">
+                            <button type="submit" id="btn-token-reset" class="btn btn-success">Cambiar Contraseña</button>
+                        </div>
+                        <div id="token-message" class="alert mt-3 d-none"></div>
+                        <div id="token-hint" class="alert alert-info mt-2" style="font-size: 0.9rem;">
+                            La contraseña debe tener al menos 8 caracteres, incluir mayúsculas, minúsculas, números y un carácter especial.
+                        </div>
+                            </form>
+                        </div>
+                        <div class="card-footer text-center py-3">
+                            <div class="small">
+                                <a href="#" id="back-to-login-from-token">Volver al inicio de sesión</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        const tokenForm = document.getElementById('token-reset-form');
+        const tokenMessage = document.getElementById('token-message');
+        const backLink = document.getElementById('back-to-login-from-token');
+        if (backLink) backLink.addEventListener('click', (e) => { e.preventDefault(); mostrarFormularioLogin(); });
+        if (tokenForm) {
+            tokenForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const password = document.getElementById('token-new-password').value;
+                const confirm = document.getElementById('token-confirm-password').value;
+                const strongRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-\[\]{};:'",.<>/?`~|=])[A-Za-z\d!@#$%^&*()_+\-\[\]{};:'",.<>/?`~|=]{8,}$/;
+                if (!strongRegex.test(password)) {
+                    const hint = document.getElementById('token-hint');
+                    if (hint) { hint.className = 'alert alert-warning mt-2'; }
+                    return;
+                } else {
+                    const hint = document.getElementById('token-hint');
+                    if (hint) { hint.className = 'alert alert-info mt-2'; }
+                }
+                if (password !== confirm) {
+                    if (tokenMessage) {
+                        tokenMessage.textContent = 'Las contraseñas no coinciden.';
+                        tokenMessage.className = 'alert alert-danger mt-3';
+                        tokenMessage.classList.remove('d-none');
+                    }
+                    return;
+                }
+                mostrarCargando(true);
+                try {
+                    let resp;
+                    try { console.log('[RESET][TRY AUTH]', { token: String(token).slice(0,8)+'...', len: password.length }); } catch(_) {}
+                    try {
+                        resp = await fetchAPI('/auth/reset-password', { method: 'POST', body: { token, newPassword: password, confirmPassword: password }, suppressErrorLog: true });
+                    } catch (_) {}
+                    if (!resp) {
+                        try { console.log('[RESET][TRY CIUDADANO]', { token: String(token).slice(0,8)+'...', len: password.length }); } catch(_) {}
+                        try {
+                            resp = await fetchAPI('/ciudadanos/reset-password', { method: 'POST', body: { token, password, confirm_password: password }, suppressErrorLog: true });
+                        } catch (_) {}
+                    }
+                    if (tokenMessage) {
+                        const msg = (resp && (resp.message || resp.msg)) || (resp && resp.success ? 'Contraseña restablecida correctamente' : 'Proceso completado');
+                        tokenMessage.textContent = msg;
+                        tokenMessage.className = 'alert alert-success mt-3';
+                        tokenMessage.classList.remove('d-none');
+                    }
+                    const ok = (resp && ((resp.message || '').toLowerCase().includes('exitosamente') || (resp.message || '').toLowerCase().includes('correctamente') || resp.success));
+                    if (ok) {
+                        try {
+                            const btn = document.getElementById('btn-token-reset');
+                            const p1 = document.getElementById('token-new-password');
+                            const p2 = document.getElementById('token-confirm-password');
+                            if (btn) { btn.disabled = true; btn.textContent = 'Contraseña actualizada'; }
+                            if (p1) p1.disabled = true;
+                            if (p2) p2.disabled = true;
+                        } catch (_) {}
+                    }
+                } catch (error) {
+                    if (tokenMessage) {
+                        tokenMessage.textContent = (error && error.message) ? error.message : 'No se pudo restablecer la contraseña.';
+                        tokenMessage.className = 'alert alert-danger mt-3';
+                        tokenMessage.classList.remove('d-none');
+                    }
+                } finally {
+                    mostrarCargando(false);
                 }
             });
         }

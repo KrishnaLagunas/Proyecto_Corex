@@ -1,10 +1,6 @@
 const express = require('express');
 const router = express.Router();
-// Cargar controlador dinámicamente para evitar conflictos ESM/CJS con top-level await
-async function loadTramitesController() {
-  const mod = await import('../controllers/tramites.controller');
-  return mod.default || mod;
-}
+const tramitesController = require('../controllers/tramites.controller');
 const { isAuthenticated, hasRole } = require('../middlewares/auth.middleware');
 const { validateSchema, validateParams, validateQuery } = require('../middlewares/validator.middleware');
 const { tramiteSchemas } = require('../validations/tramite.validation');
@@ -17,7 +13,7 @@ const { tramiteSchemas } = require('../validations/tramite.validation');
 router.get('/', 
   isAuthenticated, 
   validateQuery(tramiteSchemas.queryTramites), 
-  async (req, res, next) => { const c = await loadTramitesController(); return c.getAllTramites(req, res, next); }
+  tramitesController.getAllTramites
 );
 
 /**
@@ -29,32 +25,32 @@ router.get('/',
 router.get('/stats/general', 
   isAuthenticated, 
   hasRole(['administrador', 'superadministrador', 'secretaria comunitaria']),
-  async (req, res, next) => { const c = await loadTramitesController(); return c.getTramitesStats(req, res, next); }
+  tramitesController.getTramitesStats
 );
 
 router.get('/tipos', 
   isAuthenticated,
-  async (req, res, next) => { const c = await loadTramitesController(); return c.getTiposTramites(req, res, next); }
+  tramitesController.getTiposTramites
 );
 
 // Nueva ruta para configuración de pago de trámites
 router.get('/configuracion-pago',
   isAuthenticated,
   validateQuery(tramiteSchemas.queryPagoConfig),
-  async (req, res, next) => { const c = await loadTramitesController(); return c.getConfiguracionPago(req, res, next); }
+  tramitesController.getConfiguracionPago
 );
 
 router.post('/tipos', 
   isAuthenticated,
   hasRole(['administrador', 'superadministrador']),
-  async (req, res, next) => { const c = await loadTramitesController(); return c.createTipoTramite(req, res, next); }
+  tramitesController.createTipoTramite
 );
 
 // Rutas anidadas específicas por trámite
 router.get('/:id/documentos',
   isAuthenticated,
   validateParams(tramiteSchemas.idParam),
-  async (req, res, next) => { const c = await loadTramitesController(); return c.getDocumentosByTramiteId(req, res, next); }
+  tramitesController.getDocumentosByTramiteId
 );
 
 router.post('/:id/documentos',
@@ -65,44 +61,44 @@ router.post('/:id/documentos',
     { name: 'archivo', maxCount: 1 },
     { name: 'documento', maxCount: 1 }
   ]),
-  async (req, res, next) => { const c = await loadTramitesController(); return c.subirDocumentoTramite(req, res, next); }
+  tramitesController.subirDocumentoTramite
 );
 
 router.get('/:id/pagos',
   isAuthenticated,
   validateParams(tramiteSchemas.idParam),
-  async (req, res, next) => { const c = await loadTramitesController(); return c.getPagosByTramiteId(req, res, next); }
+  tramitesController.getPagosByTramiteId
 );
 
 router.get('/:id/historial',
   isAuthenticated,
   validateParams(tramiteSchemas.idParam),
-  async (req, res, next) => { const c = await loadTramitesController(); return c.getHistorialByTramiteId(req, res, next); }
+  tramitesController.getHistorialByTramiteId
 );
 
 router.put('/:id/estado',
   isAuthenticated,
   validateParams(tramiteSchemas.idParam),
-  async (req, res, next) => { const c = await loadTramitesController(); return c.updateTramiteEstado(req, res, next); }
+  tramitesController.updateTramiteEstado
 );
 
 // Constancia/boleta para trámites pagados o gratuitos
 router.get('/:id/constancia',
   isAuthenticated,
   validateParams(tramiteSchemas.idParam),
-  async (req, res, next) => { const c = await loadTramitesController(); return c.generateConstancia(req, res, next); }
+  tramitesController.generateConstancia
 );
 
 // Constancia/boleta desde datos locales (PDF descargable)
 router.post('/constancia/local',
-  async (req, res, next) => { const c = await loadTramitesController(); return c.generateConstanciaLocal(req, res, next); }
+  tramitesController.generateConstanciaLocal
 );
 
 // Rutas paramétricas al final para no captar rutas específicas como '/tipos'
 router.get('/:id', 
   isAuthenticated, 
   validateParams(tramiteSchemas.idParam), 
-  async (req, res, next) => { const c = await loadTramitesController(); return c.getTramiteById(req, res, next); }
+  tramitesController.getTramiteById
 );
 
 /**
@@ -113,7 +109,7 @@ router.get('/:id',
 router.post('/', 
   isAuthenticated, 
   validateSchema(tramiteSchemas.createTramite), 
-  async (req, res, next) => { const c = await loadTramitesController(); return c.createTramite(req, res, next); }
+  tramitesController.createTramite
 );
 
 /**
@@ -125,7 +121,7 @@ router.put('/:id',
   isAuthenticated, 
   validateParams(tramiteSchemas.idParam),
   validateSchema(tramiteSchemas.updateTramite), 
-  async (req, res, next) => { const c = await loadTramitesController(); return c.updateTramite(req, res, next); }
+  tramitesController.updateTramite
 );
 
 /**
@@ -137,7 +133,7 @@ router.delete('/:id',
   isAuthenticated, 
   hasRole(['administrador', 'superadministrador']),
   validateParams(tramiteSchemas.idParam), 
-  async (req, res, next) => { const c = await loadTramitesController(); return c.deleteTramite(req, res, next); }
+  tramitesController.deleteTramite
 );
 
 /**

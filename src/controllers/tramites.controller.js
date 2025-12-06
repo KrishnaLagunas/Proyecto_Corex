@@ -1171,12 +1171,3 @@ tramitesController.generateConstanciaLocal = async (req, res, next) => {
     next(error);
   }
 };
-      // Verificar que el departamento existe
-      let departamentoValido = null;
-      try {
-        const { Departamento } = require('../models');
-        departamentoValido = await Departamento.findByPk(departamento_id);
-      } catch (_) { /* opcional */ }
-      if (!departamentoValido) {
-        throw new ApiError('El departamento seleccionado no existe', 400);
-      }

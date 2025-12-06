@@ -24,6 +24,7 @@ async function cargarDashboard() {
         });
       } catch (_) {}
     }
+    try { document.querySelectorAll('.chart-empty-overlay').forEach(el => el.remove()); } catch (_) {}
     window.dashboardCharts = {};
 
     // Consultar resumen general
@@ -204,15 +205,15 @@ async function cargarDashboard() {
                   </div>
                   <div class="col-4">
                     <div class="chart-container chart-mini">
-                      <canvas id="chart-tramites-pendiente"></canvas>
-                    </div>
-                    <div class="mt-1"><small>Pendiente: <span id="count-tram-pendiente">0</span></small></div>
-                  </div>
-                  <div class="col-4">
-                    <div class="chart-container chart-mini">
                       <canvas id="chart-tramites-finalizado"></canvas>
                     </div>
                     <div class="mt-1"><small>Finalizado: <span id="count-tram-finalizado">0</span></small></div>
+                  </div>
+                  <div class="col-4">
+                    <div class="chart-container chart-mini">
+                      <canvas id="chart-tramites-rechazado"></canvas>
+                    </div>
+                    <div class="mt-1"><small>Rechazado: <span id="count-tram-rechazado">0</span></small></div>
                   </div>
                 </div>
               </div>
@@ -225,32 +226,8 @@ async function cargarDashboard() {
                 <small class="text-muted">Distribución actual</small>
               </div>
               <div class="card-body">
-                <div class="row text-center donut-row g-2">
-                  <div class="col-6">
-                    <div class="chart-container chart-mini">
-                      <canvas id="chart-tramites-gratis"></canvas>
-                    </div>
-                    <div class="mt-1"><small>Gratis: <span id="count-tram-gratis">0</span></small></div>
-                  </div>
-                  <div class="col-6">
-                    <div class="chart-container chart-mini">
-                      <canvas id="chart-tramites-pago"></canvas>
-                    </div>
-                    <div class="mt-1"><small>Pago: <span id="count-tram-pago">0</span></small></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="col-lg-6 mb-3">
-            <div class="card shadow-sm chart-card">
-              <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Usuarios activos vs inactivos</h5>
-                <small class="text-muted">Estado actual</small>
-              </div>
-              <div class="card-body">
                 <div class="chart-container">
-                  <canvas id="chart-usuarios-estado"></canvas>
+                  <canvas id="chart-tramites-gratis-pago"></canvas>
                 </div>
               </div>
             </div>
@@ -274,7 +251,7 @@ async function cargarDashboard() {
 
     // Enlaces de navegación
     console.log('[Dashboard] Renderizado DOM de charts');
-    console.log('[Dashboard] Canvas usuarios existe?', !!document.getElementById('chart-usuarios-estado'));
+    
     mainContent.querySelectorAll('[data-page]').forEach(el => {
       el.addEventListener('click', e => {
         e.preventDefault();
@@ -348,17 +325,21 @@ async function cargarDashboard() {
         const it = Array.isArray(tramitesPorEstado) ? tramitesPorEstado.find(e => e.estado === estado) : null;
         return parseInt(it?.cantidad || 0) || 0;
       };
-      const cProceso = document.getElementById('count-tram-proceso'); if (cProceso) cProceso.textContent = getCount('en_proceso');
-      const cPend = document.getElementById('count-tram-pendiente'); if (cPend) cPend.textContent = getCount('pendiente');
-      const cFin = document.getElementById('count-tram-finalizado'); if (cFin) cFin.textContent = getCount('finalizado');
+      const getCountMerged = (estados) => estados.reduce((sum, st) => sum + getCount(st), 0);
+      const countProceso = getCountMerged(['en_proceso', 'pendiente', 'aprobado']);
+      const countCompletado = getCountMerged(['completado', 'finalizado']);
+      const countRechazado = getCount('rechazado');
+      const cProceso = document.getElementById('count-tram-proceso'); if (cProceso) cProceso.textContent = countProceso;
+      const cCompl = document.getElementById('count-tram-finalizado'); if (cCompl) cCompl.textContent = countCompletado;
+      const cRech = document.getElementById('count-tram-rechazado'); if (cRech) cRech.textContent = countRechazado;
       const labelForDonut = (id) => {
         switch (id) {
           case 'chart-pagos-completado': return 'Completado';
           case 'chart-pagos-pendiente': return 'Pendiente';
           case 'chart-pagos-rechazado': return 'Rechazado';
           case 'chart-tramites-proceso': return 'En proceso';
-          case 'chart-tramites-pendiente': return 'Pendiente';
           case 'chart-tramites-finalizado': return 'Finalizado';
+          case 'chart-tramites-rechazado': return 'Rechazado';
           default: return 'Valor';
         }
       };
@@ -376,57 +357,52 @@ async function cargarDashboard() {
         const el = document.getElementById(id);
         if (!el || !el.getContext) return;
         const ctx = el.getContext('2d');
+        const isZero = (parseInt(val) || 0) === 0;
+        const dataArr = isZero ? [1, 0] : [val, Math.max(totalTramites - val, 0)];
+        const colorsArr = isZero ? ['#8B0000', '#E0E0E0'] : [color, '#E0E0E0'];
         window.dashboardCharts[id] = new Chart(ctx, {
           type: 'doughnut',
-          data: { labels: ['Valor', 'Resto'], datasets: [{ data: [val, Math.max(totalTramites - val, 0)], backgroundColor: [color, '#E0E0E0'] }] },
+          data: { labels: ['Valor', 'Resto'], datasets: [{ data: dataArr, backgroundColor: colorsArr }] },
           options: donutOptions(id)
         });
       };
-      chartInitDonut('chart-tramites-proceso', getCount('en_proceso'), '#1E3A8A');
-      chartInitDonut('chart-tramites-pendiente', getCount('pendiente'), '#FF9800');
-      chartInitDonut('chart-tramites-finalizado', getCount('finalizado'), '#2E7D32');
-      chartInitDonut('chart-tramites-gratis', parseInt(tramitesGratisCount) || 0, '#607D8B');
-      chartInitDonut('chart-tramites-pago', parseInt(tramitesPagoCount) || 0, '#8E24AA');
+      chartInitDonut('chart-tramites-proceso', countProceso, '#1E3A8A');
+      chartInitDonut('chart-tramites-finalizado', countCompletado, '#2E7D32');
+      chartInitDonut('chart-tramites-rechazado', countRechazado, '#FF8A80');
+      const gpCanvas = document.getElementById('chart-tramites-gratis-pago');
+      if (gpCanvas && gpCanvas.getContext) {
+        const ctxGP = gpCanvas.getContext('2d');
+        const g0 = parseInt(tramitesGratisCount) || 0;
+        const p0 = parseInt(tramitesPagoCount) || 0;
+        const colorsGP = [g0 === 0 ? '#8B0000' : '#4CAF50', p0 === 0 ? '#8B0000' : '#FF9800'];
+        window.dashboardCharts.tramitesGratisPago = new Chart(ctxGP, {
+          type: 'bar',
+          data: { labels: ['Gratis', 'Pago'], datasets: [{ data: [g0, p0], backgroundColor: colorsGP }] },
+          options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+        });
+      }
 
       const chartInitPagosDonut = (id, val, color) => {
         const el = document.getElementById(id);
         if (!el || !el.getContext) return;
         const ctx = el.getContext('2d');
+        const isZero = (parseInt(val) || 0) === 0;
+        const dataArr = isZero ? [1, 0] : [val, Math.max(totalPagosCount - val, 0)];
+        const colorsArr = isZero ? ['#8B0000', '#E0E0E0'] : [color, '#E0E0E0'];
         window.dashboardCharts[id] = new Chart(ctx, {
           type: 'doughnut',
-          data: { labels: ['Valor', 'Resto'], datasets: [{ data: [val, Math.max(totalPagosCount - val, 0)], backgroundColor: [color, '#E0E0E0'] }] },
+          data: { labels: ['Valor', 'Resto'], datasets: [{ data: dataArr, backgroundColor: colorsArr }] },
           options: donutOptions(id)
         });
       };
       chartInitPagosDonut('chart-pagos-completado', 0, '#2E7D32');
       chartInitPagosDonut('chart-pagos-pendiente', 0, '#FF9800');
-      chartInitPagosDonut('chart-pagos-rechazado', 0, '#e74c3c');
+      chartInitPagosDonut('chart-pagos-rechazado', 0, '#FF8A80');
 
     } catch (_) { /* opcional */ }
 
     // Inicializar gráfico de Usuarios fuera del try para evitar silencios
-    const usuariosInitCanvas = document.getElementById('chart-usuarios-estado');
-    if (usuariosInitCanvas && usuariosInitCanvas.getContext && !window.dashboardCharts.usuariosEstado) {
-      await waitCanvasReady(usuariosInitCanvas);
-      try {
-        const p = usuariosInitCanvas.parentElement;
-        const pw = (p && p.clientWidth) ? p.clientWidth : 600;
-        const ph = (p && p.clientHeight) ? p.clientHeight : 200;
-        usuariosInitCanvas.width = pw;
-        usuariosInitCanvas.height = ph;
-      } catch (_) {}
-      const ctxU = usuariosInitCanvas.getContext('2d');
-      const rect = usuariosInitCanvas.getBoundingClientRect();
-      console.log('[Dashboard] Creando gráfico usuarios (init), size', { w: rect.width, h: rect.height });
-      window.dashboardCharts.usuariosEstado = new Chart(ctxU, {
-        type: 'bar',
-        data: { labels: ['Activos', 'Inactivos'], datasets: [{ data: [0, 0], backgroundColor: ['#2196F3', '#E53935'] }] },
-        options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, suggestedMax: 8 } }, plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 0 } }
-      });
-      window.dashboardCharts.usuariosEstado.update('none');
-      if (typeof window.dashboardCharts.usuariosEstado.resize === 'function') window.dashboardCharts.usuariosEstado.resize();
-      console.log('[Dashboard] Gráfico usuarios creado (init)', !!window.dashboardCharts.usuariosEstado, 'chartArea', window.dashboardCharts.usuariosEstado?.chartArea);
-    }
+    
     const actualizarMetricas = async () => {
       try {
         let d = {};
@@ -469,9 +445,8 @@ async function cargarDashboard() {
 
         // Cargar estadísticas adicionales
         let pagosMesDetalleRes = null;
-        const [pagosStats, usuariosStats, departamentosStats, pagosMesDetalleTmp] = await Promise.all([
+        const [pagosStats, departamentosStats, pagosMesDetalleTmp] = await Promise.all([
           fetchAPI('/pagos/stats/general', { suppressErrorLog: true }).catch(err => { console.warn('[Dashboard] pagos stats error', err?.message || err); return null; }),
-          fetchAPI('/usuarios/stats/general', { suppressErrorLog: true }).catch(err => { console.warn('[Dashboard] usuarios stats error', err?.message || err); return null; }),
           fetchAPI('/departamentos/stats/general', { suppressErrorLog: true }).catch(err => { console.warn('[Dashboard] departamentos stats error', err?.message || err); return null; }),
           (async () => {
             const now = new Date();
@@ -490,68 +465,41 @@ async function cargarDashboard() {
         const pagosCount = Array.isArray(pagosMesDetalleRes?.pagos) ? pagosMesDetalleRes.pagos.length : 0;
         console.log('[Dashboard] Pagos mes detalle count', pagosCount);
 
-        // Usuarios activos vs inactivos (barra horizontal)
-        const usuariosCanvas = document.getElementById('chart-usuarios-estado');
-        if (usuariosCanvas && usuariosCanvas.getContext) {
-          if (window.dashboardCharts.usuariosEstado && window.dashboardCharts.usuariosEstado.canvas !== usuariosCanvas) {
-            try { window.dashboardCharts.usuariosEstado.destroy(); } catch (_) {}
-            window.dashboardCharts.usuariosEstado = null;
-            console.log('[Dashboard] Usuarios chart destruido por cambio de canvas');
-          }
-          if (!window.dashboardCharts.usuariosEstado) {
-            await waitCanvasReady(usuariosCanvas);
-            try {
-              const p = usuariosCanvas.parentElement;
-              const pw = (p && p.clientWidth) ? p.clientWidth : 400;
-              const ph = (p && p.clientHeight) ? p.clientHeight : 200;
-              usuariosCanvas.width = pw > 0 ? pw : 600;
-              usuariosCanvas.height = ph > 0 ? ph : 200;
-            } catch (_) {}
-            const ctx3 = usuariosCanvas.getContext('2d');
-            console.log('[Dashboard] Creando gráfico usuarios (refresh)');
-            window.dashboardCharts.usuariosEstado = new Chart(ctx3, {
-              type: 'bar',
-              data: { labels: ['Activos', 'Inactivos'], datasets: [{ data: [0, 0], backgroundColor: ['#2196F3', '#E53935'] }] },
-              options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, suggestedMax: 8 } }, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
-            });
-            console.log('[Dashboard] Gráfico usuarios creado (refresh)', !!window.dashboardCharts.usuariosEstado);
-          }
-          if (usuariosStats && Array.isArray(usuariosStats.estadoPorUsuario)) {
-            console.log('[Dashboard] usuariosStats OK', usuariosStats.estadoPorUsuario);
-            const estadoArr = usuariosStats.estadoPorUsuario;
-            const activoItem = estadoArr.find(s => (s.estado || s.dataValues?.estado) === 'activo');
-            const inactivoItem = estadoArr.find(s => (s.estado || s.dataValues?.estado) === 'inactivo');
-            const activos = parseInt((activoItem && (activoItem.total ?? activoItem.dataValues?.total)) || 0) || 0;
-            const inactivos = parseInt((inactivoItem && (inactivoItem.total ?? inactivoItem.dataValues?.total)) || 0) || 0;
-            const suggested = Math.max(8, Math.max(activos, inactivos));
-            console.log('[Dashboard] usuarios activos/inactivos', { activos, inactivos, suggested });
-            window.dashboardCharts.usuariosEstado.data.labels = ['Activos', 'Inactivos'];
-            window.dashboardCharts.usuariosEstado.data.datasets[0].data = [activos, inactivos];
-            if (window.dashboardCharts.usuariosEstado && window.dashboardCharts.usuariosEstado.options && window.dashboardCharts.usuariosEstado.options.scales && window.dashboardCharts.usuariosEstado.options.scales.x) {
-              window.dashboardCharts.usuariosEstado.options.scales.x.suggestedMax = suggested;
-              window.dashboardCharts.usuariosEstado.options.scales.x.ticks.stepSize = 1;
-            }
-            window.dashboardCharts.usuariosEstado.update('none');
-            if (typeof window.dashboardCharts.usuariosEstado.resize === 'function') window.dashboardCharts.usuariosEstado.resize();
-            const area = window.dashboardCharts.usuariosEstado?.chartArea;
-            console.log('[Dashboard] Usuarios chartArea after update', area);
-          } else {
-            console.warn('[Dashboard] usuariosStats vacío o inválido', usuariosStats);
-          }
-        }
+        // (gráfico de usuarios eliminado)
 
         // Trámites por estado: 3 donuts
-        const totalTram = Array.isArray(d.tramitesPorEstado) ? d.tramitesPorEstado.reduce((acc, e) => acc + (e.cantidad || 0), 0) : 0;
+        let tramitesEstadoArr = Array.isArray(d.tramitesPorEstado) ? d.tramitesPorEstado : [];
+        if (!tramitesEstadoArr.length) {
+          try {
+            const respTramitesListado = await fetchAPI('/tramites?limit=100&order=DESC', { suppressErrorLog: true });
+            const arrListado = Array.isArray(respTramitesListado) ? respTramitesListado : (respTramitesListado?.tramites || []);
+            const mapaT = new Map();
+            arrListado.forEach(t => {
+              const est = (t.estado || t.dataValues?.estado || '').toLowerCase();
+              if (!est) return;
+              const cur = mapaT.get(est) || 0;
+              mapaT.set(est, cur + 1);
+            });
+            tramitesEstadoArr = Array.from(mapaT.entries()).map(([estado, cantidad]) => ({ estado, cantidad }));
+            console.log('[Dashboard] fallback estado trámites desde listado', tramitesEstadoArr);
+          } catch (e) {
+            console.warn('[Dashboard] No se pudo obtener listado de trámites para fallback', e?.message || e);
+          }
+        }
+        const totalTram = tramitesEstadoArr.reduce((acc, e) => acc + (parseInt(e.cantidad || 0) || 0), 0);
         const getC = (est) => {
-          const it = Array.isArray(d.tramitesPorEstado) ? d.tramitesPorEstado.find(e => e.estado === est) : null;
-          return parseInt(it?.cantidad || 0) || 0;
+          const it = tramitesEstadoArr.find(e => (e.estado || e.dataValues?.estado) === est);
+          return parseInt((it && (it.cantidad ?? it.dataValues?.cantidad)) || 0) || 0;
         };
         const updDonut = (id, val, color, countElId) => {
           const el = document.getElementById(id);
           const cnt = document.getElementById(countElId);
           if (cnt) cnt.textContent = val;
           if (!el || !el.getContext) return;
-          const ds = { labels: ['Valor', 'Resto'], datasets: [{ data: [val, Math.max(totalTram - val, 0)], backgroundColor: [color, '#E0E0E0'] }] };
+          const isZero = (parseInt(val) || 0) === 0;
+          const dataArr = isZero ? [1, 0] : [val, Math.max(totalTram - val, 0)];
+          const colorsArr = isZero ? ['#8B0000', '#E0E0E0'] : [color, '#E0E0E0'];
+          const ds = { labels: ['Valor', 'Resto'], datasets: [{ data: dataArr, backgroundColor: colorsArr }] };
           if (!window.dashboardCharts[id]) {
             window.dashboardCharts[id] = new Chart(el.getContext('2d'), { type: 'doughnut', data: ds, options: donutOptions(id) });
           } else {
@@ -560,12 +508,28 @@ async function cargarDashboard() {
           }
         };
         updDonut('chart-tramites-proceso', getC('en_proceso'), '#1E3A8A', 'count-tram-proceso');
-        updDonut('chart-tramites-pendiente', getC('pendiente'), '#FF9800', 'count-tram-pendiente');
-        updDonut('chart-tramites-finalizado', getC('finalizado'), '#2E7D32', 'count-tram-finalizado');
+        updDonut('chart-tramites-finalizado', getC('completado') + getC('finalizado'), '#2E7D32', 'count-tram-finalizado');
+        updDonut('chart-tramites-rechazado', getC('rechazado'), '#FF8A80', 'count-tram-rechazado');
         const tGratis = parseInt(d.tramitesGratisCount || 0) || 0;
         const tPago = parseInt(d.tramitesPagoCount || 0) || 0;
-        updDonut('chart-tramites-gratis', tGratis, '#607D8B', 'count-tram-gratis');
-        updDonut('chart-tramites-pago', tPago, '#8E24AA', 'count-tram-pago');
+        const gpCanvas2 = document.getElementById('chart-tramites-gratis-pago');
+        if (gpCanvas2 && gpCanvas2.getContext) {
+          if (!window.dashboardCharts.tramitesGratisPago) {
+            const ctxGP2 = gpCanvas2.getContext('2d');
+            window.dashboardCharts.tramitesGratisPago = new Chart(ctxGP2, {
+              type: 'bar',
+              data: { labels: ['Gratis', 'Pago'], datasets: [{ data: [tGratis, tPago], backgroundColor: [tGratis === 0 ? '#8B0000' : '#4CAF50', tPago === 0 ? '#8B0000' : '#FF9800'] }] },
+              options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+            });
+          } else {
+            window.dashboardCharts.tramitesGratisPago.data.labels = ['Gratis', 'Pago'];
+            window.dashboardCharts.tramitesGratisPago.data.datasets[0].data = [tGratis, tPago];
+            window.dashboardCharts.tramitesGratisPago.data.datasets[0].backgroundColor = [tGratis === 0 ? '#8B0000' : '#4CAF50', tPago === 0 ? '#8B0000' : '#FF9800'];
+            window.dashboardCharts.tramitesGratisPago.options.scales.x.ticks.stepSize = 1;
+            window.dashboardCharts.tramitesGratisPago.update('none');
+          }
+          
+        }
 
         // Departamentos activos vs inactivos
         const departamentosCanvas = document.getElementById('chart-departamentos-estado');
@@ -589,6 +553,15 @@ async function cargarDashboard() {
             window.dashboardCharts.departamentosEstado.options.scales.x.suggestedMax = suggestedD;
             window.dashboardCharts.departamentosEstado.options.scales.x.ticks.stepSize = 1;
             window.dashboardCharts.departamentosEstado.update();
+          }
+        } else if (departamentosCanvas) {
+          if (!window.dashboardCharts.departamentosEstado) {
+            const ctx5 = departamentosCanvas.getContext('2d');
+            window.dashboardCharts.departamentosEstado = new Chart(ctx5, {
+              type: 'bar',
+              data: { labels: ['Activos', 'Inactivos'], datasets: [{ data: [0, 0], backgroundColor: ['#4CAF50', '#FF7043'] }] },
+              options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, suggestedMax: 8 } }, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+            });
           }
         }
         const buildCarouselItem = (p) => {
@@ -637,17 +610,21 @@ async function cargarDashboard() {
           const cnt = document.getElementById(countElId);
           if (cnt) cnt.textContent = val;
           if (!el || !el.getContext) return;
-          const ds = { labels: ['Valor', 'Resto'], datasets: [{ data: totalPag > 0 ? [val, Math.max(totalPag - val, 0)] : [0, 1], backgroundColor: [color, '#E0E0E0'] }] };
+          const isZero = (parseInt(val) || 0) === 0;
+          const dataArr = isZero ? [1, 0] : [val, Math.max(totalPag - val, 0)];
+          const colorsArr = isZero ? ['#8B0000', '#E0E0E0'] : [color, '#E0E0E0'];
+          const ds = { labels: ['Valor', 'Resto'], datasets: [{ data: dataArr, backgroundColor: colorsArr }] };
           if (!window.dashboardCharts[id]) {
             window.dashboardCharts[id] = new Chart(el.getContext('2d'), { type: 'doughnut', data: ds, options: donutOptions(id) });
           } else {
             window.dashboardCharts[id].data = ds;
             window.dashboardCharts[id].update('none');
           }
+          
         };
         updPagDonut('chart-pagos-completado', getPagoC('completado'), '#2E7D32', 'count-pagos-completado');
         updPagDonut('chart-pagos-pendiente', getPagoC('pendiente'), '#FF9800', 'count-pagos-pendiente');
-        updPagDonut('chart-pagos-rechazado', getPagoC('rechazado'), '#e74c3c', 'count-pagos-rechazado');
+        updPagDonut('chart-pagos-rechazado', getPagoC('rechazado'), '#FF8A80', 'count-pagos-rechazado');
       } catch (err) {
         console.warn('Actualización dashboard fallida', err?.message || err);
       }
@@ -728,7 +705,7 @@ async function mostrarSupervisionMultiMunicipalidad() {
           </div>
         </div>
         <div class="row">
-          <div class="col-12">
+          <div class="col-md-10 offset-md-1">
             <div class="card">
               <div class="card-body">
                 <div class="table-responsive">

@@ -6,6 +6,7 @@ const { ApiError } = require('../middlewares/errorHandler');
 /**
  * Controlador para el manejo de ciudadanos
  */
+const nodemailer = require('nodemailer');
 const ciudadanosController = {
   /**
    * Registra un nuevo ciudadano en el portal
@@ -282,11 +283,31 @@ const ciudadanosController = {
         });
       }
 
-      // Generar token de recuperación
-      const resetToken = ciudadano.generateVerificationToken();
+      const crypto = require('crypto');
+      const raw = crypto.randomBytes(32).toString('hex');
+      const exp = Math.floor((Date.now() + 15 * 60 * 1000) / 1000);
+      const resetToken = `${raw}.${exp}`;
+      ciudadano.token_verificacion = resetToken;
       await ciudadano.save();
 
-      // TODO: Aquí se debería enviar un email con el token
+      const transporter = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_PASS }
+      });
+      const appUrl = process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
+      const mailOptions = {
+        from: `${process.env.MAIL_FROM_NAME || 'Corex'} <${process.env.GMAIL_USER}>`,
+        to: email,
+        subject: 'Recuperación de contraseña',
+        html: `
+          <p>Has solicitado recuperar tu contraseña.</p>
+          <p>Este enlace expira en 15 minutos.</p>
+          <p><a href="${appUrl}/?resetToken=${encodeURIComponent(resetToken)}" target="_blank" rel="noopener">Restablecer contraseña</a></p>
+        `
+      };
+      try { await transporter.sendMail(mailOptions); } catch (e) { logger.warn('Fallo envío email recuperación ciudadano', e); }
       logger.info(`Token de recuperación generado para: ${email}`);
 
       res.json({
@@ -309,25 +330,49 @@ const ciudadanosController = {
   resetPassword: async (req, res, next) => {
     try {
       const { token, password } = req.body;
+      try { logger.info(`[Ciudadanos][RESET][REQ] token=${String(token).slice(0,8)}...`); } catch(_) {}
 
-      const ciudadano = await Ciudadano.findOne({ 
-        where: { token_verificacion: token } 
-      });
-
+      const ciudadano = await Ciudadano.findOne({ where: { token_verificacion: token } });
       if (!ciudadano) {
         throw new ApiError('Token de recuperación inválido o expirado', 400);
+      }
+
+      const parts = (token || '').split('.');
+      if (parts.length === 2) {
+        const expSec = parseInt(parts[1], 10);
+        const nowSec = Math.floor(Date.now() / 1000);
+        if (!expSec || nowSec > expSec) {
+          ciudadano.token_verificacion = null;
+          await ciudadano.save();
+          throw new ApiError('Token expirado', 400);
+        }
       }
 
       // Actualizar la contraseña
       ciudadano.password = password; // El hash se genera automáticamente
       ciudadano.token_verificacion = null;
       await ciudadano.save();
+      try { const ok = await ciudadano.comparePassword(password); logger.info(`[Ciudadanos][RESET][SAVED] email=${ciudadano.email} hash_ok=${ok}`); } catch(_) {}
+
+      // Sincronizar también con Usuarios si existe un registro con el mismo email
+      try {
+        const usuario = await Usuario.findOne({ where: { email: ciudadano.email } });
+        if (usuario) {
+          usuario.password = password; // hash por hook beforeUpdate
+          usuario.token_recuperacion = null;
+          usuario.expiracion_token = null;
+          await usuario.save();
+          try { const ok2 = await usuario.comparePassword(password); logger.info(`[Ciudadanos][RESET][SYNC-USUARIO] email=${ciudadano.email} hash_ok=${ok2}`); } catch(_) {}
+        }
+      } catch (syncErr) {
+        logger.warn('No se pudo sincronizar password de Ciudadano a Usuario:', syncErr);
+      }
 
       logger.info(`Contraseña restablecida para: ${ciudadano.email}`);
 
       res.json({
         success: true,
-        message: 'Contraseña restablecida exitosamente'
+        message: 'Contraseña restablecida correctamente'
       });
 
     } catch (error) {
