@@ -1,4 +1,4 @@
-const { Tramite, Usuario, Municipalidad, Documento, Pago, ConfiguracionPago, Rol } = require('../models');
+const { Tramite, Usuario, Municipalidad, Documento, Pago, ConfiguracionPago, Rol, Departamento } = require('../models');
 const { ApiError } = require('../middlewares/errorHandler');
 const logger = require('../utils/logger');
 const { Op, QueryTypes } = require('sequelize');
@@ -198,6 +198,10 @@ const tramitesController = {
           { 
             model: Municipalidad,
             attributes: ['id', 'nombre'] 
+          },
+          {
+            model: Departamento,
+            attributes: ['id', 'nombre']
           },
           {
             model: Documento,

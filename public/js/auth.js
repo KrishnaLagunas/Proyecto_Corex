@@ -2844,6 +2844,13 @@ async function mostrarDetalleTramiteModal(tramiteId) {
         const badgeEstado = `<span class="badge estado-${tramite.estado}">${tramite.estado}</span>`;
         const fechaSol = formatearFecha(tramite.fecha_solicitud);
         const fechaAct = formatearFecha(tramite.fecha_actualizacion || tramite.fecha_solicitud);
+        let nombreDepartamento = tramite.Departamento?.nombre || tramite.departamento?.nombre || null;
+        if (!nombreDepartamento && tramite.departamento_id) {
+            try {
+                const dep = await fetchAPI(`/departamentos/${tramite.departamento_id}`, { suppressErrorLog: true });
+                nombreDepartamento = dep?.nombre || dep?.nombre_departamento || null;
+            } catch (_) {}
+        }
 
         contenido.innerHTML = `
       <div class="row g-3">
@@ -2863,7 +2870,7 @@ async function mostrarDetalleTramiteModal(tramiteId) {
         </div>
         <div class="col-md-6">
           <div class="small text-muted">Departamento</div>
-          <div class="fw-semibold">${tramite.Departamento?.nombre || tramite.departamento?.nombre || (tramite.departamento_id ? `ID ${tramite.departamento_id}` : '-')}</div>
+          <div class="fw-semibold">${nombreDepartamento || '-'}</div>
         </div>
         <div class="col-md-6">
           <div class="small text-muted">Fecha de solicitud</div>
