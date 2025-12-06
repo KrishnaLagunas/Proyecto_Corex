@@ -81,18 +81,24 @@ const tramitesController = {
         });
 
         const muniId = funcionario?.municipalidad_id || funcionario?.Municipalidad?.id || null;
+        // Filtrar por departamentos asignados al funcionario
+        let departamentosAsignados = [];
+        try {
+          const DepartamentoUsuario = require('../models/DepartamentoUsuario');
+          const asignaciones = await DepartamentoUsuario.findAll({ where: { usuario_id: req.user.id }, attributes: ['departamento_id'] });
+          departamentosAsignados = asignaciones.map(a => a.departamento_id);
+        } catch (_) { departamentosAsignados = []; }
 
-        if (muniId) {
-          where[Op.or] = [
-            { funcionario_id: req.user.id },
-            { municipalidad_id: muniId },
-            { funcionario_id: null }
-          ];
+        if (muniId && departamentosAsignados.length > 0) {
+          where.municipalidad_id = muniId;
+          where.departamento_id = { [Op.in]: departamentosAsignados };
+        } else if (muniId) {
+          // Sin asignaciones: ver solo trámites propios de su municipalidad
+          where.municipalidad_id = muniId;
+          where.funcionario_id = req.user.id;
         } else {
-          where[Op.or] = [
-            { funcionario_id: req.user.id },
-            { funcionario_id: null }
-          ];
+          // Sin municipalidad: ver solo trámites propios
+          where.funcionario_id = req.user.id;
         }
       }
       // Administrador: restringir a su municipalidad asignada
@@ -228,9 +234,8 @@ const tramitesController = {
         descripcion, 
         tipo, 
         prioridad = 'media',
-        requiere_pago = false,
-        monto = 0,
-        municipalidad_id 
+        municipalidad_id,
+        departamento_id
       } = req.body;
 
       if (!municipalidad_id && req.user.rol_nombre === 'ciudadano') {
@@ -245,7 +250,7 @@ const tramitesController = {
         } catch (_) {}
       }
       
-      // Verificar que el departamento existe
+      // Verificar que la municipalidad existe
       const municipalidad = await Municipalidad.findByPk(municipalidad_id);
       if (!municipalidad) {
         throw new ApiError('La municipalidad seleccionada no existe', 400);
@@ -261,6 +266,57 @@ const tramitesController = {
         if (!muniIdFunc || muniIdFunc !== municipalidad_id) {
           throw new ApiError('No tienes permiso para crear trámites fuera de tu municipalidad', 403);
         }
+      }
+      const { Departamento } = require('../models');
+      const depObj = await Departamento.findByPk(departamento_id);
+      if (!depObj) {
+        throw new ApiError('El departamento seleccionado no existe', 400);
+      }
+      const TRAMITES_POR_DEPTO = {
+        educacion: [
+          { nombre: 'Solicitudes de becas municipales', tipo: 'solicitud' },
+          { nombre: 'Solicitud de traslado de establecimiento', tipo: 'solicitud' },
+          { nombre: 'Reclamos y revisiones de casos de convivencia escolar', tipo: 'reclamo' }
+        ],
+        salud: [
+          { nombre: 'Solicitud de cambio de consultorio', tipo: 'solicitud' },
+          { nombre: 'Solicitud de Inscripción de consultorio', tipo: 'solicitud' },
+          { nombre: 'Solicitud de ayuda técnica', tipo: 'solicitud' },
+          { nombre: 'Reclamos por centro de salud', tipo: 'reclamo' }
+        ],
+        obras: [
+          { nombre: 'certificado de construcción de obras', tipo: 'certificado' },
+          { nombre: 'Regularización de viviendas', tipo: 'permiso' },
+          { nombre: 'Denuncias por obras ilegales', tipo: 'reclamo' }
+        ],
+        seguridad: [
+          { nombre: 'Solicitud de rondas preventivas', tipo: 'solicitud' },
+          { nombre: 'Instalación de cámaras o alarmas comunitarias', tipo: 'solicitud' },
+          { nombre: 'Charlas de seguridad', tipo: 'solicitud' }
+        ],
+        transito: [
+          { nombre: 'Rectificación de datos o errores en licencias', tipo: 'licencia' },
+          { nombre: 'Permiso de circulación', tipo: 'permiso' }
+        ]
+      };
+      const norm = s => String(s || '').toLowerCase();
+      const depNombre = depObj?.nombre || depObj?.nombre_departamento || '';
+      const depNorm = norm(depNombre);
+      let clave;
+      if (depNorm.includes('educac')) clave = 'educacion';
+      else if (depNorm.includes('salud')) clave = 'salud';
+      else if (depNorm.includes('obra')) clave = 'obras';
+      else if (depNorm.includes('seguridad')) clave = 'seguridad';
+      else if (depNorm.includes('tránsito') || depNorm.includes('transito') || depNorm.includes('transporte')) clave = 'transito';
+      else clave = null;
+      if (clave && TRAMITES_POR_DEPTO[clave]) {
+        const lista = TRAMITES_POR_DEPTO[clave];
+        const matchNombre = lista.find(t => norm(req.body.tipo) === norm(t.nombre));
+        if (!matchNombre) {
+          throw new ApiError('Este trámite no pertenece al departamento seleccionado', 400);
+        }
+        // tipo debe ser el nombre exacto del trámite
+        tipo = matchNombre.nombre;
       }
       
       // Si es ciudadano, asignar automáticamente su ID
@@ -291,6 +347,33 @@ const tramitesController = {
         logger.error(`Error generando código: ${error.message}`);
         throw new ApiError('Error al generar código del trámite', 500);
       }
+      // Resolver pago y monto desde ConfiguracionPago
+      let requiere_pago = false;
+      let monto = 0;
+      try {
+        const anioActual = new Date().getFullYear();
+        const candidates = Array.from(new Set([String(tipo), String(tipo).replace(/\.$/, '')]));
+        const cfg = await ConfiguracionPago.findOne({
+          where: {
+            tramite_nombre: { [Op.in]: candidates },
+            anio: anioActual,
+            estado: 'activo'
+          }
+        });
+        if (cfg) {
+          if (cfg.modalidad === 'fijo') {
+            const mf = Number(cfg.monto_fijo || 0);
+            if (mf > 0) {
+              requiere_pago = true;
+              monto = mf;
+            }
+          } else if (cfg.modalidad === 'porcentaje') {
+            // Sin base definida para porcentaje, mantener en 0 hasta que se defina el cálculo
+            requiere_pago = false;
+            monto = 0;
+          }
+        }
+      } catch (_) { /* mantener por defecto */ }
       
       // Crear el trámite
       logger.info(`Creando trámite con código: ${codigo}`);
@@ -305,6 +388,7 @@ const tramitesController = {
         requiere_pago,
         monto,
         ciudadano_id,
+        departamento_id,
         municipalidad_id
       });
       
@@ -324,9 +408,10 @@ const tramitesController = {
           requiere_pago: nuevoTramite.requiere_pago,
           monto: nuevoTramite.monto,
           fecha_solicitud: nuevoTramite.fecha_solicitud,
-          ciudadano_id: nuevoTramite.ciudadano_id,
-          municipalidad_id: nuevoTramite.municipalidad_id
-        }
+        ciudadano_id: nuevoTramite.ciudadano_id,
+        departamento_id: nuevoTramite.departamento_id,
+        municipalidad_id: nuevoTramite.municipalidad_id
+      }
       });
     } catch (error) {
       next(error);
@@ -1002,3 +1087,12 @@ tramitesController.generateConstancia = async (req, res, next) => {
     next(error);
   }
 };
+      // Verificar que el departamento existe
+      let departamentoValido = null;
+      try {
+        const { Departamento } = require('../models');
+        departamentoValido = await Departamento.findByPk(departamento_id);
+      } catch (_) { /* opcional */ }
+      if (!departamentoValido) {
+        throw new ApiError('El departamento seleccionado no existe', 400);
+      }

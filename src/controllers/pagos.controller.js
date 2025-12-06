@@ -116,7 +116,19 @@ const pagosController = {
       const isFuncionario = ['funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal'].includes(String(req.user.rol_nombre).toLowerCase());
       const funcMuniId = isFuncionario ? (req.user.municipalidad_id || null) : null;
       if (isFuncionario && funcMuniId && !countOptions.include) {
-        countOptions.include = [{ model: Tramite, required: true, where: { municipalidad_id: funcMuniId } }];
+        // Incluir filtro por municipalidad y departamentos asignados del funcionario
+        let departamentosAsignados = [];
+        try {
+          const DepartamentoUsuario = require('../models/DepartamentoUsuario');
+          const asignaciones = await DepartamentoUsuario.findAll({ where: { usuario_id: req.user.id }, attributes: ['departamento_id'] });
+          departamentosAsignados = asignaciones.map(a => a.departamento_id);
+        } catch (_) { departamentosAsignados = []; }
+
+        const tramiteWhere = { municipalidad_id: funcMuniId };
+        if (departamentosAsignados.length > 0) {
+          tramiteWhere.departamento_id = { [Op.in]: departamentosAsignados };
+        }
+        countOptions.include = [{ model: Tramite, required: true, where: tramiteWhere }];
       }
       const count = await Pago.count(countOptions);
       
@@ -145,11 +157,24 @@ const pagosController = {
         offset: offset
       };
       if (!adminMuniId && isFuncionario && funcMuniId) {
-        // Aplicar filtro de municipalidad para funcionarios cuando no es admin
+        // Aplicar filtro de municipalidad y departamento para funcionarios
+        let departamentosAsignados = [];
+        try {
+          const DepartamentoUsuario = require('../models/DepartamentoUsuario');
+          const asignaciones = await DepartamentoUsuario.findAll({ where: { usuario_id: req.user.id }, attributes: ['departamento_id'] });
+          departamentosAsignados = asignaciones.map(a => a.departamento_id);
+        } catch (_) { departamentosAsignados = []; }
+
         const tramInclude = findOptions.include.find(i => i.model && i.model.name === 'Tramite');
         if (tramInclude) {
           tramInclude.required = true;
           tramInclude.where = { municipalidad_id: funcMuniId };
+          if (departamentosAsignados.length > 0) {
+            tramInclude.where.departamento_id = { [Op.in]: departamentosAsignados };
+          } else {
+            // Sin asignaciones: ver solo pagos de trámites propios
+            where.funcionario_id = req.user.id;
+          }
         }
       }
       const rows = await Pago.findAll(findOptions);

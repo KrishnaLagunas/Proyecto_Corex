@@ -70,12 +70,13 @@ const tramiteSchemas = {
    */
   createTramite: Joi.object({
     titulo: Joi.string().min(3).max(100).required().messages(customMessages),
-    tipo: Joi.string().valid('licencia', 'permiso', 'certificado', 'registro', 'solicitud', 'reclamo', 'otro').required().messages(customMessages),
+    tipo: Joi.string().min(3).max(200).required().messages(customMessages),
     descripcion: Joi.string().min(3).max(1000).required().messages(customMessages),
     prioridad: Joi.string().valid('baja', 'media', 'alta', 'urgente').default('media').messages(customMessages),
     requiere_pago: Joi.boolean().default(false).messages(customMessages),
     monto: Joi.number().min(0).allow(null).default(0).messages(customMessages),
     ciudadano_id: Joi.number().integer().positive().messages(customMessages),
+    departamento_id: Joi.number().integer().positive().required().messages(customMessages),
     municipalidad_id: Joi.number().integer().positive().required().messages(customMessages)
   }),
 

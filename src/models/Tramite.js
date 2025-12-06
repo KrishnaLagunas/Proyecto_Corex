@@ -25,14 +25,7 @@ const Tramite = sequelize.define('Tramite', {
     allowNull: true
   },
   tipo: {
-    type: DataTypes.ENUM(
-      'certificado', 
-      'permiso', 
-      'licencia', 
-      'reclamo', 
-      'solicitud', 
-      'otro'
-    ),
+    type: DataTypes.STRING(200),
     allowNull: false
   },
   estado: {
@@ -103,6 +96,14 @@ const Tramite = sequelize.define('Tramite', {
       key: 'id'
     }
   },
+  departamento_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'departamentos',
+      key: 'id_departamento'
+    }
+  },
   municipalidad_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
@@ -135,37 +136,55 @@ const Tramite = sequelize.define('Tramite', {
   }
 });
 
-// Método para generar un código único para el trámite
-Tramite.generateCodigo = async function(tipo) {
-  const fecha = new Date();
-  const año = fecha.getFullYear().toString().substr(-2);
-  const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
-  
-  // Obtener el prefijo según el tipo de trámite
-  let prefijo = '';
-  switch (tipo) {
-    case 'certificado': prefijo = 'CERT'; break;
-    case 'permiso': prefijo = 'PERM'; break;
-    case 'licencia': prefijo = 'LIC'; break;
-    case 'reclamo': prefijo = 'REC'; break;
-    case 'solicitud': prefijo = 'SOL'; break;
-    default: prefijo = 'TRM';
-  }
-  
-  // Contar trámites del mismo tipo en el mes actual
-  const count = await this.count({
-    where: {
-      tipo,
-      fecha_solicitud: {
-        [Op.gte]: new Date(fecha.getFullYear(), fecha.getMonth(), 1),
-        [Op.lt]: new Date(fecha.getFullYear(), fecha.getMonth() + 1, 1)
+  // Método para generar un código único para el trámite
+  Tramite.generateCodigo = async function(tipo) {
+    const fecha = new Date();
+    const año = fecha.getFullYear().toString().substr(-2);
+    const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
+    
+    // Obtener el prefijo según el tipo de trámite
+    const nombre = String(tipo || '').toLowerCase();
+    const tiposCert = ['certificado de construcción de obras'];
+    const tiposPerm = ['permiso de circulación.', 'permiso de circulación', 'regularización de viviendas'];
+    const tiposLic = ['rectificación de datos o errores en licencias.', 'rectificación de datos o errores en licencias'];
+    const tiposRecl = ['denuncias por obras ilegales', 'reclamos por centro de salud', 'reclamos y revisiones de casos de convivencia escolar'];
+    const tiposSol = [
+      'solicitudes de becas municipales',
+      'solicitud de traslado de establecimiento',
+      'solicitud de cambio de consultorio',
+      'solicitud de inscripción de consultorio',
+      'solicitud de ayuda técnica',
+      'solicitud de rondas preventivas',
+      'instalación de cámaras o alarmas comunitarias',
+      'charlas de seguridad'
+    ];
+    let prefijo = 'TRM';
+    if (tiposCert.includes(nombre)) prefijo = 'CERT';
+    else if (tiposPerm.includes(nombre)) prefijo = 'PERM';
+    else if (tiposLic.includes(nombre)) prefijo = 'LIC';
+    else if (tiposRecl.includes(nombre)) prefijo = 'REC';
+    else if (tiposSol.includes(nombre)) prefijo = 'SOL';
+    
+    // Contar trámites del mismo tipo en el mes actual
+    const nombresGrupo = [nombre];
+    if (prefijo === 'CERT') nombresGrupo.push(...tiposCert);
+    else if (prefijo === 'PERM') nombresGrupo.push(...tiposPerm);
+    else if (prefijo === 'LIC') nombresGrupo.push(...tiposLic);
+    else if (prefijo === 'REC') nombresGrupo.push(...tiposRecl);
+    else if (prefijo === 'SOL') nombresGrupo.push(...tiposSol);
+    const count = await this.count({
+      where: {
+        tipo: { [Op.in]: Array.from(new Set(nombresGrupo)) },
+        fecha_solicitud: {
+          [Op.gte]: new Date(fecha.getFullYear(), fecha.getMonth(), 1),
+          [Op.lt]: new Date(fecha.getFullYear(), fecha.getMonth() + 1, 1)
+        }
       }
-    }
-  });
-  
-  // Generar código con formato: TIPO-AÑO-MES-NÚMERO
-  const numero = (count + 1).toString().padStart(4, '0');
-  return `${prefijo}-${año}${mes}-${numero}`;
-};
+    });
+    
+    // Generar código con formato: TIPO-AÑO-MES-NÚMERO
+    const numero = (count + 1).toString().padStart(4, '0');
+    return `${prefijo}-${año}${mes}-${numero}`;
+  };
 
 module.exports = Tramite;

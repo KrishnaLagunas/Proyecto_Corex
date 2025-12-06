@@ -1310,25 +1310,14 @@ function mostrarCargando(mostrar) {
 // Funciones para gestionar trámites en localStorage y en la API
 async function guardarTramite(tramite) {
     try {
-        // Guardar en localStorage (mantener funcionalidad actual)
-        const tramites = obtenerTramites();
-        tramites.push(tramite);
-        localStorage.setItem('tramites', JSON.stringify(tramites));
-        
-        // Intentar guardar en la base de datos
-        try {
-            const response = await fetchAPI('/tramites', {
-                method: 'POST',
-                body: tramite
-            });
-            console.log('Trámite guardado en la base de datos:', response);
-            return true;
-        } catch (error) {
-            console.warn('No se pudo guardar el trámite en la base de datos, pero se guardó en localStorage:', error);
-            return true; // Seguimos considerando exitoso el guardado porque está en localStorage
-        }
+        const response = await fetchAPI('/tramites', {
+            method: 'POST',
+            body: tramite
+        });
+        console.log('Trámite guardado en la base de datos:', response);
+        return true;
     } catch (error) {
-        console.error('Error al guardar el trámite:', error);
+        console.warn('No se pudo guardar el trámite en la base de datos:', error);
         throw error;
     }
 }
@@ -1357,11 +1346,20 @@ function obtenerTramitesUsuario(usuarioId) {
 async function obtenerTramitesUsuarioAPI(usuarioId) {
     try {
         const res = await fetchAPI(`/tramites?ciudadanoId=${usuarioId}`);
-        const lista = Array.isArray(res?.tramites) ? res.tramites : (Array.isArray(res) ? res : []);
-        return lista;
+        const apiLista = Array.isArray(res?.tramites) ? res.tramites : (Array.isArray(res) ? res : []);
+        const localLista = obtenerTramitesUsuario(usuarioId);
+        const porClave = new Map();
+        const claveDe = (t) => (t && (t.codigo || t.id)) || undefined;
+        apiLista.forEach(t => { const k = claveDe(t); if (k) porClave.set(String(k), t); });
+        localLista.forEach(t => { const k = claveDe(t); if (!k) return; if (!porClave.has(String(k))) porClave.set(String(k), t); });
+        const combinada = Array.from(porClave.values());
+        combinada.sort((a, b) => new Date(b.fecha_solicitud) - new Date(a.fecha_solicitud));
+        return combinada;
     } catch (error) {
         console.warn('No se pudieron obtener los trámites del usuario de la API, usando localStorage:', error);
-        return obtenerTramitesUsuario(usuarioId);
+        const localLista = obtenerTramitesUsuario(usuarioId);
+        localLista.sort((a, b) => new Date(b.fecha_solicitud) - new Date(a.fecha_solicitud));
+        return localLista;
     }
 }
 
@@ -1500,14 +1498,24 @@ function cargarFormularioNuevoTramite(usuario) {
                             <div class="card-body">
                                 <div id="form-container">
                                     <div class="mb-3">
+                                        <label for="municipalidad-tramite" class="form-label">Municipalidad</label>
+                                        <small class="text-muted">Paso 1: seleccione la municipalidad</small>
+                                        <select class="form-select" id="municipalidad-tramite">
+                                            <option value="">Seleccione una municipalidad</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="departamento-tramite" class="form-label">Departamento</label>
+                                        <small class="text-muted">Paso 2: seleccione el departamento</small>
+                                        <select class="form-select" id="departamento-tramite" disabled>
+                                            <option value="">Seleccione un departamento</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
                                         <label for="tipo-tramite" class="form-label">Tipo de Trámite</label>
-                                        <select class="form-select" id="tipo-tramite">
-                                            <option value="">Seleccione un tipo de trámite</option>
-                                            <option value="certificado">Certificado de Residencia</option>
-                                            <option value="permiso">Permiso de Construcción</option>
-                                            <option value="licencia">Licencia de Conducir</option>
-                                            <option value="reclamo">Reclamo Municipal</option>
-                                            <option value="solicitud">Solicitud de Información</option>
+                                        <small class="text-muted">Paso 3: seleccione el trámite</small>
+                                        <select class="form-select" id="tipo-tramite" disabled>
+                                            <option value="">Seleccione un trámite</option>
                                         </select>
                                     </div>
                                     <div class="mb-3">
@@ -1517,12 +1525,6 @@ function cargarFormularioNuevoTramite(usuario) {
                                     <div class="mb-3">
                                         <label for="descripcion-tramite" class="form-label">Descripción</label>
                                         <textarea class="form-control" id="descripcion-tramite" rows="4"></textarea>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label for="departamento-tramite" class="form-label">Departamento</label>
-                                        <select class="form-select" id="departamento-tramite">
-                                            <option value="">Seleccione un departamento</option>
-                                        </select>
                                     </div>
                                     <div class="mb-3">
                                         <label for="documentos-tramite" class="form-label">Documentos Adjuntos</label>
@@ -1575,7 +1577,7 @@ function cargarFormularioNuevoTramite(usuario) {
                     departamentos.forEach(dep => {
                         const opt = document.createElement('option');
                         opt.value = dep.id;
-                        opt.textContent = dep.nombre;
+                        opt.textContent = dep.nombre || dep.nombre_departamento || '';
                         selectDepartamento.appendChild(opt);
                     });
 
@@ -1586,6 +1588,139 @@ function cargarFormularioNuevoTramite(usuario) {
                     console.error('Error al cargar departamentos:', error);
                 }
             })();
+
+            // Cargar municipalidades dinámicamente desde la API
+            (async () => {
+                try {
+                    const selectMunicipalidad = document.getElementById('municipalidad-tramite');
+                    const respM = await fetchAPI('/municipalidades?limit=100');
+                    const municipalidades = Array.isArray(respM)
+                        ? respM
+                        : (respM?.departamentos || respM?.data || []);
+
+                    selectMunicipalidad.innerHTML = '<option value="">Seleccione una municipalidad</option>';
+                    municipalidades.forEach(m => {
+                        const opt = document.createElement('option');
+                        opt.value = m.id;
+                        opt.textContent = m.nombre;
+                        selectMunicipalidad.appendChild(opt);
+                    });
+
+                    if (!municipalidades.length) {
+                        console.warn('No hay municipalidades disponibles.');
+                    }
+                } catch (error) {
+                    console.error('Error al cargar municipalidades:', error);
+                }
+            })();
+
+            const TRAMITES_POR_DEPTO = {
+                educacion: [
+                    { nombre: 'Solicitudes de becas municipales', tipo: 'solicitud' },
+                    { nombre: 'Solicitud de traslado de establecimiento', tipo: 'solicitud' },
+                    { nombre: 'Reclamos y revisiones de casos de convivencia escolar', tipo: 'reclamo' }
+                ],
+                salud: [
+                    { nombre: 'Solicitud de cambio de consultorio', tipo: 'solicitud' },
+                    { nombre: 'Solicitud de Inscripción de consultorio', tipo: 'solicitud' },
+                    { nombre: 'Solicitud de ayuda técnica', tipo: 'solicitud' },
+                    { nombre: 'Reclamos por centro de salud', tipo: 'reclamo' }
+                ],
+                obras: [
+                    { nombre: 'certificado de construcción de obras', tipo: 'certificado' },
+                    { nombre: 'Regularización de viviendas', tipo: 'permiso' },
+                    { nombre: 'Denuncias por obras ilegales', tipo: 'reclamo' }
+                ],
+                seguridad: [
+                    { nombre: 'Solicitud de rondas preventivas', tipo: 'solicitud' },
+                    { nombre: 'Instalación de cámaras o alarmas comunitarias', tipo: 'solicitud' },
+                    { nombre: 'Charlas de seguridad', tipo: 'solicitud' }
+                ],
+                transito: [
+                    { nombre: 'Rectificación de datos o errores en licencias', tipo: 'licencia' },
+                    { nombre: 'Permiso de circulación', tipo: 'permiso' }
+                ]
+            };
+
+            function normalizar(s) { return String(s || '').toLowerCase(); }
+            function claveDepto(nombre) {
+                const n = normalizar(nombre);
+                if (n.includes('educac')) return 'educacion';
+                if (n.includes('salud')) return 'salud';
+                if (n.includes('obra')) return 'obras';
+                if (n.includes('seguridad')) return 'seguridad';
+                if (n.includes('tránsito') || n.includes('transito') || n.includes('transporte')) return 'transito';
+                return null;
+            }
+            const PRECIOS = {
+                'Solicitudes de becas municipales': 0,
+                'Solicitud de traslado de establecimiento': 0,
+                'Reclamos y revisiones de casos de convivencia escolar': 0,
+                'Solicitud de cambio de consultorio': 0,
+                'Solicitud de Inscripción de consultorio': 0,
+                'Solicitud de ayuda técnica': 1000,
+                'Reclamos por centro de salud': 0,
+                'certificado de construcción de obras': 500000,
+                'Regularización de viviendas': 200000,
+                'Denuncias por obras ilegales': 0,
+                'Solicitud de rondas preventivas': 0,
+                'Instalación de cámaras o alarmas comunitarias': 20000,
+                'Charlas de seguridad': 0,
+                'Rectificación de datos o errores en licencias': 3000,
+                'Permiso de circulación': 25000
+            };
+            function formatoPrecio(v) {
+                if (!v || v === 0) return 'GRATUITO';
+                return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v);
+            }
+            function poblarTipoTramitePorDepartamento() {
+                const selectTipo = document.getElementById('tipo-tramite');
+                const selectDepartamento = document.getElementById('departamento-tramite');
+                const selectedOpt = selectDepartamento.options[selectDepartamento.selectedIndex];
+                const nombreDepto = selectedOpt ? (selectedOpt.textContent || '') : '';
+                const clave = claveDepto(nombreDepto);
+                selectTipo.innerHTML = '<option value="">Seleccione un trámite</option>';
+                if (!clave || !TRAMITES_POR_DEPTO[clave]) return;
+                TRAMITES_POR_DEPTO[clave].forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.nombre;
+                    const precio = PRECIOS[t.nombre] ?? 0;
+                    opt.textContent = `${t.nombre} — ${formatoPrecio(precio)}`;
+                    opt.dataset.tipo = t.tipo;
+                    opt.dataset.precio = String(precio);
+                    selectTipo.appendChild(opt);
+                });
+            }
+            function aplicarTituloPorTipo() {
+                const selectTipo = document.getElementById('tipo-tramite');
+                const tituloInput = document.getElementById('titulo-tramite');
+                const selOpt = selectTipo.options[selectTipo.selectedIndex];
+                if (selOpt && !tituloInput.value) tituloInput.value = selOpt.value;
+            }
+            const muniSelect = document.getElementById('municipalidad-tramite');
+            const depSelect = document.getElementById('departamento-tramite');
+            const tipoSelect = document.getElementById('tipo-tramite');
+
+            depSelect.disabled = true;
+            tipoSelect.disabled = true;
+
+            if (muniSelect) {
+                muniSelect.addEventListener('change', () => {
+                    const hasMuni = !!muniSelect.value;
+                    depSelect.disabled = !hasMuni;
+                    if (!hasMuni) {
+                        depSelect.value = '';
+                        tipoSelect.disabled = true;
+                        tipoSelect.innerHTML = '<option value="">Seleccione un trámite</option>';
+                    }
+                });
+            }
+
+            depSelect.addEventListener('change', () => {
+                poblarTipoTramitePorDepartamento();
+                tipoSelect.disabled = !depSelect.value;
+            });
+            tipoSelect.addEventListener('change', aplicarTituloPorTipo);
         }, 100);
     }
 }
@@ -1596,13 +1731,14 @@ async function enviarNuevoTramite(usuario) {
     mostrarCargando(true);
     
     // Obtener valores del formulario
-    const tipo = document.getElementById('tipo-tramite').value;
+    const tipoNombre = document.getElementById('tipo-tramite').value;
     const titulo = document.getElementById('titulo-tramite').value;
     const descripcion = document.getElementById('descripcion-tramite').value;
     const departamentoId = document.getElementById('departamento-tramite').value;
+    const municipalidadId = document.getElementById('municipalidad-tramite').value;
     
     // Validar que todos los campos requeridos estén completos
-    if (!tipo || !titulo || !descripcion || !departamentoId) {
+    if (!tipoNombre || !titulo || !descripcion || !departamentoId || !municipalidadId) {
         mostrarCargando(false);
         mostrarNotificacion('Por favor, complete todos los campos requeridos.', 'warning');
         return;
@@ -1612,18 +1748,19 @@ async function enviarNuevoTramite(usuario) {
         // Crear objeto de trámite
         const nuevoTramite = {
             id: Date.now().toString(), // Usar timestamp como ID único
-            codigo: generarCodigoTramite(tipo),
+            codigo: generarCodigoTramite(tipoNombre),
             titulo: titulo,
             descripcion: descripcion,
-            tipo: tipo,
+            tipo: tipoNombre,
             estado: 'pendiente',
             fecha_inicio: new Date().toISOString(), // Cambiar de fecha_solicitud a fecha_inicio
             fecha_solicitud: new Date().toISOString(), // Mantener para compatibilidad con localStorage
-            departamento_id: departamentoId,
+            departamento_id: parseInt(departamentoId, 10),
+            municipalidad_id: parseInt(municipalidadId, 10),
             ciudadano_id: usuario.id,
             funcionario_id: null,
-            requiere_pago: tipo === 'licencia' || tipo === 'permiso',
-            monto: tipo === 'licencia' ? 15000 : (tipo === 'permiso' ? 25000 : 0),
+            requiere_pago: false,
+            monto: 0,
             pago_completado: false,
             prioridad: 'media' // Agregar prioridad por defecto
         };
@@ -1694,15 +1831,27 @@ async function enviarNuevoTramite(usuario) {
 
 // Función para generar un código de trámite
 function generarCodigoTramite(tipo) {
-    const prefijos = {
-        'certificado': 'CERT',
-        'permiso': 'PERM',
-        'licencia': 'LIC',
-        'reclamo': 'REC',
-        'solicitud': 'SOL'
-    };
-    
-    const prefijo = prefijos[tipo] || 'TRAM';
+    const nombre = String(tipo || '').toLowerCase();
+    const tiposCert = ['certificado de construcción de obras'];
+    const tiposPerm = ['permiso de circulación.', 'permiso de circulación', 'regularización de viviendas'];
+    const tiposLic = ['rectificación de datos o errores en licencias.', 'rectificación de datos o errores en licencias'];
+    const tiposRecl = ['denuncias por obras ilegales', 'reclamos por centro de salud', 'reclamos y revisiones de casos de convivencia escolar'];
+    const tiposSol = [
+      'solicitudes de becas municipales',
+      'solicitud de traslado de establecimiento',
+      'solicitud de cambio de consultorio',
+      'solicitud de inscripción de consultorio',
+      'solicitud de ayuda técnica',
+      'solicitud de rondas preventivas',
+      'instalación de cámaras o alarmas comunitarias',
+      'charlas de seguridad'
+    ];
+    let prefijo = 'TRM';
+    if (tiposCert.includes(nombre)) prefijo = 'CERT';
+    else if (tiposPerm.includes(nombre)) prefijo = 'PERM';
+    else if (tiposLic.includes(nombre)) prefijo = 'LIC';
+    else if (tiposRecl.includes(nombre)) prefijo = 'REC';
+    else if (tiposSol.includes(nombre)) prefijo = 'SOL';
     const fecha = new Date();
     const año = fecha.getFullYear().toString().substr(-2);
     const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
@@ -1887,9 +2036,14 @@ async function cargarMisPagos(usuario) {
                         </nav>
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h2 class="mb-0">Mis Pagos</h2>
-                            <button id="btn-ver-pagos-realizados" class="btn btn-outline-success">
-                                <i class="bi bi-check2-circle"></i> Pagos realizados
-                            </button>
+                            <div class="d-flex gap-2">
+                                <button id="btn-volver-portal" class="btn btn-outline-secondary">
+                                    <i class="bi bi-arrow-left"></i> Volver al Portal
+                                </button>
+                                <button id="btn-ver-pagos-realizados" class="btn btn-outline-success">
+                                    <i class="bi bi-check2-circle"></i> Pagos realizados
+                                </button>
+                            </div>
                         </div>
                         <div id="contenedor-pagos"></div>
                     </div>
@@ -2054,6 +2208,13 @@ async function cargarMisPagos(usuario) {
         const volverPortal = document.getElementById('volver-portal');
         if (volverPortal) {
             volverPortal.addEventListener('click', (e) => {
+                e.preventDefault();
+                cargarPortalCiudadano(usuario);
+            });
+        }
+        const btnVolverPortal = document.getElementById('btn-volver-portal');
+        if (btnVolverPortal) {
+            btnVolverPortal.addEventListener('click', (e) => {
                 e.preventDefault();
                 cargarPortalCiudadano(usuario);
             });
@@ -2662,11 +2823,27 @@ async function mostrarDetalleTramiteModal(tramiteId) {
         loader.classList.remove('d-none');
         modal.show();
 
-        const tramite = await fetchAPI(`/tramites/${tramiteId}`);
+        let tramite;
+        let esLocalFallback = false;
+        try {
+            tramite = await fetchAPI(`/tramites/${tramiteId}`, { suppressErrorLog: true });
+        } catch (e) {
+            try {
+                const locales = obtenerTramites();
+                tramite = locales.find(t => String(t.id) === String(tramiteId));
+                esLocalFallback = !!tramite;
+            } catch (_) {
+                tramite = null;
+            }
+        }
+
+        if (!tramite) {
+            throw new Error('Trámite no disponible');
+        }
 
         const badgeEstado = `<span class="badge estado-${tramite.estado}">${tramite.estado}</span>`;
         const fechaSol = formatearFecha(tramite.fecha_solicitud);
-        const fechaAct = formatearFecha(tramite.fecha_actualizacion);
+        const fechaAct = formatearFecha(tramite.fecha_actualizacion || tramite.fecha_solicitud);
 
         contenido.innerHTML = `
       <div class="row g-3">
@@ -2686,7 +2863,7 @@ async function mostrarDetalleTramiteModal(tramiteId) {
         </div>
         <div class="col-md-6">
           <div class="small text-muted">Departamento</div>
-          <div class="fw-semibold">${tramite.Departamento?.nombre || tramite.departamento?.nombre || '-'}</div>
+          <div class="fw-semibold">${tramite.Departamento?.nombre || tramite.departamento?.nombre || (tramite.departamento_id ? `ID ${tramite.departamento_id}` : '-')}</div>
         </div>
         <div class="col-md-6">
           <div class="small text-muted">Fecha de solicitud</div>
@@ -2715,9 +2892,9 @@ async function mostrarDetalleTramiteModal(tramiteId) {
         if (btnVerCompleto) {
             btnVerCompleto.onclick = () => {
                 try {
-                    if (typeof verDetalleTramiteCiudadano === 'function') {
+                    if (!esLocalFallback && typeof verDetalleTramiteCiudadano === 'function') {
                         verDetalleTramiteCiudadano(tramiteId);
-                    } else if (typeof verDetalleTramite === 'function') {
+                    } else if (!esLocalFallback && typeof verDetalleTramite === 'function') {
                         verDetalleTramite(tramiteId);
                     } else if (typeof cargarMisTramites === 'function') {
                         const usuario = obtenerUsuario();

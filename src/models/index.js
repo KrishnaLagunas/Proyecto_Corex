@@ -15,6 +15,7 @@ const Pago = require('./Pago');
 const ConfiguracionPago = require('./ConfiguracionPago');
 const Rol = require('./Rol');
 const Departamento = require('./Departamento');
+const DepartamentoUsuario = require('./DepartamentoUsuario');
 
 // Definir relaciones entre modelos
 
@@ -50,6 +51,8 @@ Municipalidad.hasMany(Tramite, { foreignKey: 'municipalidad_id' });
 Tramite.belongsTo(Usuario, { as: 'ciudadano', foreignKey: 'ciudadano_id' });
 Tramite.belongsTo(Usuario, { as: 'funcionario', foreignKey: 'funcionario_id' });
 Tramite.belongsTo(Municipalidad, { foreignKey: 'municipalidad_id' });
+Tramite.belongsTo(Departamento, { foreignKey: 'departamento_id' });
+Departamento.hasMany(Tramite, { foreignKey: 'departamento_id' });
 Tramite.hasMany(Documento, { foreignKey: 'tramite_id' });
 Tramite.hasMany(Pago, { foreignKey: 'tramite_id' });
 
@@ -76,5 +79,6 @@ module.exports = {
   // Proyecto,
   ConfiguracionPago,
   Rol,
-  Departamento
+  Departamento,
+  DepartamentoUsuario
 };
