@@ -738,7 +738,8 @@ async function descargarConstanciaTramite(tramiteId) {
     try {
         mostrarCargando(true);
         const response = await fetchAPI(`/tramites/${tramiteId}/constancia`, {
-            responseType: 'blob'
+            responseType: 'blob',
+            headers: { Accept: 'application/pdf' }
         });
         const url = window.URL.createObjectURL(new Blob([response]));
         const link = document.createElement('a');
@@ -748,11 +749,218 @@ async function descargarConstanciaTramite(tramiteId) {
         link.click();
         document.body.removeChild(link);
     } catch (error) {
-        console.error('Error al descargar constancia:', error);
-        mostrarNotificacion('Error al descargar constancia: ' + error.message, 'danger');
+        try {
+            const locales = typeof obtenerTramites === 'function' ? obtenerTramites() : [];
+            const tramiteLocal = locales.find(t => String(t.id) === String(tramiteId));
+            if (!tramiteLocal) {
+                throw error;
+            }
+            if (tramiteLocal.requiere_pago && !tramiteLocal.pago_completado) {
+                mostrarNotificacion('Este trámite aún no tiene el pago completado.', 'warning');
+                return;
+            }
+            const sincronizado = await sincronizarTramiteLocal(tramiteLocal);
+            if (sincronizado && sincronizado.id) {
+                actualizarTramiteLocal(tramiteLocal.id, sincronizado);
+                try {
+                    const resp2 = await fetchAPI(`/tramites/${sincronizado.id}/constancia`, { responseType: 'blob', headers: { Accept: 'application/pdf' } });
+                    const url2 = window.URL.createObjectURL(new Blob([resp2]));
+                    const link2 = document.createElement('a');
+                    link2.href = url2;
+                    link2.setAttribute('download', `constancia_tramite_${sincronizado.id}.pdf`);
+                    document.body.appendChild(link2);
+                    link2.click();
+                    document.body.removeChild(link2);
+                    return;
+                } catch (_) { /* fallback abajo */ }
+            }
+            // Generar PDF descargable en backend con datos locales
+            const payload = await construirPayloadConstanciaLocal(tramiteLocal);
+            try {
+                const blob = await fetchAPI('/tramites/constancia/local', { method: 'POST', body: payload, responseType: 'blob', headers: { Accept: 'application/pdf' } });
+                const url3 = window.URL.createObjectURL(blob);
+                const link3 = document.createElement('a');
+                link3.href = url3;
+                link3.setAttribute('download', `constancia_tramite_${tramiteLocal.codigo || tramiteLocal.id}.pdf`);
+                document.body.appendChild(link3);
+                link3.click();
+                document.body.removeChild(link3);
+                return;
+            } catch (_) {
+                mostrarNotificacion('No se pudo generar un PDF descargable de la constancia.', 'danger');
+                return;
+            }
+        } catch (e2) {
+            mostrarNotificacion('Error al descargar constancia: ' + (error && error.message ? error.message : 'Intenta nuevamente'), 'danger');
+        }
     } finally {
         mostrarCargando(false);
     }
+}
+
+async function generarConstanciaLocal(tramite) {
+    let usuario = typeof obtenerUsuario === 'function' ? obtenerUsuario() : null;
+    try {
+        const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
+        if (perfil) {
+            usuario = {
+                ...usuario,
+                ...perfil,
+                municipalidad_id: perfil.municipalidad_id ?? usuario?.municipalidad_id,
+                municipalidad_nombre: perfil.municipalidad_nombre || perfil.Municipalidad?.nombre || usuario?.municipalidad_nombre
+            };
+        }
+    } catch (_) {}
+    const fechaEmision = new Date();
+    const codigo = tramite.codigo || `T-${tramite.id}`;
+    const estado = String(tramite.estado || '').toUpperCase();
+    const titulo = tramite.titulo || 'Trámite';
+    const tipo = typeof obtenerNombreTipoTramite === 'function' ? obtenerNombreTipoTramite(tramite.tipo) : (tramite.tipo || '—');
+    let nombreDepartamento = (tramite.Departamento && tramite.Departamento.nombre) || (tramite.departamento && tramite.departamento.nombre) || '';
+    if (!nombreDepartamento && tramite.departamento_id) {
+        try {
+            const dep = await fetchAPI(`/departamentos/${tramite.departamento_id}`, { suppressErrorLog: true });
+            nombreDepartamento = dep?.nombre || dep?.nombre_departamento || '';
+        } catch (_) {}
+    }
+    const nombreMunicipalidad = usuario?.municipalidad_nombre || '';
+    const requierePago = !!tramite.requiere_pago;
+    const monto = parseFloat(tramite.monto || 0);
+    const pagoCompletado = !!tramite.pago_completado;
+    const ciudadanoNombre = usuario ? `${usuario.nombre || ''} ${usuario.apellido || ''}`.trim() : '';
+    const ciudadanoRut = (usuario && usuario.rut) ? usuario.rut : (tramite.ciudadano && tramite.ciudadano.rut ? tramite.ciudadano.rut : '');
+    const ciudadanoEmail = (usuario && usuario.email) ? usuario.email : (tramite.ciudadano && tramite.ciudadano.email ? tramite.ciudadano.email : '');
+    const ciudadanoDireccion = (usuario && usuario.direccion) ? usuario.direccion : (tramite.ciudadano && tramite.ciudadano.direccion ? tramite.ciudadano.direccion : '');
+    const fechaSol = tramite.fecha_solicitud ? (typeof formatearFecha === 'function' ? formatearFecha(tramite.fecha_solicitud) : new Date(tramite.fecha_solicitud).toLocaleDateString('es-CL')) : '';
+    const fechaAct = tramite.fecha_actualizacion ? (typeof formatearFecha === 'function' ? formatearFecha(tramite.fecha_actualizacion) : new Date(tramite.fecha_actualizacion).toLocaleDateString('es-CL')) : fechaSol;
+    const montoFmt = typeof formatearMoneda === 'function' ? formatearMoneda(monto) : (monto ? `$${monto.toLocaleString('es-CL')}` : 'Gratis');
+    const hoyFmt = fechaEmision.toLocaleDateString('es-CL');
+    const estilos = `
+      <style>
+        body { font-family: Arial, sans-serif; color: #111; }
+        .doc { max-width: 850px; margin: 0 auto; padding: 24px; }
+        .hdr { text-align: center; margin-bottom: 12px; }
+        .title { font-size: 20px; font-weight: 700; }
+        .subtitle { font-size: 15px; font-weight: 600; }
+        .section { margin-top: 12px; }
+        .label { color: #666; font-size: 12px; }
+        .value { font-size: 13px; font-weight: 600; }
+        hr { border: 0; border-top: 1px solid #ddd; margin: 10px 0; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+        .foot { margin-top: 24px; font-size: 11px; color: #444; }
+        @page { size: A4; margin: 20mm; }
+      </style>
+    `;
+    const html = `
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Constancia de Trámite ${codigo}</title>
+          ${estilos}
+        </head>
+        <body>
+          <div class="doc">
+            <div class="hdr">
+              <div class="title">${nombreMunicipalidad || 'MUNICIPALIDAD'}</div>
+              <div class="subtitle">CONSTANCIA / BOLETA DE TRÁMITE</div>
+            </div>
+            <div class="section grid">
+              <div><div class="label">Código de Trámite</div><div class="value">${codigo}</div></div>
+              <div><div class="label">Fecha de emisión</div><div class="value">${hoyFmt}</div></div>
+              <div><div class="label">Estado</div><div class="value">${estado || '—'}</div></div>
+              <div><div class="label">Solicitud</div><div class="value">${fechaSol || '—'}</div></div>
+              <div><div class="label">Actualización</div><div class="value">${fechaAct || '—'}</div></div>
+            </div>
+            <hr />
+            <div class="section">
+              <div class="subtitle">Detalle del Trámite</div>
+              <div class="grid">
+                <div><div class="label">Título</div><div class="value">${titulo}</div></div>
+                <div><div class="label">Tipo</div><div class="value">${tipo}</div></div>
+                <div><div class="label">Departamento</div><div class="value">${nombreDepartamento || '—'}</div></div>
+                <div><div class="label">Municipalidad</div><div class="value">${nombreMunicipalidad || '—'}</div></div>
+              </div>
+            </div>
+            <hr />
+            <div class="section">
+              <div class="subtitle">Datos del Ciudadano</div>
+              <div class="grid">
+                <div><div class="label">Nombre</div><div class="value">${ciudadanoNombre || '—'}</div></div>
+                <div><div class="label">RUT</div><div class="value">${ciudadanoRut || '—'}</div></div>
+                <div><div class="label">Dirección</div><div class="value">${ciudadanoDireccion || '—'}</div></div>
+                <div><div class="label">Email</div><div class="value">${ciudadanoEmail || '—'}</div></div>
+              </div>
+            </div>
+            <hr />
+            <div class="section">
+              <div class="subtitle">Información de Pago</div>
+              <div class="grid">
+                <div><div class="label">Requiere pago</div><div class="value">${requierePago ? 'Sí' : 'No'}</div></div>
+                <div><div class="label">Monto</div><div class="value">${montoFmt}</div></div>
+                <div><div class="label">Pago completado</div><div class="value">${pagoCompletado ? 'Sí' : 'No'}</div></div>
+              </div>
+            </div>
+            <div class="foot">
+              Emitido y autorizado por la municipalidad correspondiente. Este documento es una constancia oficial del trámite realizado por el ciudadano.
+            </div>
+          </div>
+          <script>window.print && window.print();</script>
+        </body>
+      </html>
+    `;
+    return html;
+}
+
+function imprimirHTML(html) {
+    const w = window.open('', 'print', 'height=700,width=900');
+    if (!w) return;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => { try { w.close(); } catch (_) {} }, 1500);
+}
+
+async function sincronizarTramiteLocal(tramiteLocal) {
+    try {
+        const usuario = typeof obtenerUsuario === 'function' ? obtenerUsuario() : null;
+        const body = {
+            titulo: tramiteLocal.titulo || 'Trámite',
+            descripcion: tramiteLocal.descripcion || '—',
+            tipo: tramiteLocal.tipo || 'solicitud',
+            prioridad: tramiteLocal.prioridad || 'media',
+            requiere_pago: !!tramiteLocal.requiere_pago,
+            monto: Number(tramiteLocal.monto || 0),
+            departamento_id: tramiteLocal.departamento_id,
+            municipalidad_id: tramiteLocal.municipalidad_id || (usuario && usuario.municipalidad_id) || undefined
+        };
+        const res = await fetchAPI('/tramites', { method: 'POST', body });
+        const creado = res?.tramite || res;
+        return creado || null;
+    } catch (_) {
+        return null;
+    }
+}
+
+function actualizarTramiteLocal(oldId, backendTramite) {
+    try {
+        const arr = typeof obtenerTramites === 'function' ? obtenerTramites() : [];
+        const idx = arr.findIndex(t => String(t.id) === String(oldId));
+        if (idx === -1) return;
+        const prev = arr[idx];
+        const next = {
+            ...prev,
+            id: backendTramite.id,
+            codigo: backendTramite.codigo,
+            requiere_pago: !!backendTramite.requiere_pago,
+            monto: Number(backendTramite.monto || prev.monto || 0),
+            fecha_solicitud: backendTramite.fecha_solicitud || prev.fecha_solicitud,
+            municipalidad_id: backendTramite.municipalidad_id || prev.municipalidad_id,
+            departamento_id: backendTramite.departamento_id || prev.departamento_id
+        };
+        arr[idx] = next;
+        try { localStorage.setItem('tramites', JSON.stringify(arr)); } catch (_) {}
+    } catch (_) {}
 }
 
 /**
@@ -805,3 +1013,36 @@ document.addEventListener('DOMContentLoaded', () => {
         cargarPagos();
     }
 });
+async function construirPayloadConstanciaLocal(tramite) {
+    let usuario = typeof obtenerUsuario === 'function' ? obtenerUsuario() : null;
+    try {
+        const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
+        if (perfil) {
+            usuario = { ...usuario, ...perfil, municipalidad_nombre: perfil.municipalidad_nombre || perfil.Municipalidad?.nombre || usuario?.municipalidad_nombre };
+        }
+    } catch (_) {}
+    let departamentoNombre = (tramite.Departamento && tramite.Departamento.nombre) || (tramite.departamento && tramite.departamento.nombre) || '';
+    if (!departamentoNombre && tramite.departamento_id) {
+        try {
+            const dep = await fetchAPI(`/departamentos/${tramite.departamento_id}`, { suppressErrorLog: true });
+            departamentoNombre = dep?.nombre || dep?.nombre_departamento || '';
+        } catch (_) {}
+    }
+    return {
+        codigo: tramite.codigo || `T-${tramite.id}`,
+        titulo: tramite.titulo || 'Trámite',
+        tipo: typeof obtenerNombreTipoTramite === 'function' ? obtenerNombreTipoTramite(tramite.tipo) : (tramite.tipo || '—'),
+        estado: tramite.estado || 'pendiente',
+        fecha_solicitud: tramite.fecha_solicitud || null,
+        fecha_actualizacion: tramite.fecha_actualizacion || null,
+        departamento_nombre: departamentoNombre,
+        municipalidad_nombre: usuario?.municipalidad_nombre || '',
+        ciudadano_nombre: usuario ? `${usuario.nombre || ''} ${usuario.apellido || ''}`.trim() : (tramite.ciudadano && `${tramite.ciudadano.nombre || ''} ${tramite.ciudadano.apellido || ''}`.trim()) || '',
+        ciudadano_rut: (usuario && usuario.rut) ? usuario.rut : (tramite.ciudadano && tramite.ciudadano.rut) || '',
+        ciudadano_direccion: (usuario && usuario.direccion) ? usuario.direccion : (tramite.ciudadano && tramite.ciudadano.direccion) || '',
+        ciudadano_email: (usuario && usuario.email) ? usuario.email : (tramite.ciudadano && tramite.ciudadano.email) || '',
+        requiere_pago: !!tramite.requiere_pago,
+        monto: Number(tramite.monto || 0),
+        pago_completado: !!tramite.pago_completado
+    };
+}

@@ -93,6 +93,11 @@ router.get('/:id/constancia',
   async (req, res, next) => { const c = await loadTramitesController(); return c.generateConstancia(req, res, next); }
 );
 
+// Constancia/boleta desde datos locales (PDF descargable)
+router.post('/constancia/local',
+  async (req, res, next) => { const c = await loadTramitesController(); return c.generateConstanciaLocal(req, res, next); }
+);
+
 // Rutas paramétricas al final para no captar rutas específicas como '/tipos'
 router.get('/:id', 
   isAuthenticated, 

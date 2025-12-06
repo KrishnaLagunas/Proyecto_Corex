@@ -1091,6 +1091,86 @@ tramitesController.generateConstancia = async (req, res, next) => {
     next(error);
   }
 };
+
+// Genera constancia/boleta a partir de datos enviados por el cliente (trámite local)
+tramitesController.generateConstanciaLocal = async (req, res, next) => {
+  try {
+    const {
+      codigo,
+      titulo,
+      tipo,
+      estado = 'pendiente',
+      fecha_solicitud,
+      fecha_actualizacion,
+      departamento_nombre,
+      municipalidad_nombre,
+      ciudadano_nombre,
+      ciudadano_rut,
+      ciudadano_direccion,
+      ciudadano_email,
+      requiere_pago = false,
+      monto = 0,
+      pago_completado = false
+    } = req.body || {};
+
+    if (requiere_pago && !pago_completado) {
+      throw new ApiError('Este trámite aún no tiene el pago completado', 400);
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    const filename = `constancia_${codigo || 'tramite'}.pdf`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    const doc = new PDFDocument({ margin: 50 });
+    doc.pipe(res);
+
+    // Encabezado
+    doc.fontSize(20).text(municipalidad_nombre || 'MUNICIPALIDAD', { align: 'center' });
+    doc.fontSize(16).text('CONSTANCIA / BOLETA DE TRÁMITE', { align: 'center' });
+    doc.moveDown();
+
+    // Información general
+    doc.fontSize(12).text(`Código de Trámite: ${codigo || '—'}`);
+    doc.text(`Fecha de emisión: ${new Date().toLocaleDateString('es-CL')}`);
+    doc.text(`Estado: ${(estado || '').toUpperCase()}`);
+    if (fecha_solicitud) doc.text(`Solicitud: ${new Date(fecha_solicitud).toLocaleDateString('es-CL')}`);
+    if (fecha_actualizacion) doc.text(`Actualización: ${new Date(fecha_actualizacion).toLocaleDateString('es-CL')}`);
+    doc.moveDown();
+
+    // Detalle del trámite
+    doc.fontSize(14).text('Detalle del Trámite', { underline: true });
+    doc.moveDown();
+    doc.fontSize(12).text(`Título: ${titulo || '—'}`);
+    doc.text(`Tipo: ${tipo || '—'}`);
+    doc.text(`Departamento: ${departamento_nombre || '—'}`);
+    doc.text(`Municipalidad: ${municipalidad_nombre || '—'}`);
+    doc.moveDown();
+
+    // Datos del ciudadano
+    doc.fontSize(14).text('Datos del Ciudadano', { underline: true });
+    doc.moveDown();
+    doc.fontSize(12).text(`Nombre: ${ciudadano_nombre || '—'}`);
+    doc.text(`RUT: ${ciudadano_rut || '—'}`);
+    doc.text(`Dirección: ${ciudadano_direccion || '—'}`);
+    doc.text(`Email: ${ciudadano_email || '—'}`);
+    doc.moveDown();
+
+    // Pago / Monto
+    doc.fontSize(14).text('Información de Pago', { underline: true });
+    doc.moveDown();
+    doc.fontSize(12).text(`Requiere pago: ${requiere_pago ? 'Sí' : 'No'}`);
+    doc.text(`Monto: ${Number(monto) > 0 ? `$${Number(monto).toLocaleString('es-CL')}` : 'Gratis'}`);
+    doc.text(`Pago completado: ${pago_completado ? 'Sí' : 'No'}`);
+    doc.moveDown();
+
+    // Pie
+    doc.fontSize(10).text('Emitido y autorizado por la municipalidad correspondiente. Este documento es una constancia oficial del trámite realizado por el ciudadano.', { align: 'left' });
+
+    doc.end();
+  } catch (error) {
+    next(error);
+  }
+};
       // Verificar que el departamento existe
       let departamentoValido = null;
       try {
