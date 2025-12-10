@@ -292,6 +292,57 @@
       </div>
     </div>
 
+    <div class="modal fade" id="perfilUsuarioModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Perfil de usuario</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-3 align-items-start mb-3">
+              <div class="col-md-3">
+                <div class="perfil-left d-flex flex-column align-items-center gap-3">
+                  <div class="user-avatar" id="perfil-modal-avatar" style="width:92px;height:92px;border-radius:50%;overflow:hidden;border:2px solid var(--primary-color);display:flex;align-items:center;justify-content:center;background:#eef2f7;">
+                    <i class="bi bi-person-circle" style="font-size:2.6rem;"></i>
+                  </div>
+                  <div class="w-100">
+                    <label class="form-label">Cambiar foto de perfil</label>
+                    <input type="file" id="perfil-modal-file" accept="image/*" class="d-none">
+                    <button type="button" class="btn btn-outline-primary w-100" id="perfil-modal-select">Seleccionar foto</button>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-9">
+                <div class="perfil-kv-group">
+                  <div class="perfil-kv mb-2">
+                  <div class="kv-label">Nombre de usuario</div>
+                  <div id="perfil-modal-nombre" class="kv-value"></div>
+                  </div>
+                  <div class="perfil-kv mb-2">
+                  <div class="kv-label">Correo</div>
+                  <div id="perfil-modal-email" class="kv-value"></div>
+                  </div>
+                  <div class="perfil-kv mb-2">
+                  <div class="kv-label">Rol</div>
+                  <div id="perfil-modal-rol" class="kv-value"></div>
+                  </div>
+                  <div class="perfil-kv mb-2">
+                  <div class="kv-label">Último acceso</div>
+                  <div id="perfil-modal-ultimo" class="kv-value"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            <button type="button" class="btn btn-primary" id="perfil-modal-guardar">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>

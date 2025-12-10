@@ -16,6 +16,7 @@ const ConfiguracionPago = require('./ConfiguracionPago');
 const Rol = require('./Rol');
 const Departamento = require('./Departamento');
 const DepartamentoUsuario = require('./DepartamentoUsuario');
+const PerfilUsuario = require('./PerfilUsuario');
 
 // Definir relaciones entre modelos
 
@@ -34,6 +35,8 @@ Usuario.belongsToMany(Municipalidad, {
   foreignKey: 'usuario_id', 
   otherKey: 'municipalidad_id' 
 });
+Usuario.hasOne(PerfilUsuario, { foreignKey: 'usuario_id' });
+PerfilUsuario.belongsTo(Usuario, { foreignKey: 'usuario_id' });
 
 // Relaciones de Municipalidad
 Municipalidad.hasMany(Usuario, { foreignKey: 'municipalidad_id' });
@@ -80,5 +83,6 @@ module.exports = {
   ConfiguracionPago,
   Rol,
   Departamento,
-  DepartamentoUsuario
+  DepartamentoUsuario,
+  PerfilUsuario
 };

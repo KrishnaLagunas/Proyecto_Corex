@@ -3,6 +3,9 @@ const router = express.Router();
 const usuariosController = require('../controllers/usuarios.controller');
 const authController = require('../controllers/auth.controller');
 const { isAuthenticated, hasRole } = require('../middlewares/auth.middleware');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const { validateSchema, validateParams, validateQuery } = require('../middlewares/validator.middleware');
 const { 
   idSchema,
@@ -125,6 +128,34 @@ router.get(
   '/perfil',
   isAuthenticated,
   authController.getProfile
+);
+
+function ensureDir(dirPath) { try { if (!fs.existsSync(dirPath)) { fs.mkdirSync(dirPath, { recursive: true }); } } catch (_) {} }
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, '../../uploads/avatars');
+    ensureDir(dir);
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const name = `user_${req.user.id}_${Date.now()}${ext}`;
+    cb(null, name);
+  }
+});
+const upload = multer({ storage });
+
+router.get(
+  '/perfil-usuario',
+  isAuthenticated,
+  usuariosController.getPerfilUsuario
+);
+
+router.post(
+  '/perfil-usuario/foto',
+  isAuthenticated,
+  upload.single('foto'),
+  usuariosController.subirFotoPerfil
 );
 
 module.exports = router;

@@ -90,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 apellido: perfil.apellido || '',
                 email: perfil.email,
                 role: roleFinal,
+                ultimo_login: perfil.ultimo_login || null,
                 municipalidad_id: perfil.municipalidad_id || (perfil.Municipalidad && perfil.Municipalidad.id) || null,
                 municipalidad_nombre: perfil.municipalidad_nombre || (perfil.Municipalidad && perfil.Municipalidad.nombre) || null
               };
@@ -403,41 +404,117 @@ async function redirigirSegunRol(usuario) {
     if (header) header.classList.add('d-none');
     if (footer) footer.classList.remove('d-none');
     
-    // Completar datos faltantes del admin (municipalidad)
     try {
         const esAdmin = String(usuario?.role || '').toLowerCase() === 'admin';
         const faltaMuni = esAdmin && (!usuario.municipalidad_nombre || !usuario.municipalidad_id);
-        if (faltaMuni) {
+        const faltaUltimoLogin = !usuario.ultimo_login;
+        if (faltaMuni || faltaUltimoLogin) {
             const perfil = await fetchAPI('/usuarios/perfil');
             if (perfil && perfil.id) {
                 usuario.municipalidad_id = perfil.municipalidad_id || (perfil.Municipalidad && perfil.Municipalidad.id) || usuario.municipalidad_id || null;
                 usuario.municipalidad_nombre = perfil.municipalidad_nombre || (perfil.Municipalidad && perfil.Municipalidad.nombre) || usuario.municipalidad_nombre || '';
+                usuario.ultimo_login = perfil.ultimo_login || usuario.ultimo_login || null;
                 try { localStorage.setItem('usuario', JSON.stringify(usuario)); } catch (_) {}
             }
         }
+        try {
+            const perfilFoto = await fetchAPI('/usuarios/perfil-usuario', { suppressErrorLog: true });
+            if (perfilFoto && perfilFoto.foto_url) {
+                usuario.foto_url = perfilFoto.foto_url;
+                try { localStorage.setItem('usuario', JSON.stringify(usuario)); } catch (_) {}
+                try { sessionStorage.setItem('usuario', JSON.stringify(usuario)); } catch (_) {}
+            }
+        } catch (_) {}
     } catch (_) {}
 
-    // Configurar información del usuario en la barra de navegación
     const userInfo = document.getElementById('user-info');
-    if (userInfo) {
-        userInfo.innerHTML = `
-            <div class="d-flex align-center gap-2 gap-md-4">
-                <div class="user-info-text">
-                    <div class="user-name">${usuario.nombre} ${usuario.apellido}</div>
-                    <div class="user-role">${obtenerNombreRol(usuario.role)}</div>
-                    <div class="user-email d-none d-md-block">${usuario.email}</div>
-                    ${usuario.role === 'admin' ? `<div class="user-muni d-none d-md-block">Municipalidad: ${usuario.municipalidad_nombre || ''}</div>` : ''}
-                </div>
-                <button id="btn-logout" class="btn btn-outline-light">
-                    <i class="bi bi-box-arrow-right"></i> Salir
-                </button>
+    if (userInfo) { userInfo.innerHTML = ''; }
+    const navActions = document.querySelector('#main-navbar .nav-actions');
+    if (navActions) {
+        const existing = document.getElementById('user-profile-block');
+        if (existing) existing.remove();
+        const perfilHTML = `
+            <div class="user-profile" id="user-profile-block" title="Ver perfil">
+                ${usuario.foto_url ? `
+                <div class="user-avatar" id="user-avatar">
+                    <img src="${usuario.foto_url}" alt="Foto de perfil">
+                </div>` : `
+                <div class="user-avatar" id="user-avatar">
+                    <i class="bi bi-person-circle"></i>
+                </div>`}
             </div>
         `;
-        
-        // Agregar evento al botón de logout
-        const btnLogout = document.getElementById('btn-logout');
-        if (btnLogout) {
-            btnLogout.addEventListener('click', confirmarCerrarSesion);
+        navActions.insertAdjacentHTML('afterbegin', perfilHTML);
+        const avatarEl = document.getElementById('user-avatar');
+        if (avatarEl) {
+            avatarEl.style.cursor = 'pointer';
+            avatarEl.addEventListener('click', async () => {
+                try {
+                    const perfil = await fetchAPI('/usuarios/perfil-usuario');
+                    const modalEl = document.getElementById('perfilUsuarioModal');
+                    const modal = new bootstrap.Modal(modalEl);
+                    const nombreEl = document.getElementById('perfil-modal-nombre');
+                    const rolEl = document.getElementById('perfil-modal-rol');
+                    const emailEl = document.getElementById('perfil-modal-email');
+                    const avatarModal = document.getElementById('perfil-modal-avatar');
+                    const ultimoEl = document.getElementById('perfil-modal-ultimo');
+                    if (nombreEl) nombreEl.textContent = `${perfil.nombre || ''} ${perfil.apellido || ''}`.trim();
+                    if (rolEl) rolEl.textContent = obtenerNombreRol(perfil.role || usuario.role);
+                    if (emailEl) emailEl.textContent = perfil.email || usuario.email;
+                    if (avatarModal) {
+                        avatarModal.innerHTML = perfil.foto_url ? `<img src="${perfil.foto_url}" style="width:100%;height:100%;object-fit:cover;">` : '<i class="bi bi-person-circle" style="font-size:2rem;"></i>';
+                    }
+                    if (ultimoEl) {
+                        const fecha = perfil.ultimo_login || usuario.ultimo_login || null;
+                        const texto = fecha ? ((typeof formatearFecha === 'function') ? formatearFecha(fecha) : new Date(fecha).toLocaleString('es-ES')) : '';
+                        ultimoEl.textContent = texto || '';
+                    }
+                    const fileInput = document.getElementById('perfil-modal-file');
+                    const selectBtn = document.getElementById('perfil-modal-select');
+                    const guardarBtn = document.getElementById('perfil-modal-guardar');
+                    if (fileInput) fileInput.value = '';
+                    if (selectBtn && fileInput) {
+                        selectBtn.onclick = () => fileInput.click();
+                    }
+                    if (fileInput && avatarModal) {
+                        fileInput.onchange = () => {
+                            const f = fileInput.files && fileInput.files[0];
+                            if (!f) return;
+                            const previewUrl = URL.createObjectURL(f);
+                            avatarModal.innerHTML = `<img src="${previewUrl}" style="width:100%;height:100%;object-fit:cover;">`;
+                        };
+                    }
+                    if (fileInput && guardarBtn) {
+                        guardarBtn.onclick = async () => {
+                            const f = fileInput.files && fileInput.files[0];
+                            if (!f) { modal.hide(); return; }
+                            const fd = new FormData();
+                            fd.append('foto', f);
+                            const data = await fetchAPI('/usuarios/perfil-usuario/foto', { method: 'POST', body: fd });
+                            const newUrl = data.foto_url;
+                            const avatar = document.getElementById('user-avatar');
+                            if (avatar) {
+                                avatar.innerHTML = `<img src="${newUrl}" alt="Foto de perfil">`;
+                            }
+                            if (avatarModal) {
+                                avatarModal.innerHTML = `<img src="${newUrl}" style="width:100%;height:100%;object-fit:cover;">`;
+                            }
+                            try {
+                                const usuarioLS = JSON.parse(localStorage.getItem('usuario') || '{}');
+                                usuarioLS.foto_url = newUrl;
+                                localStorage.setItem('usuario', JSON.stringify(usuarioLS));
+                            } catch (_) {}
+                            try {
+                                const usuarioSS = JSON.parse(sessionStorage.getItem('usuario') || '{}');
+                                usuarioSS.foto_url = newUrl;
+                                sessionStorage.setItem('usuario', JSON.stringify(usuarioSS));
+                            } catch (_) {}
+                            modal.hide();
+                        };
+                    }
+                    modal.show();
+                } catch (e) {}
+            });
         }
     }
     

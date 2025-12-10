@@ -846,6 +846,64 @@ const usuariosController = {
       next(error);
     }
   }
+  ,
+  getPerfilUsuario: async (req, res, next) => {
+    try {
+      const { Usuario, PerfilUsuario, Municipalidad, Rol } = require('../models')
+      const userId = req.user.id
+      const user = await Usuario.findByPk(userId, { include: [{ model: Municipalidad, attributes: ['id','nombre'] }, { model: Rol }] })
+      if (!user) return res.status(404).json({ message: 'Usuario no encontrado' })
+      const perfil = await PerfilUsuario.findOne({ where: { usuario_id: userId } })
+      res.json({
+        id: user.id,
+        nombre: user.nombre,
+        apellido: user.apellido,
+        email: user.email,
+        role: (user.Rol && user.Rol.nombre) || req.user.rol_nombre,
+        municipalidad_id: user.municipalidad_id || null,
+        municipalidad_nombre: user.Municipalidad ? user.Municipalidad.nombre : null,
+        ultimo_login: user.ultimo_login || null,
+        foto_url: perfil ? perfil.foto_url : null
+      })
+    } catch (error) { next(error) }
+  },
+  subirFotoPerfil: async (req, res, next) => {
+    try {
+      const { Usuario, PerfilUsuario } = require('../models')
+      const userId = req.user.id
+      const file = req.file
+      if (!file) return res.status(400).json({ message: 'Archivo requerido' })
+      const url = `/uploads/avatars/${file.filename}`
+
+      let perfil = await PerfilUsuario.findOne({ where: { usuario_id: userId } })
+      if (perfil) {
+        perfil.foto_url = url
+        try {
+          const qi = require('../config/database').sequelize.getQueryInterface()
+          const desc = await qi.describeTable('perfil_usuario')
+          if (Object.prototype.hasOwnProperty.call(desc, 'rol')) {
+            perfil.rol = (req.user?.rol_nombre || perfil.rol || '')
+          }
+        } catch (_) {}
+        await perfil.save()
+        return res.json({ foto_url: url })
+      }
+
+      let createData = { usuario_id: userId, foto_url: url }
+      try {
+        const user = await Usuario.findByPk(userId)
+        const qi = require('../config/database').sequelize.getQueryInterface()
+        const desc = await qi.describeTable('perfil_usuario')
+        const hasCol = (c) => Object.prototype.hasOwnProperty.call(desc, c)
+        if (hasCol('nombre_usuario')) createData.nombre_usuario = `${(user?.nombre||'').trim()} ${(user?.apellido||'').trim()}`.trim()
+        if (hasCol('email')) createData.email = user?.email || ''
+        if (hasCol('rol')) createData.rol = (req.user?.rol_nombre || '')
+      } catch (_) {}
+
+      await PerfilUsuario.create(createData)
+      res.json({ foto_url: url })
+    } catch (error) { next(error) }
+  }
 };
 
 module.exports = usuariosController;

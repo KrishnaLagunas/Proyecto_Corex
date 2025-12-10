@@ -254,6 +254,7 @@ const authController = {
             email: req.user.email || 'admin@sistema.com',
             rol_nombre: rolNombreReq,
             role: rolNombreReq,
+            ultimo_login: req.user.ultimo_login || null,
             municipalidad_id: req.user.municipalidad_id || null,
             municipalidad_nombre: null
           });
@@ -269,6 +270,7 @@ const authController = {
         email: user.email,
         rol_nombre: rolNombre,
         role: rolNombre,
+        ultimo_login: user.ultimo_login,
         municipalidad_id: user.municipalidad_id || null,
         municipalidad_nombre: user.Municipalidad ? user.Municipalidad.nombre : null
       });

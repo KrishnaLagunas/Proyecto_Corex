@@ -76,8 +76,11 @@ async function fetchAPI(endpoint, options = {}) {
             credentials: 'include'
         };
         
-        // Si hay body y es un objeto, convertirlo a JSON
-        if (fetchOptions.body && typeof fetchOptions.body === 'object') {
+        // Manejo de body: evitar serializar FormData y no establecer Content-Type
+        const isFormData = (typeof FormData !== 'undefined') && (fetchOptions.body instanceof FormData);
+        if (isFormData) {
+            try { delete fetchOptions.headers['Content-Type']; } catch(_) {}
+        } else if (fetchOptions.body && typeof fetchOptions.body === 'object') {
             fetchOptions.body = JSON.stringify(fetchOptions.body);
         }
         
