@@ -17,8 +17,50 @@ async function fetchAPI(endpoint, options = {}) {
             }
         };
         
-        // Obtener el token del localStorage si existe
-        const token = localStorage.getItem('token');
+        function getCookie(name) {
+            try {
+                const n = name + '=';
+                const ca = document.cookie.split(';');
+                for (let i = 0; i < ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) === ' ') c = c.substring(1);
+                    if (c.indexOf(n) === 0) return decodeURIComponent(c.substring(n.length));
+                }
+                return null;
+            } catch (_) { return null; }
+        }
+        function getActiveRole() {
+            try {
+                const u = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario');
+                if (u) {
+                    const o = JSON.parse(u);
+                    const r = String(o && (o.role || o.rol || o.rol_nombre) || '').toLowerCase();
+                    if (r.includes('superadmin') || r.includes('superadministrador')) return 'superadmin';
+                    if (r.includes('admin') || r.includes('administrador')) return 'admin';
+                    if (r) return 'ciudadano';
+                }
+            } catch (_) {}
+            try {
+                const p = String(location.pathname || '').toLowerCase();
+                if (p.startsWith('/panel-superadmin')) return 'superadmin';
+                if (p.startsWith('/panel-admin')) return 'admin';
+                if (p.startsWith('/portal-ciudadano')) return 'ciudadano';
+            } catch (_) {}
+            return null;
+        }
+        // Eliminado: lectura de cookie por rol
+        function getUserCookieName(userId, role) {
+            const id = String(userId || '').trim();
+            const r = String(role || '').toLowerCase().replace(/\s+/g,'_');
+            if (!id) return `corex_session_${r || 'usuario'}`;
+            return `corex_session_user_${id}_${r || 'usuario'}`;
+        }
+        const uStr = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario');
+        let cookieToken = null;
+        if (uStr) {
+            try { const u = JSON.parse(uStr); cookieToken = getCookie(getUserCookieName(u.id, u.role || u.rol || u.rol_nombre)); } catch (_) {}
+        }
+        const token = cookieToken || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('token')) || localStorage.getItem('token');
         if (token) {
             defaultOptions.headers['x-access-token'] = token;
         }

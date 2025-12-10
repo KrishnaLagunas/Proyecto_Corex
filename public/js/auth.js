@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
     } catch (_) {}
+    try { const t = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('token') : null) || localStorage.getItem('token'); if (!t) { clearCorexCookies(); } } catch (_) { try { clearCorexCookies(); } catch (_) {} }
     programarMostrarLogin(0);
     
     // Configurar el evento de submit del formulario de login
@@ -69,9 +70,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     (async () => {
         try {
-            const t = localStorage.getItem('token') || getCookie('corex_session');
+            const t = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('token') : null) || localStorage.getItem('token');
             if (!t) return;
-            const usrStr = localStorage.getItem('usuario');
+            const usrStr = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario');
             if (usrStr) {
                 const u = JSON.parse(usrStr);
                 if (u && u.role) {
@@ -92,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 municipalidad_id: perfil.municipalidad_id || (perfil.Municipalidad && perfil.Municipalidad.id) || null,
                 municipalidad_nombre: perfil.municipalidad_nombre || (perfil.Municipalidad && perfil.Municipalidad.nombre) || null
               };
-              localStorage.setItem('usuario', JSON.stringify(u));
+              if (typeof sessionStorage !== 'undefined') { sessionStorage.setItem('usuario', JSON.stringify(u)); }
               redirigirSegunRol(u);
             }
         } catch (_) {}
@@ -212,7 +213,7 @@ function programarMostrarLogin(delay) {
     try { if (window._loginRenderTimeoutId) clearTimeout(window._loginRenderTimeoutId); } catch (_) {}
     window._loginRenderTimeoutId = setTimeout(() => {
         try {
-            const t = localStorage.getItem('token') || (typeof getCookie === 'function' ? getCookie('corex_session') : null);
+            const t = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('token') : null) || localStorage.getItem('token');
             if (!t) mostrarFormularioLogin();
         } catch (_) { mostrarFormularioLogin(); }
         window._loginRenderTimeoutId = null;
@@ -349,9 +350,9 @@ async function manejarLogin(e) {
             municipalidad_nombre: user.municipalidad_nombre || null
         };
 
-        // Guardar el token y usuario
-        setSessionToken(token);
-        localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
+        try { clearCorexCookies(); } catch (_) {}
+        setSessionToken(token, { role: roleFinal, userId: user.id });
+        try { if (typeof sessionStorage !== 'undefined') { sessionStorage.setItem('usuario', JSON.stringify(usuarioInfo)); } else { localStorage.setItem('usuario', JSON.stringify(usuarioInfo)); } } catch (_) {}
 
         // Redirigir según el rol del usuario
         redirigirSegunRol(usuarioInfo);
@@ -854,6 +855,7 @@ async function cargarPortalCiudadano(usuario) {
  * Muestra el formulario de login
  */
 function mostrarFormularioLogin() {
+    try { clearCorexCookies(); } catch (_) {}
     // Mostrar el contenedor de login
     const loginContainer = document.getElementById('login-container');
     const registerContainer = document.getElementById('register-container');
@@ -1405,7 +1407,7 @@ function obtenerNombreRol(role) {
  * @returns {Object|null} Información del usuario o null si no hay usuario
  */
 function obtenerUsuario() {
-    const usuarioJSON = localStorage.getItem('usuario');
+    const usuarioJSON = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario');
     return usuarioJSON ? JSON.parse(usuarioJSON) : null;
 }
 
@@ -1414,9 +1416,10 @@ function obtenerUsuario() {
  */
 function cerrarSesion() {
     // Eliminar información de sesión
+    try { if (typeof sessionStorage !== 'undefined') { sessionStorage.removeItem('token'); sessionStorage.removeItem('usuario'); } } catch (_) {}
     localStorage.removeItem('token');
     localStorage.removeItem('usuario');
-    deleteCookie('corex_session');
+    try { clearCorexCookies(); } catch (_) {}
     
     // Recargar la página para mostrar el login
     window.location.reload();
@@ -3123,10 +3126,27 @@ function confirmarCerrarSesion() {
     } catch (_) { cerrarSesion(); }
 }
 
-function setSessionToken(token) {
+// Eliminado: cookies por rol
+
+function getUserCookieName(userId, role) {
+    const id = String(userId || '').trim();
+    const r = String(role || '').toLowerCase().replace(/\s+/g, '_');
+    if (!id) return `corex_session_${r || 'usuario'}`;
+    return `corex_session_user_${id}_${r || 'usuario'}`;
+}
+
+function setSessionToken(token, info) {
     try {
-        localStorage.setItem('token', token);
-        setCookie('corex_session', token, { days: 7, path: '/' });
+        if (typeof sessionStorage !== 'undefined') { sessionStorage.setItem('token', token); }
+    } catch (_) {}
+    try {
+        const role = info && info.role;
+        const userId = info && info.userId;
+        const userName = getUserCookieName(userId, role);
+        setCookie(userName, token, { days: 7, path: '/' });
+        try { deleteCookie('corex_session_admin', '/panel-admin'); } catch (_) {}
+        try { deleteCookie('corex_session_superadmin', '/panel-superadmin'); } catch (_) {}
+        try { deleteCookie('corex_session_ciudadano', '/portal-ciudadano'); } catch (_) {}
     } catch (_) {}
 }
 
@@ -3155,5 +3175,24 @@ function getCookie(name) {
 function deleteCookie(name, path = '/') {
     try {
         document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=${path}`;
+    } catch (_) {}
+}
+
+function clearCorexCookies() {
+    try {
+        const paths = ['/', '/panel-admin', '/panel-superadmin', '/portal-ciudadano'];
+        const parts = (document.cookie || '').split(';');
+        for (let i = 0; i < parts.length; i++) {
+            const raw = parts[i];
+            if (!raw) continue;
+            const name = raw.split('=')[0].trim();
+            if (!name) continue;
+            const lower = name.toLowerCase();
+            if (lower.startsWith('corex_session')) {
+                for (let j = 0; j < paths.length; j++) {
+                    deleteCookie(name, paths[j]);
+                }
+            }
+        }
     } catch (_) {}
 }
