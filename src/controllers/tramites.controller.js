@@ -356,7 +356,20 @@ const tramitesController = {
       let monto = 0;
       try {
         const anioActual = new Date().getFullYear();
-        const candidates = Array.from(new Set([String(tipo), String(tipo).replace(/\.$/, '')]));
+        // Normalizar nombre para coincidir con configuraciones
+        const rawTipo = String(tipo || '').trim();
+        const tLower = rawTipo.toLowerCase();
+        let tipoNormalizado = rawTipo;
+        if (tLower.includes('licencia')) tipoNormalizado = 'licencia';
+        else if (tLower.includes('permiso')) tipoNormalizado = 'permiso';
+        else if (tLower.includes('certificado')) tipoNormalizado = 'certificado';
+        else if (tLower.includes('solicitud')) tipoNormalizado = 'solicitud';
+        // Construir candidatos: original, sin punto final y normalizado
+        const candidates = Array.from(new Set([
+          rawTipo,
+          rawTipo.replace(/\.$/, ''),
+          tipoNormalizado
+        ]));
         const cfg = await ConfiguracionPago.findOne({
           where: {
             tramite_nombre: { [Op.in]: candidates },
@@ -375,6 +388,14 @@ const tramitesController = {
             // Sin base definida para porcentaje, mantener en 0 hasta que se defina el cálculo
             requiere_pago = false;
             monto = 0;
+          }
+        }
+        if (!requiere_pago || !(monto > 0)) {
+          const ndep = (depNorm || '').toLowerCase();
+          const ntipo = tLower;
+          if (ndep.includes('salud') && ntipo.includes('ayuda') && (ntipo.includes('técnica') || ntipo.includes('tecnica'))) {
+            requiere_pago = true;
+            monto = 1000;
           }
         }
       } catch (_) { /* mantener por defecto */ }
@@ -600,13 +621,25 @@ const tramitesController = {
       if (req.user.rol_nombre === 'ciudadano') {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
+      const rol = String(req.user.rol_nombre || '').toLowerCase();
+      const muniId = req.user?.municipalidad_id || null;
+      const isAdmin = rol === 'administrador';
+      const isFuncionario = rol === 'funcionario' || rol === 'secretaria comunitaria' || rol === 'secretaria de obras' || rol === 'secretaria de transito' || rol === 'secretaria partes' || rol === 'tesoreria municipal';
+      const filterWhere = (isAdmin || isFuncionario)
+        ? (muniId
+            ? (isAdmin
+                ? { [Op.or]: [{ municipalidad_id: muniId }, { municipalidad_id: null }] }
+                : { municipalidad_id: muniId })
+            : { municipalidad_id: -1 })
+        : {};
       
       // Estadísticas por estado
       const estadoStats = await Tramite.findAll({
         attributes: [
           'estado',
-          [sequelize.fn('COUNT', sequelize.col('id')), 'total']
+          [sequelize.fn('COUNT', sequelize.col('Tramite.id')), 'total']
         ],
+        where: filterWhere,
         group: ['estado']
       });
       
@@ -614,31 +647,44 @@ const tramitesController = {
       const tipoStats = await Tramite.findAll({
         attributes: [
           'tipo',
-          [sequelize.fn('COUNT', sequelize.col('id')), 'total']
+          [sequelize.fn('COUNT', sequelize.col('Tramite.id')), 'total']
         ],
+        where: filterWhere,
         group: ['tipo']
       });
       
       // Estadísticas por municipalidad
       const municipalidadStats = await Tramite.findAll({
         attributes: [
-          'municipalidad_id',
-          [sequelize.fn('COUNT', sequelize.col('id')), 'total']
+          [sequelize.col('Tramite.municipalidad_id'), 'municipalidad_id'],
+          [sequelize.col('Municipalidad.nombre'), 'municipalidad_nombre'],
+          [sequelize.fn('COUNT', sequelize.col('Tramite.id')), 'total']
         ],
         include: [{
           model: Municipalidad,
-          attributes: ['nombre']
+          attributes: []
         }],
-        group: ['municipalidad_id', 'Municipalidad.id', 'Municipalidad.nombre']
+        where: { ...(filterWhere || {}), municipalidad_id: { [Op.ne]: null } },
+        group: ['Tramite.municipalidad_id', 'Municipalidad.nombre']
+      });
+      const departamentoStats = await Tramite.findAll({
+        attributes: [
+          [sequelize.col('Departamento.nombre_departamento'), 'departamento_nombre'],
+          [sequelize.fn('COUNT', sequelize.col('Tramite.id')), 'total']
+        ],
+        include: [{ model: Departamento, attributes: [] }],
+        where: { ...(filterWhere || {}), departamento_id: { [Op.ne]: null } },
+        group: ['Departamento.nombre_departamento']
       });
       
       // Trámites creados por mes (últimos 12 meses)
       const tramitesPorMes = await Tramite.findAll({
         attributes: [
           [sequelize.fn('DATE_FORMAT', sequelize.col('fecha_solicitud'), '%Y-%m'), 'mes'],
-          [sequelize.fn('COUNT', sequelize.col('id')), 'total']
+          [sequelize.fn('COUNT', sequelize.col('Tramite.id')), 'total']
         ],
         where: {
+          ...(filterWhere || {}),
           fecha_solicitud: {
             [Op.gte]: sequelize.literal('DATE_SUB(NOW(), INTERVAL 12 MONTH)')
           }
@@ -651,6 +697,7 @@ const tramitesController = {
         estadoPorTramite: estadoStats,
         tipoPorTramite: tipoStats,
         municipalidadPorTramite: municipalidadStats,
+        tramitesPorDepartamento: departamentoStats,
         tramitesPorMes
       });
     } catch (error) {

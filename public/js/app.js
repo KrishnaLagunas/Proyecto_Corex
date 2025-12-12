@@ -176,19 +176,19 @@ function cargarContenidoPagina(pagina) {
                                 <ul class="list-group">
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
                                         Trámites por Departamento
-                                        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text"></i> Generar</button>
+                                        <button id="btn-reporte-tramites-depto" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-earmark-text"></i> Generar</button>
                                     </li>
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        Ejecución Presupuestaria
-                                        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-graph-up"></i> Generar</button>
+                                        Trámites por Estado
+                                        <button id="btn-reporte-tramites-estado" class="btn btn-sm btn-outline-primary"><i class="bi bi-bar-chart"></i> Generar</button>
                                     </li>
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
                                         Pagos Mensuales
-                                        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-cash-coin"></i> Generar</button>
+                                        <button id="btn-reporte-pagos" class="btn btn-sm btn-outline-primary"><i class="bi bi-cash-coin"></i> Generar</button>
                                     </li>
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        Proyectos por Estado
-                                        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-bar-chart"></i> Generar</button>
+                                        Pagos por Estado
+                                        <button id="btn-reporte-pagos-estado" class="btn btn-sm btn-outline-primary"><i class="bi bi-graph-up"></i> Generar</button>
                                     </li>
                                 </ul>
                             </div>
@@ -199,13 +199,138 @@ function cargarContenidoPagina(pagina) {
                             <div class="card-header">
                                 <h5>Vista Previa</h5>
                             </div>
-                            <div class="card-body">
+                            <div class="card-body" id="report-preview">
                                 <p class="text-center">Seleccione un reporte para visualizar</p>
                             </div>
                         </div>
                     </div>
                 </div>
             `;
+            try {
+                const preview = document.getElementById('report-preview');
+                const renderCanvas = (title) => {
+                    if (!preview) return null;
+                    preview.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-2"><h6 class="mb-0">${title}</h6><div class="d-flex align-items-center gap-2"><button id="btn-export-report-csv" class="btn btn-sm btn-outline-secondary">Descargar CSV</button><button id="btn-export-report-pdf" class="btn btn-sm btn-outline-primary">Descargar PDF</button><div class="small text-muted">Generado ${new Date().toLocaleString('es-CL')}</div></div></div><div style="position:relative;height:360px"><canvas id="report-canvas"></canvas></div>`;
+                    return document.getElementById('report-canvas');
+                };
+                const genTramitesDepto = async () => {
+                    try {
+                        mostrarCargando(true);
+                        const canvas = renderCanvas('Trámites por Departamento');
+                        if (!canvas) return;
+                        const resp = await fetchAPI('/tramites/stats/general', { method: 'GET' });
+                        const arr = (resp && (resp.tramitesPorDepartamento || resp.data?.tramitesPorDepartamento)) || [];
+                        const labels = arr.map(x => String(x.departamento_nombre || x.dataValues?.departamento_nombre || ''));
+                        const data = arr.map(x => parseInt(x.dataValues?.total || x.total || 0));
+                        if (labels.length === 0) {
+                            preview.innerHTML = `<div class="alert alert-info">No hay datos disponibles para este reporte.</div>`;
+                            return;
+                        }
+                        window.currentReportData = arr.map(x => ({ departamento: String(x.departamento_nombre || x.dataValues?.departamento_nombre || ''), total: parseInt(x.dataValues?.total || x.total || 0) }));
+                        const btnCSV = document.getElementById('btn-export-report-csv');
+                        const btnPDF = document.getElementById('btn-export-report-pdf');
+                        if (btnCSV) btnCSV.onclick = () => { try { exportarCSV(window.currentReportData, 'tramites_por_departamento.csv'); } catch (_) {} };
+                        if (btnPDF) btnPDF.onclick = () => { try { exportarReportePDF('Trámites por Departamento', ['departamento','total'], window.currentReportData, 'report-canvas'); } catch (_) {} };
+                        crearGraficoBarras('report-canvas', labels, data, 'Trámites por Departamento');
+                    } catch (e) {
+                        preview.innerHTML = `<div class="alert alert-danger">Error al generar el reporte: ${e.message || e}</div>`;
+                    } finally { mostrarCargando(false); }
+                };
+                const genTramitesEstado = async () => {
+                    try {
+                        mostrarCargando(true);
+                        const canvas = renderCanvas('Trámites por Estado');
+                        if (!canvas) return;
+                        try { const u = JSON.parse(((typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario')) || '{}'); console.log('[REPORT][Trámites por Estado] Usuario actual', { id: u.id, role: (u.role||u.rol||u.rol_nombre), municipalidad_id: u.municipalidad_id, municipalidad_nombre: u.municipalidad_nombre }); } catch (_) {}
+                        console.log('[REPORT][Trámites por Estado] Fetch inicio');
+                        let resp = await fetchAPI('/dashboard/tramites/estado', { method: 'GET', headers: { 'Cache-Control': 'no-cache' } });
+                        console.log('[REPORT][Trámites por Estado] Respuesta API', resp);
+                        let estados = (resp && (resp.tramitesPorEstado || resp.data?.tramitesPorEstado)) || [];
+                        let labels = Array.isArray(estados) ? estados.map(e => String(e.estado || '')) : [];
+                        let data = Array.isArray(estados) ? estados.map(e => parseInt(e.cantidad || e.dataValues?.cantidad || 0)) : [];
+                        console.log('[REPORT][Trámites por Estado] Estados normalizados', { labels, data });
+                        if (!labels.length || (data.reduce((a,b)=>a+b,0) === 0)) {
+                            try {
+                                console.log('[REPORT][Trámites por Estado] Fallback a /tramites/stats/general');
+                                resp = await fetchAPI('/tramites/stats/general', { method: 'GET', headers: { 'Cache-Control': 'no-cache' } });
+                                console.log('[REPORT][Trámites por Estado] Respuesta fallback', resp);
+                                estados = (resp && (resp.estadoPorTramite || resp.data?.estadoPorTramite)) || [];
+                                labels = Array.isArray(estados) ? estados.map(e => String(e.estado || e.dataValues?.estado || '')) : [];
+                                data = Array.isArray(estados) ? estados.map(e => parseInt(e.dataValues?.total || e.total || 0)) : [];
+                                console.log('[REPORT][Trámites por Estado] Datos fallback normalizados', { labels, data });
+                            } catch (_) {}
+                        }
+                        if (labels.length === 0) {
+                            preview.innerHTML = `<div class="alert alert-info">No hay datos disponibles para este reporte.</div>`;
+                            return;
+                        }
+                        window.currentReportData = estados.map(e => ({ estado: String(e.estado || ''), total: parseInt(e.cantidad || e.dataValues?.cantidad || 0) }));
+                        const btnCSV = document.getElementById('btn-export-report-csv');
+                        const btnPDF = document.getElementById('btn-export-report-pdf');
+                        if (btnCSV) btnCSV.onclick = () => { try { exportarCSV(window.currentReportData, 'tramites_por_estado.csv'); } catch (_) {} };
+                        if (btnPDF) btnPDF.onclick = () => { try { exportarReportePDF('Trámites por Estado', ['estado','total'], window.currentReportData, 'report-canvas'); } catch (_) {} };
+                        crearGraficoBarras('report-canvas', labels, data, 'Trámites por Estado');
+                    } catch (e) {
+                        console.error('[REPORT][Trámites por Estado] Error', e);
+                        preview.innerHTML = `<div class="alert alert-danger">Error al generar el reporte: ${e.message || e}</div>`;
+                    } finally { mostrarCargando(false); }
+                };
+                const genPagos = async () => {
+                    try {
+                        mostrarCargando(true);
+                        const canvas = renderCanvas('Pagos mensuales');
+                        if (!canvas) return;
+                        const resp = await fetchAPI('/pagos/stats/general', { method: 'GET' });
+                        const pagos = (resp && (resp.pagosPorMes || resp.data?.pagosPorMes)) || [];
+                        const labels = pagos.map(p => String(p.mes || p.dataValues?.mes || ''));
+                        const data = pagos.map(p => parseInt(p.total || p.dataValues?.total || 0));
+                        if (labels.length === 0) {
+                            preview.innerHTML = `<div class="alert alert-info">No hay datos disponibles para este reporte.</div>`;
+                            return;
+                        }
+                        window.currentReportData = pagos.map(p => ({ mes: String(p.mes || p.dataValues?.mes || ''), pagos: parseInt(p.total || p.dataValues?.total || 0), monto_total: parseFloat(p.monto_total || p.dataValues?.monto_total || 0) }));
+                        const btnCSV = document.getElementById('btn-export-report-csv');
+                        const btnPDF = document.getElementById('btn-export-report-pdf');
+                        if (btnCSV) btnCSV.onclick = () => { try { exportarCSV(window.currentReportData, 'pagos_mensuales.csv'); } catch (_) {} };
+                        if (btnPDF) btnPDF.onclick = () => { try { exportarReportePDF('Pagos Mensuales', ['mes','pagos','monto_total'], window.currentReportData, 'report-canvas'); } catch (_) {} };
+                        crearGraficoBarras('report-canvas', labels, data, 'Pagos');
+                    } catch (e) {
+                        preview.innerHTML = `<div class="alert alert-danger">Error al generar el reporte: ${e.message || e}</div>`;
+                    } finally { mostrarCargando(false); }
+                };
+                const genPagosEstado = async () => {
+                    try {
+                        mostrarCargando(true);
+                        const canvas = renderCanvas('Pagos por Estado');
+                        if (!canvas) return;
+                        const resp = await fetchAPI('/pagos/stats/general', { method: 'GET' });
+                        const estados = (resp && (resp.estadoPorPago || resp.data?.estadoPorPago)) || [];
+                        const labels = estados.map(e => String(e.estado || e.dataValues?.estado || ''));
+                        const data = estados.map(e => parseInt(e.dataValues?.total || e.total || 0));
+                        if (labels.length === 0) {
+                            preview.innerHTML = `<div class="alert alert-info">No hay datos disponibles para este reporte.</div>`;
+                            return;
+                        }
+                        window.currentReportData = estados.map(e => ({ estado: String(e.estado || e.dataValues?.estado || ''), total: parseInt(e.dataValues?.total || e.total || 0) }));
+                        const btnCSV = document.getElementById('btn-export-report-csv');
+                        const btnPDF = document.getElementById('btn-export-report-pdf');
+                        if (btnCSV) btnCSV.onclick = () => { try { exportarCSV(window.currentReportData, 'pagos_por_estado.csv'); } catch (_) {} };
+                        if (btnPDF) btnPDF.onclick = () => { try { exportarReportePDF('Pagos por Estado', ['estado','total'], window.currentReportData, 'report-canvas'); } catch (_) {} };
+                        crearGraficoBarras('report-canvas', labels, data, 'Pagos por Estado');
+                    } catch (e) {
+                        preview.innerHTML = `<div class="alert alert-danger">Error al generar el reporte: ${e.message || e}</div>`;
+                    } finally { mostrarCargando(false); }
+                };
+                const b1 = document.getElementById('btn-reporte-tramites-depto');
+                const b2 = document.getElementById('btn-reporte-tramites-estado');
+                const b3 = document.getElementById('btn-reporte-pagos');
+                const b4 = document.getElementById('btn-reporte-pagos-estado');
+                if (b1) b1.addEventListener('click', genTramitesDepto);
+                if (b2) b2.addEventListener('click', genTramitesEstado);
+                if (b3) b3.addEventListener('click', genPagos);
+                if (b4) b4.addEventListener('click', genPagosEstado);
+            } catch (_) {}
+            mostrarCargando(false);
             break;
         case 'portal-inicio':
             // Cargar portal ciudadano

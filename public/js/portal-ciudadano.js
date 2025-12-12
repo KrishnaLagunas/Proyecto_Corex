@@ -176,8 +176,16 @@ async function verTodosPagosCiudadano() {
             </div>
             
             <div class="card">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h5>Listado de Pagos</h5>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-warning" id="btn-simular-seleccionados">
+                            <i class="bi bi-play-circle"></i> Simular pago
+                        </button>
+                        <button class="btn btn-success" id="btn-pagar-seleccionados">
+                            <i class="bi bi-credit-card"></i> Pagar seleccionados
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
                     ${pagos.length === 0 ? `
@@ -187,6 +195,7 @@ async function verTodosPagosCiudadano() {
                             <table class="table table-striped table-hover">
                                 <thead>
                                     <tr>
+                                        <th style="width:42px"><input type="checkbox" id="chk-select-all"></th>
                                         <th>Concepto</th>
                                         <th>Monto</th>
                                         <th>Fecha</th>
@@ -198,6 +207,9 @@ async function verTodosPagosCiudadano() {
                                 <tbody id="tabla-pagos">
                                     ${pagos.map(pago => `
                                         <tr>
+                                            <td>
+                                                ${pago.estado === 'pendiente' ? `<input type="checkbox" class="chk-pago" data-id="${pago.id}">` : '—'}
+                                            </td>
                                             <td>${pago.concepto}</td>
                                             <td>${formatearMoneda(pago.monto)}</td>
                                             <td>${formatearFecha(pago.fecha)}</td>
@@ -231,6 +243,18 @@ async function verTodosPagosCiudadano() {
         // Agregar evento para el formulario de filtros
         const formFiltros = document.getElementById('form-filtros-pagos');
         formFiltros.addEventListener('submit', filtrarPagosCiudadano);
+        const btnBulk = document.getElementById('btn-pagar-seleccionados');
+        if (btnBulk) btnBulk.addEventListener('click', pagarSeleccionados);
+        const btnSimular = document.getElementById('btn-simular-seleccionados');
+        if (btnSimular) btnSimular.addEventListener('click', simularSeleccionados);
+        const chkAll = document.getElementById('chk-select-all');
+        if (chkAll) {
+            chkAll.addEventListener('change', () => {
+                document.querySelectorAll('#tabla-pagos input.chk-pago').forEach(chk => {
+                    if (!chk.disabled) chk.checked = chkAll.checked;
+                });
+            });
+        }
         
     } catch (error) {
         console.error('Error al cargar pagos:', error);
@@ -277,6 +301,9 @@ async function filtrarPagosCiudadano(e) {
         } else {
             tablaPagos.innerHTML = pagos.map(pago => `
                 <tr>
+                    <td>
+                        ${pago.estado === 'pendiente' ? `<input type="checkbox" class="chk-pago" data-id="${pago.id}">` : '—'}
+                    </td>
                     <td>${pago.concepto}</td>
                     <td>${formatearMoneda(pago.monto)}</td>
                     <td>${formatearFecha(pago.fecha)}</td>
@@ -507,6 +534,62 @@ async function pagarEnLinea(pagoId) {
  */
 function redirigirAPaginaPago(pagoId) {
     window.location.href = '/pago.html';
+}
+
+async function pagarSeleccionados() {
+    try {
+        const seleccionados = Array.from(document.querySelectorAll('#tabla-pagos input.chk-pago:checked'))
+            .map(chk => Number(chk.getAttribute('data-id')))
+            .filter(Boolean);
+        if (seleccionados.length === 0) {
+            mostrarNotificacion('Seleccione al menos un pago pendiente', 'warning');
+            return;
+        }
+        mostrarCargando(true);
+        const payloadBase = {
+            metodoPago: 'otro',
+            observaciones: 'Procesado por acción masiva',
+        };
+        const resultados = await Promise.allSettled(seleccionados.map(id => fetchAPI(`/pagos/${id}/procesar`, {
+            method: 'PUT',
+            body: { ...payloadBase, referencia: `BULK-${Date.now()}-${id}`, fechaPago: new Date().toISOString() }
+        })));
+        const ok = resultados.filter(r => r.status === 'fulfilled').length;
+        const fail = resultados.length - ok;
+        mostrarNotificacion(`Pagos completados: ${ok}. Fallidos: ${fail}.`, ok > 0 ? 'success' : 'danger');
+        await verTodosPagosCiudadano();
+    } catch (error) {
+        console.error('Error al pagar seleccionados:', error);
+        mostrarNotificacion('Error al pagar seleccionados: ' + error.message, 'danger');
+    } finally {
+        mostrarCargando(false);
+    }
+}
+
+async function simularSeleccionados() {
+    try {
+        const seleccionados = Array.from(document.querySelectorAll('#tabla-pagos input.chk-pago:checked'))
+            .map(chk => Number(chk.getAttribute('data-id')))
+            .filter(Boolean);
+        if (seleccionados.length === 0) {
+            mostrarNotificacion('Seleccione al menos un pago pendiente', 'warning');
+            return;
+        }
+        mostrarCargando(true);
+        const resultados = await Promise.allSettled(seleccionados.map(id => fetchAPI(`/pagos/${id}/procesar`, {
+            method: 'PUT',
+            body: { metodoPago: 'online', observaciones: 'Pago simulado desde portal ciudadano', referencia: `SIM-${Date.now()}-${id}`, fechaPago: new Date().toISOString() }
+        })));
+        const ok = resultados.filter(r => r.status === 'fulfilled').length;
+        const fail = resultados.length - ok;
+        mostrarNotificacion(`Pagos simulados: ${ok}. Fallidos: ${fail}.`, ok > 0 ? 'success' : 'danger');
+        await verTodosPagosCiudadano();
+    } catch (error) {
+        console.error('Error al simular seleccionados:', error);
+        mostrarNotificacion('Error al simular seleccionados: ' + error.message, 'danger');
+    } finally {
+        mostrarCargando(false);
+    }
 }
 
 /**
@@ -914,12 +997,19 @@ async function obtenerConfiguracionPagoPorNombre(nombre) {
     if (norm.includes('licencia')) clave = 'licencia';
     else if (norm.includes('permiso') || norm.includes('construcción') || norm.includes('construccion')) clave = 'permiso';
     else if (norm.includes('certificado')) clave = 'certificado';
+    else if (norm.includes('solicitud')) clave = 'solicitud';
 
     const resp = await fetchAPI(`/tramites/configuracion-pago?tramite_nombre=${encodeURIComponent(clave)}&estado=activo&order=DESC`);
     const data = Array.isArray(resp?.configuraciones)
       ? resp.configuraciones
       : (Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : []));
-    if (!data.length) return { requiere: false, tipo: 'gratis' };
+    if (!data.length) {
+      const n = (nombre || '').toLowerCase();
+      if (n.includes('solicitud') && n.includes('ayuda') && (n.includes('técnica') || n.includes('tecnica'))) {
+        return { requiere: true, tipo: 'fijo', montoFijo: 1000 };
+      }
+      return { requiere: false, tipo: 'gratis' };
+    }
 
     const fijo = data.find(c => c.modalidad === 'fijo' && c.estado === 'activo');
     if (fijo) {

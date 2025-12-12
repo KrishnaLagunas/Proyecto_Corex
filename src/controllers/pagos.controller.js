@@ -266,6 +266,49 @@ const pagosController = {
       if (!tramite) {
         throw new ApiError('El trámite seleccionado no existe', 400);
       }
+      // Si el trámite no tiene monto definido, intentar resolver desde ConfiguracionPago (modalidad fijo)
+      if ((!tramite.requiere_pago || parseFloat(tramite.monto || 0) <= 0)) {
+        try {
+          const { ConfiguracionPago } = require('../models');
+          const anioActual = new Date().getFullYear();
+          const rawTipo = String(tramite.tipo || '').trim();
+          const tLower = rawTipo.toLowerCase();
+          let tipoNormalizado = rawTipo;
+          if (tLower.includes('licencia')) tipoNormalizado = 'licencia';
+          else if (tLower.includes('permiso')) tipoNormalizado = 'permiso';
+          else if (tLower.includes('certificado')) tipoNormalizado = 'certificado';
+          else if (tLower.includes('solicitud')) tipoNormalizado = 'solicitud';
+          const candidates = Array.from(new Set([
+            rawTipo,
+            rawTipo.replace(/\.$/, ''),
+            tipoNormalizado
+          ]));
+          const cfg = await ConfiguracionPago.findOne({
+            where: {
+              tramite_nombre: { [Op.in]: candidates },
+              anio: anioActual,
+              estado: 'activo'
+            }
+          });
+          if (cfg && cfg.modalidad === 'fijo') {
+            const mf = Number(cfg.monto_fijo || 0);
+            if (mf > 0) {
+              tramite.requiere_pago = true;
+              tramite.monto = mf;
+              await tramite.save();
+            }
+          }
+          if (!tramite.requiere_pago || !(parseFloat(tramite.monto || 0) > 0)) {
+            if (tLower.includes('ayuda') && (tLower.includes('técnica') || tLower.includes('tecnica'))) {
+              tramite.requiere_pago = true;
+              tramite.monto = 1000;
+              await tramite.save();
+            }
+          }
+        } catch (e) {
+          logger.warn(`No se pudo resolver monto desde configuración: ${e.message}`);
+        }
+      }
       if (req.user.rol_nombre === 'administrador') {
         if (!req.user.municipalidad_id || req.user.municipalidad_id !== tramite.municipalidad_id) {
           throw new ApiError('No tienes permiso para registrar pagos de otra municipalidad', 403);

@@ -36,4 +36,16 @@ router.get('/municipalidades/ranking',
   dashboardController.getMunicipalidadesRanking
 );
 
+router.get('/tramites/estado',
+  isAuthenticated,
+  hasRole(['administrador', 'superadministrador', 'funcionario']),
+  dashboardController.getTramitesPorEstado
+);
+
+router.post('/reporte/pdf',
+  isAuthenticated,
+  hasRole(['administrador', 'superadministrador', 'funcionario']),
+  dashboardController.generateReportePDF
+);
+
 module.exports = router;

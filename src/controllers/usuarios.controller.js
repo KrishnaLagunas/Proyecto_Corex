@@ -809,7 +809,7 @@ const usuariosController = {
       const estadoStats = await Usuario.findAll({
         attributes: [
           'estado',
-          [sequelize.fn('COUNT', sequelize.col('id')), 'total']
+          [sequelize.fn('COUNT', sequelize.col('Usuario.id')), 'total']
         ],
         where: filterWhere,
         group: ['estado']

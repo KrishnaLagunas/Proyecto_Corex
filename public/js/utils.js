@@ -527,6 +527,24 @@ function exportarCSV(data, filename) {
     document.body.removeChild(link);
 }
 
+function exportarReportePDF(titulo, columns, rows, canvasId) {
+    try {
+        const canvas = document.getElementById(canvasId);
+        const dataUrl = canvas ? canvas.toDataURL('image/jpeg', 0.9) : null;
+        const payload = { titulo, columns, rows, chartDataUrl: dataUrl };
+        return fetchAPI('/dashboard/reporte/pdf', { method: 'POST', body: payload, responseType: 'blob', headers: { Accept: 'application/pdf' } })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${String(titulo || 'reporte').toLowerCase().replace(/\s+/g,'_')}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            });
+    } catch (_) { return Promise.reject(_); }
+}
+
 /**
  * Función para crear un gráfico de barras
  * @param {string} canvasId - ID del elemento canvas
@@ -537,14 +555,15 @@ function exportarCSV(data, filename) {
  */
 function crearGraficoBarras(canvasId, labels, data, label, color = 'rgba(78, 115, 223, 0.8)') {
     const ctx = document.getElementById(canvasId).getContext('2d');
-    
+    const maxVal = Array.isArray(data) && data.length ? Math.max(...data.map(v => parseInt(v) || 0)) : 0;
+    const suggestedMax = Math.max(maxVal, 7);
     new Chart(ctx, {
         type: 'bar',
         data: {
             labels: labels,
             datasets: [{
                 label: label,
-                data: data,
+                data: data.map(v => parseInt(v) || 0),
                 backgroundColor: color,
                 borderColor: color,
                 borderWidth: 1
@@ -555,7 +574,13 @@ function crearGraficoBarras(canvasId, labels, data, label, color = 'rgba(78, 115
             maintainAspectRatio: false,
             scales: {
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    suggestedMax,
+                    ticks: {
+                        stepSize: 1,
+                        format: { maximumFractionDigits: 0 },
+                        callback: (value) => Number.isInteger(value) ? value : ''
+                    }
                 }
             }
         }
@@ -572,14 +597,16 @@ function crearGraficoBarras(canvasId, labels, data, label, color = 'rgba(78, 115
  */
 function crearGraficoLineas(canvasId, labels, data, label, color = 'rgba(78, 115, 223, 1)') {
     const ctx = document.getElementById(canvasId).getContext('2d');
-    
+    const intData = data.map(v => parseInt(v) || 0);
+    const maxVal = intData.length ? Math.max(...intData) : 0;
+    const suggestedMax = Math.max(maxVal, 7);
     new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
             datasets: [{
                 label: label,
-                data: data,
+                data: intData,
                 backgroundColor: 'rgba(78, 115, 223, 0.05)',
                 borderColor: color,
                 borderWidth: 2,
@@ -595,7 +622,13 @@ function crearGraficoLineas(canvasId, labels, data, label, color = 'rgba(78, 115
             maintainAspectRatio: false,
             scales: {
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    suggestedMax,
+                    ticks: {
+                        stepSize: 1,
+                        format: { maximumFractionDigits: 0 },
+                        callback: (value) => Number.isInteger(value) ? value : ''
+                    }
                 }
             }
         }

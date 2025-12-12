@@ -1525,7 +1525,36 @@ async function guardarTramite(tramite) {
             body: tramite
         });
         console.log('Trámite guardado en la base de datos:', response);
-        return true;
+        const creado = (response && (response.tramite || response)) || null;
+        if (creado && creado.id) {
+            try {
+                const tramites = obtenerTramites();
+                const idx = tramites.findIndex(t => t.codigo === creado.codigo);
+                const merged = {
+                    id: creado.id,
+                    codigo: creado.codigo,
+                    titulo: creado.titulo,
+                    descripcion: creado.descripcion,
+                    tipo: creado.tipo,
+                    estado: creado.estado,
+                    fecha_solicitud: creado.fecha_solicitud,
+                    departamento_id: creado.departamento_id,
+                    municipalidad_id: creado.municipalidad_id,
+                    ciudadano_id: creado.ciudadano_id,
+                    requiere_pago: !!creado.requiere_pago,
+                    monto: Number(creado.monto || 0),
+                    pago_completado: !!creado.pago_completado,
+                    prioridad: creado.prioridad || 'media'
+                };
+                if (idx >= 0) {
+                    tramites[idx] = merged;
+                } else {
+                    tramites.push(merged);
+                }
+                localStorage.setItem('tramites', JSON.stringify(tramites));
+            } catch (_) {}
+        }
+        return creado || true;
     } catch (error) {
         console.warn('No se pudo guardar el trámite en la base de datos:', error);
         throw error;
@@ -1555,21 +1584,42 @@ function obtenerTramitesUsuario(usuarioId) {
 
 async function obtenerTramitesUsuarioAPI(usuarioId) {
     try {
-        const res = await fetchAPI(`/tramites?ciudadanoId=${usuarioId}`);
-        const apiLista = Array.isArray(res?.tramites) ? res.tramites : (Array.isArray(res) ? res : []);
-        const localLista = obtenerTramitesUsuario(usuarioId);
-        const porClave = new Map();
-        const claveDe = (t) => (t && (t.codigo || t.id)) || undefined;
-        apiLista.forEach(t => { const k = claveDe(t); if (k) porClave.set(String(k), t); });
-        localLista.forEach(t => { const k = claveDe(t); if (!k) return; if (!porClave.has(String(k))) porClave.set(String(k), t); });
-        const combinada = Array.from(porClave.values());
+        let res = await fetchAPI(`/tramites?ciudadanoId=${usuarioId}`);
+        let apiLista = Array.isArray(res?.tramites) ? res.tramites : (Array.isArray(res) ? res : []);
+        const porCodigo = new Map();
+        apiLista.forEach(t => { if (t && t.codigo) porCodigo.set(String(t.codigo), t); });
+
+        const locales = obtenerTramitesUsuario(usuarioId) || [];
+        for (const lt of locales) {
+            const cod = lt && lt.codigo ? String(lt.codigo) : null;
+            if (!cod) continue;
+            if (!porCodigo.has(cod)) {
+                try {
+                    const r2 = await fetchAPI(`/tramites?search=${encodeURIComponent(cod)}&ciudadanoId=${usuarioId}&_ts=${Date.now()}`);
+                    const lista2 = Array.isArray(r2?.tramites) ? r2.tramites : (Array.isArray(r2) ? r2 : []);
+                    const match = lista2.find(x => x.codigo === cod);
+                    if (match) porCodigo.set(cod, match);
+                } catch (_) {}
+            }
+        }
+
+        const combinada = Array.from(porCodigo.values()).filter(t => typeof t.id === 'number' && !!t.id);
         combinada.sort((a, b) => new Date(b.fecha_solicitud) - new Date(a.fecha_solicitud));
+        // Si aún no hay resultados, forzar cache-bust
+        if (!combinada.length) {
+            const r3 = await fetchAPI(`/tramites?ciudadanoId=${usuarioId}&_ts=${Date.now()}`);
+            const l3 = Array.isArray(r3?.tramites) ? r3.tramites : (Array.isArray(r3) ? r3 : []);
+            l3.sort((a, b) => new Date(b.fecha_solicitud) - new Date(a.fecha_solicitud));
+            return l3;
+        }
         return combinada;
     } catch (error) {
         console.warn('No se pudieron obtener los trámites del usuario de la API, usando localStorage:', error);
-        const localLista = obtenerTramitesUsuario(usuarioId);
-        localLista.sort((a, b) => new Date(b.fecha_solicitud) - new Date(a.fecha_solicitud));
-        return localLista;
+        const locales = obtenerTramitesUsuario(usuarioId) || [];
+        const porCodigo = new Map();
+        for (const lt of locales) { const cod = lt && lt.codigo ? String(lt.codigo) : null; if (cod && !porCodigo.has(cod)) porCodigo.set(cod, lt); }
+        const lsorted = Array.from(porCodigo.values()).sort((a, b) => new Date(b.fecha_solicitud) - new Date(a.fecha_solicitud));
+        return lsorted.filter(t => typeof t.id === 'number');
     }
 }
 
@@ -1941,7 +1991,8 @@ async function enviarNuevoTramite(usuario) {
     mostrarCargando(true);
     
     // Obtener valores del formulario
-    const tipoNombre = document.getElementById('tipo-tramite').value;
+    const tipoSelectEl = document.getElementById('tipo-tramite');
+    const tipoNombre = tipoSelectEl.value;
     const titulo = document.getElementById('titulo-tramite').value;
     const descripcion = document.getElementById('descripcion-tramite').value;
     const departamentoId = document.getElementById('departamento-tramite').value;
@@ -1956,6 +2007,8 @@ async function enviarNuevoTramite(usuario) {
     
     try {
         // Crear objeto de trámite
+        const optSel = tipoSelectEl.options[tipoSelectEl.selectedIndex];
+        const precioSel = parseFloat((optSel && optSel.dataset && optSel.dataset.precio) ? optSel.dataset.precio : '0');
         const nuevoTramite = {
             id: Date.now().toString(), // Usar timestamp como ID único
             codigo: generarCodigoTramite(tipoNombre),
@@ -1969,8 +2022,8 @@ async function enviarNuevoTramite(usuario) {
             municipalidad_id: parseInt(municipalidadId, 10),
             ciudadano_id: usuario.id,
             funcionario_id: null,
-            requiere_pago: false,
-            monto: 0,
+            requiere_pago: precioSel > 0,
+            monto: precioSel,
             pago_completado: false,
             prioridad: 'media' // Agregar prioridad por defecto
         };
@@ -1979,9 +2032,9 @@ async function enviarNuevoTramite(usuario) {
         let guardadoExitoso = false;
         
         try {
-            // Intentar guardar en la API
-            await guardarTramite(nuevoTramite);
-            guardadoExitoso = true;
+            // Intentar guardar en la API y obtener el creado real
+            const creadoReal = await guardarTramite(nuevoTramite);
+            guardadoExitoso = !!creadoReal;
         } catch (apiError) {
             console.warn('Error al guardar en la API, intentando guardar solo en localStorage:', apiError);
             
@@ -2145,12 +2198,18 @@ async function cargarMisPagos(usuario) {
                 if (norm.includes('licencia')) clave = 'licencia';
                 else if (norm.includes('permiso') || norm.includes('construcción') || norm.includes('construccion')) clave = 'permiso';
                 else if (norm.includes('certificado')) clave = 'certificado';
+                else if (norm.includes('solicitud')) clave = 'solicitud';
 
                 const resp = await fetchAPI(`/tramites/configuracion-pago?tramite_nombre=${encodeURIComponent(clave)}&estado=activo&order=DESC`);
                 const data = Array.isArray(resp?.configuraciones)
                     ? resp.configuraciones
                     : (Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : []));
-                if (!data.length) return { requiere: false, tipo: 'gratis' };
+                if (!data.length) {
+                    if (norm.includes('solicitud') && norm.includes('ayuda') && (norm.includes('técnica') || norm.includes('tecnica'))) {
+                        return { requiere: true, tipo: 'fijo', montoFijo: 1000 };
+                    }
+                    return { requiere: false, tipo: 'gratis' };
+                }
 
                 const fijo = data.find(c => c.modalidad === 'fijo' && c.estado === 'activo');
                 if (fijo) {
@@ -2179,9 +2238,12 @@ async function cargarMisPagos(usuario) {
 
         // Helper: construir módulo de pago por trámite y config
         const construirModuloPagoHtml = (t, config, estadoPago) => {
-            // Ajuste: respetar el backend. Solo permitir pago si el trámite requiere pago y tiene monto establecido.
-            const requiere = !!t.requiere_pago;
-            const montoTramite = parseFloat(t.monto || 0);
+            // Determinar requerimiento de pago con fallback a configuración
+            const requiere = !!t.requiere_pago || !!(config && config.requiere === true);
+            let montoTramite = parseFloat(t.monto || 0);
+            if (montoTramite <= 0 && config && config.tipo === 'fijo' && parseFloat(config.montoFijo || 0) > 0) {
+                montoTramite = parseFloat(config.montoFijo || 0);
+            }
 
             if (estadoPago === 'completado') {
                 return `<div class="alert alert-success mb-0"><i class="bi bi-check-circle-fill"></i> Pago completado</div>`;
@@ -2197,7 +2259,7 @@ async function cargarMisPagos(usuario) {
                         <div class="alert alert-info mb-3">Monto a pagar: <strong>${formatearMoneda(montoTramite)}</strong></div>
 
                         <div class="mt-3 form-check">
-                            <input class="form-check-input seleccionar-tramite" type="checkbox" id="seleccionar-${t.id}" data-id="${t.id}" data-monto="${montoTramite}" ${estadoPago === 'completado' || montoTramite <= 0 ? 'disabled' : ''}>
+                            <input class="form-check-input seleccionar-tramite" type="checkbox" id="seleccionar-${t.id}" data-id="${t.id}" data-codigo="${t.codigo || ''}" data-monto="${montoTramite}" ${estadoPago === 'completado' || montoTramite <= 0 ? 'disabled' : ''}>
                             <label class="form-check-label" for="seleccionar-${t.id}">Seleccionar este trámite</label>
                         </div>
                     </div>
@@ -2278,7 +2340,7 @@ async function cargarMisPagos(usuario) {
 
                 const requiere = !!t.requiere_pago;
                 const montoTramite = parseFloat(t.monto || 0);
-                const esGratis = !requiere || montoTramite <= 0 || (config && config.tipo === 'gratis');
+                const esGratis = !requiere || montoTramite <= 0;
 
                 const estadoBadge = estadoPago === 'completado'
                     ? '<span class="badge bg-success">Pago completado</span>'
@@ -2314,6 +2376,7 @@ async function cargarMisPagos(usuario) {
                     </div>
                     <div class="d-flex align-items-center gap-3">
                         <span id="resumen-seleccion" class="text-muted">Seleccionados: 0 • Total: ${formatearMoneda(0)}</span>
+                        <button id="btn-simular-seleccion" class="btn btn-warning"><i class="bi bi-play-circle"></i> Simular pago</button>
                         <button id="btn-pagar-seleccion" class="btn btn-success"><i class="bi bi-credit-card"></i> Pagar seleccionados</button>
                     </div>
                 </div>
@@ -2351,6 +2414,7 @@ async function cargarMisPagos(usuario) {
             const btnSelTodos = document.getElementById('seleccionar-todos');
             const btnDesTodos = document.getElementById('deseleccionar-todos');
             const btnPagarSel = document.getElementById('btn-pagar-seleccion');
+            const btnSimularSel = document.getElementById('btn-simular-seleccion');
 
             if (btnSelTodos) {
                 btnSelTodos.addEventListener('click', () => {
@@ -2371,7 +2435,7 @@ async function cargarMisPagos(usuario) {
                     try {
                         const seleccionados = checkboxes
                             .filter(chk => chk.checked && !chk.disabled)
-                            .map(chk => ({ id: parseInt(chk.dataset.id), monto: parseFloat(chk.dataset.monto || 0) }));
+                            .map(chk => ({ id: parseInt(chk.dataset.id), codigo: chk.dataset.codigo || null, monto: parseFloat(chk.dataset.monto || 0) }));
 
                         if (seleccionados.length === 0) {
                             mostrarNotificacion('Seleccione al menos un trámite para pagar', 'warning');
@@ -2407,6 +2471,90 @@ async function cargarMisPagos(usuario) {
                     } catch (error) {
                         console.error('Error al iniciar pago en Mercado Pago:', error);
                         mostrarNotificacion(`Error al iniciar pago: ${error.message}`, 'danger');
+                    } finally {
+                        mostrarCargando(false);
+                    }
+                });
+            }
+
+            if (btnSimularSel) {
+                btnSimularSel.addEventListener('click', async () => {
+                    try {
+                        const seleccionados = checkboxes
+                            .filter(chk => chk.checked && !chk.disabled)
+                            .map(chk => ({ id: parseInt(chk.dataset.id), monto: parseFloat(chk.dataset.monto || 0) }));
+
+                        if (seleccionados.length === 0) {
+                            mostrarNotificacion('Seleccione al menos un trámite para simular pago', 'warning');
+                            return;
+                        }
+
+                        mostrarCargando(true);
+                        const resultados = [];
+
+                for (const sel of seleccionados) {
+                            const tramite = Array.isArray(tramites) ? tramites.find(tr => tr.id === sel.id) : null;
+                            if (!(parseFloat(sel.monto || 0) > 0)) {
+                                resultados.push({ ok: false, id: sel.id, error: 'Monto inválido para simulación' });
+                                continue;
+                            }
+
+                            let tidReal = sel.id;
+                            if (!tramite || typeof tramite.id !== 'number') {
+                                try {
+                                    const codigo = sel.codigo || (tramite && tramite.codigo) || String(sel.id);
+                                    const respBus = await fetchAPI(`/tramites?search=${encodeURIComponent(codigo)}&ciudadanoId=${ciudadanoId}`);
+                                    const listaBus = Array.isArray(respBus?.tramites) ? respBus.tramites : (Array.isArray(respBus) ? respBus : []);
+                                    const match = listaBus.find(x => x.codigo === codigo) || listaBus[0];
+                                    if (match && match.id) tidReal = match.id;
+                                } catch (_) {}
+                            }
+
+                            let pago = pagosPorTramite.get(tidReal);
+                            if (!pago) {
+                                try {
+                                    const creado = await fetchAPI('/pagos', {
+                                        method: 'POST',
+                                        body: {
+                                            monto: parseFloat(sel.monto || 0),
+                                            metodo_pago: 'otro',
+                                            referencia_externa: `SIM-${Date.now()}-${sel.id}`,
+                                            notas: 'Pago simulado desde portal ciudadano',
+                                            tramite_id: tidReal,
+                                            ciudadano_id: ciudadanoId
+                                        }
+                                    });
+                                    pago = (creado && (creado.pago || creado)) || null;
+                                    if (pago) pagosPorTramite.set(tidReal, pago);
+                                } catch (e) {
+                                    resultados.push({ ok: false, id: sel.id, error: e.message });
+                                    continue;
+                                }
+                            }
+
+                            try {
+                                await fetchAPI(`/pagos/${pago.id}/procesar`, {
+                                    method: 'PUT',
+                                    body: {
+                                        metodoPago: 'otro',
+                                        referencia: `SIM-${Date.now()}-${sel.id}`,
+                                        observaciones: 'Pago simulado desde portal ciudadano',
+                                        fechaPago: new Date().toISOString()
+                                    }
+                                });
+                                resultados.push({ ok: true, id: sel.id });
+                            } catch (e2) {
+                                resultados.push({ ok: false, id: sel.id, error: e2.message });
+                            }
+                        }
+
+                        const ok = resultados.filter(r => r.ok).length;
+                        const fail = resultados.length - ok;
+                        mostrarNotificacion(`Pagos simulados: ${ok}. Fallidos: ${fail}.`, ok ? 'success' : 'danger');
+                        await cargarMisPagos(usuario);
+                    } catch (error) {
+                        console.error('Error al simular pagos seleccionados:', error);
+                        mostrarNotificacion(`Error al simular pago: ${error.message}`, 'danger');
                     } finally {
                         mostrarCargando(false);
                     }
@@ -2490,12 +2638,18 @@ async function cargarPagosRealizados(usuario) {
                 if (norm.includes('licencia')) clave = 'licencia';
                 else if (norm.includes('permiso') || norm.includes('construcción') || norm.includes('construccion')) clave = 'permiso';
                 else if (norm.includes('certificado')) clave = 'certificado';
+                else if (norm.includes('solicitud')) clave = 'solicitud';
 
                 const resp = await fetchAPI(`/tramites/configuracion-pago?tramite_nombre=${encodeURIComponent(clave)}&estado=activo&order=DESC`);
                 const data = Array.isArray(resp?.configuraciones)
                     ? resp.configuraciones
                     : (Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : []));
-                if (!data.length) return { requiere: false, tipo: 'gratis' };
+                if (!data.length) {
+                    if (norm.includes('solicitud') && norm.includes('ayuda') && (norm.includes('técnica') || norm.includes('tecnica'))) {
+                        return { requiere: true, tipo: 'fijo', montoFijo: 1000 };
+                    }
+                    return { requiere: false, tipo: 'gratis' };
+                }
 
                 const fijo = data.find(c => c.modalidad === 'fijo' && c.estado === 'activo');
                 if (fijo) return { requiere: true, tipo: 'fijo', montoFijo: parseFloat(fijo.monto_fijo || 0), anio: fijo.anio };
@@ -2570,7 +2724,7 @@ async function cargarPagosRealizados(usuario) {
                 const estadoPago = pagoExistente?.estado || 'sin_pago';
                 const requiere = !!t.requiere_pago;
                 const montoTramite = parseFloat(t.monto || 0);
-                const esGratis = !requiere || montoTramite <= 0 || (config && config.tipo === 'gratis');
+                const esGratis = !requiere || montoTramite <= 0;
 
                 if (estadoPago === 'completado' || esGratis) {
                     const estadoBadge = estadoPago === 'completado'

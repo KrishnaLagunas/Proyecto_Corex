@@ -1,5 +1,6 @@
 const { Tramite, Pago, Usuario, Municipalidad, Departamento } = require('../models');
 const { Op } = require('sequelize');
+const logger = require('../utils/logger');
 
 /**
  * Controlador para el dashboard
@@ -27,10 +28,8 @@ const dashboardController = {
       if (filtraPorMuni) {
         if (!muniId) {
           tramiteWhere = emptyFilter;
-        } else if (isAdmin) {
-          tramiteWhere = { [require('sequelize').Op.or]: [ { municipalidad_id: muniId }, { municipalidad_id: null } ] };
         } else {
-          tramiteWhere = { municipalidad_id: muniId };
+          tramiteWhere = isAdmin ? { [require('sequelize').Op.or]: [{ municipalidad_id: muniId }, { municipalidad_id: null }] } : { municipalidad_id: muniId };
         }
       }
       // Proyectos deshabilitados
@@ -216,6 +215,32 @@ const dashboardController = {
     }
   }
   ,
+  getTramitesPorEstado: async (req, res, next) => {
+    try {
+      const rol = req.user?.rol_nombre;
+      const muniId = req.user?.municipalidad_id || null;
+      const isAdmin = rol === 'administrador';
+      const isFuncionario = rol === 'funcionario' || rol === 'secretaria comunitaria' || rol === 'secretaria de obras' || rol === 'secretaria de transito' || rol === 'secretaria partes' || rol === 'tesoreria municipal';
+      const emptyFilter = { municipalidad_id: -1 };
+      const filtra = (isAdmin || isFuncionario);
+      const where = filtra ? (muniId ? (isAdmin ? { [require('sequelize').Op.or]: [{ municipalidad_id: muniId }, { municipalidad_id: null }] } : { municipalidad_id: muniId }) : emptyFilter) : {};
+      try { logger.info(`[Dashboard] /tramites/estado filtro`, { rol, muniId, where }); } catch (_) {}
+      let rows = [];
+      try {
+        rows = await Tramite.findAll({
+          attributes: [
+            'estado',
+            [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'cantidad']
+          ],
+          where,
+          group: ['estado']
+        });
+      } catch (_) { rows = []; }
+      try { logger.info(`[Dashboard] /tramites/estado resultado`, { estados: rows.map(r => r.estado), cantidades: rows.map(r => parseInt(r.dataValues.cantidad)) }); } catch (_) {}
+      res.json({ success: true, tramitesPorEstado: rows.map(r => ({ estado: r.estado, cantidad: parseInt(r.dataValues.cantidad) })) });
+    } catch (error) { next(error); }
+  }
+  ,
   /**
    * Ranking de uso por municipalidad (últimos 90 días)
    * Acceso: solo superadministrador
@@ -303,6 +328,72 @@ const dashboardController = {
       res.json({ success: true, ranking });
     } catch (error) {
       console.error('Error en ranking de municipalidades:', error);
+      next(error);
+    }
+  }
+  ,
+  generateReportePDF: async (req, res, next) => {
+    try {
+      const { titulo, columns, rows, chartDataUrl } = req.body || {};
+      const PDFDocument = require('pdfkit');
+      const doc = new PDFDocument({ size: 'A4', margin: 36 });
+      try { res.set('Content-Type', 'application/pdf'); } catch (_) {}
+      try { res.set('Content-Disposition', `attachment; filename="${(titulo || 'reporte').toLowerCase().replace(/\s+/g,'_')}.pdf"`); } catch (_) {}
+      doc.pipe(res);
+      let muniNombre = null;
+      const muniId = req.user?.municipalidad_id || null;
+      if (muniId) {
+        try {
+          const m = await Municipalidad.findByPk(muniId, { attributes: ['nombre'] });
+          muniNombre = m?.nombre || null;
+        } catch (_) {}
+      }
+      try {
+        const path = require('path');
+        const fs = require('fs');
+        const logoPath = path.join(__dirname, '../../public/images/muni1.jpg');
+        const x0 = doc.page.margins.left;
+        const y0 = doc.page.margins.top;
+        if (fs.existsSync(logoPath)) {
+          try { doc.image(logoPath, x0, y0, { width: 48, height: 48 }); } catch (_) {}
+          doc.fontSize(14).fillColor('#000').text(String(muniNombre || 'Municipalidad'), x0 + 56, y0 + 14);
+        } else {
+          doc.fontSize(14).fillColor('#000').text(String(muniNombre || 'Municipalidad'), x0, y0);
+        }
+        doc.moveDown(1);
+      } catch (_) {}
+      doc.fontSize(18).text(String(titulo || 'Reporte'), { align: 'left' });
+      doc.moveDown(0.3);
+      doc.fontSize(10).fillColor('#666').text(`Generado ${new Date().toLocaleString('es-CL')}`);
+      doc.moveDown(1);
+      if (chartDataUrl && typeof chartDataUrl === 'string') {
+        const m = chartDataUrl.match(/^data:image\/(png|jpeg);base64,(.+)$/i);
+        if (m) {
+          const buf = Buffer.from(m[2], 'base64');
+          try { doc.image(buf, { fit: [520, 300], align: 'center' }); } catch (_) {}
+          doc.moveDown(1);
+        }
+      }
+      if (Array.isArray(columns) && Array.isArray(rows) && rows.length > 0) {
+        const colCount = columns.length;
+        const usable = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+        const colW = Math.floor(usable / colCount);
+        doc.fontSize(11).fillColor('#000');
+        columns.forEach((c, i) => {
+          doc.text(String(c || ''), doc.page.margins.left + i * colW, doc.y, { width: colW, continued: i < colCount - 1 });
+        });
+        doc.moveDown(0.5);
+        doc.fontSize(10).fillColor('#111');
+        rows.forEach(r => {
+          columns.forEach((c, i) => {
+            const v = r && r[c];
+            doc.text(String(v == null ? '' : v), doc.page.margins.left + i * colW, doc.y, { width: colW, continued: i < colCount - 1 });
+          });
+          doc.moveDown(0.2);
+        });
+      }
+      doc.end();
+    } catch (error) {
       next(error);
     }
   }
