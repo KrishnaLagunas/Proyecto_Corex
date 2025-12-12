@@ -525,6 +525,42 @@ function cargarContenidoPagina(pagina) {
                 `;
             }
             break;
+        case 'portalCiudadano': {
+            const u = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+            if (typeof cargarPortalCiudadano === 'function') {
+                cargarPortalCiudadano(u || {});
+            } else {
+                mainContent.innerHTML = '<div class="alert alert-info">Portal Ciudadano</div>';
+            }
+            break;
+        }
+        case 'misTramites': {
+            const u = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+            if (typeof cargarMisTramites === 'function') {
+                cargarMisTramites(u || {});
+            } else {
+                mostrarNotificacion('Error al cargar Mis Trámites', 'danger');
+            }
+            break;
+        }
+        case 'formularioNuevoTramite': {
+            const u = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+            if (typeof cargarFormularioNuevoTramite === 'function') {
+                cargarFormularioNuevoTramite(u || {});
+            } else {
+                mostrarNotificacion('Error al cargar Iniciar Trámite', 'danger');
+            }
+            break;
+        }
+        case 'misPagos': {
+            const u = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+            if (typeof cargarMisPagos === 'function') {
+                cargarMisPagos(u || {});
+            } else {
+                mostrarNotificacion('Error al cargar Mis Pagos', 'danger');
+            }
+            break;
+        }
         default:
             mainContent.innerHTML = '<div class="alert alert-warning">Página no encontrada</div>';
     }
@@ -638,7 +674,17 @@ window.cargarReportes = cargarReportes;
             document.querySelectorAll('#menu-items .nav-link').forEach(el => el.classList.remove('active'));
             enlace.classList.add('active');
             try { localStorage.setItem('currentPage', pagina); } catch (_) {}
-            if (typeof cargarContenidoPagina === 'function') {
+            const esCiudadano = ['portalCiudadano','misTramites','formularioNuevoTramite','misPagos'].includes(pagina);
+            if (esCiudadano) {
+                const u = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+                const map = {
+                    portalCiudadano: () => typeof cargarPortalCiudadano === 'function' && cargarPortalCiudadano(u || {}),
+                    misTramites: () => typeof cargarMisTramites === 'function' && cargarMisTramites(u || {}),
+                    formularioNuevoTramite: () => typeof cargarFormularioNuevoTramite === 'function' && cargarFormularioNuevoTramite(u || {}),
+                    misPagos: () => typeof cargarMisPagos === 'function' && cargarMisPagos(u || {})
+                };
+                if (map[pagina]) map[pagina]();
+            } else if (typeof cargarContenidoPagina === 'function') {
                 cargarContenidoPagina(pagina);
             }
         }

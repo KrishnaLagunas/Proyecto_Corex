@@ -730,8 +730,11 @@ async function cargarPortalCiudadano(usuario) {
 
     console.log('Cargando portal ciudadano para:', usuario?.nombre || usuario?.email || usuario?.id || 'usuario');
     
-    // No mostrar el menú de navegación para ciudadanos
-    // En su lugar, usamos una interfaz específica para el portal ciudadano
+    // Mostrar el menú principal con estilo Corex y generar menú de ciudadano
+    const navbar = document.getElementById('main-navbar');
+    if (navbar) navbar.classList.remove('d-none');
+    try { localStorage.setItem('currentPage', 'portalCiudadano'); } catch (_) {}
+    try { generarMenu('ciudadano'); } catch (_) {}
     
     // Obtener trámites del usuario desde la API
     const tramitesUsuario = await obtenerTramitesUsuarioAPI(usuario.id);
@@ -801,9 +804,6 @@ async function cargarPortalCiudadano(usuario) {
                     <div class="col-12">
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h2 class="mb-0">Portal Ciudadano</h2>
-                            <button id="btn-logout-portal" class="btn btn-outline-danger">
-                                <i class="bi bi-box-arrow-right"></i> Cerrar sesión
-                            </button>
                         </div>
                         <div class="alert alert-success">
                             <i class="bi bi-person-check-fill me-2"></i>
@@ -813,32 +813,32 @@ async function cargarPortalCiudadano(usuario) {
                 </div>
                 <div class="row">
                     <div class="col-md-4 mb-4">
-                        <div class="card shadow-sm">
-                            <div class="card-body text-center">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body d-flex flex-column align-items-center text-center">
                                 <i class="bi bi-file-earmark-text fs-1 text-primary mb-3"></i>
                                 <h5 class="card-title">Mis Trámites</h5>
                                 <p class="card-text">Consulta y realiza seguimiento de tus trámites municipales.</p>
-                                <a href="#" class="btn btn-primary" id="btn-mis-tramites">Ver Mis Trámites</a>
+                                <a href="#" class="btn btn-primary mt-auto" id="btn-mis-tramites">Ver Mis Trámites</a>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-4 mb-4">
-                        <div class="card shadow-sm">
-                            <div class="card-body text-center">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body d-flex flex-column align-items-center text-center">
                                 <i class="bi bi-plus-circle fs-1 text-success mb-3"></i>
                                 <h5 class="card-title">Nuevo Trámite</h5>
                                 <p class="card-text">Inicia un nuevo trámite municipal desde aquí.</p>
-                                <a href="#" class="btn btn-success" id="btn-nuevo-tramite">Iniciar Trámite</a>
+                                <a href="#" class="btn btn-success mt-auto" id="btn-nuevo-tramite">Iniciar Trámite</a>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-4 mb-4">
-                        <div class="card shadow-sm">
-                            <div class="card-body text-center">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body d-flex flex-column align-items-center text-center">
                                 <i class="bi bi-cash-coin fs-1 text-warning mb-3"></i>
                                 <h5 class="card-title">Mis Pagos</h5>
                                 <p class="card-text">Consulta y realiza pagos de tus trámites.</p>
-                                <a href="#" class="btn btn-warning text-white" id="btn-mis-pagos">Ver Mis Pagos</a>
+                                <a href="#" class="btn btn-warning text-white mt-auto" id="btn-mis-pagos">Ver Mis Pagos</a>
                             </div>
                         </div>
                     </div>
@@ -916,6 +916,7 @@ async function cargarPortalCiudadano(usuario) {
                 cerrarSesion();
             });
         }
+        
 
         // Refresco automático de “Trámites Recientes” al crear un nuevo trámite
         if (window.__onTramiteCreadoPortal) {
@@ -1429,6 +1430,29 @@ function generarMenu(rol) {
                 </a>
             </li>
         `;
+    } else if (rol === 'ciudadano') {
+        menuHTML = `
+            <li class="nav-item">
+                <a href="#" class="nav-link ${currentPage==='portalCiudadano'?'active':''}" data-page="portalCiudadano">
+                    <i class="bi bi-house"></i> Portal
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link ${currentPage==='misTramites'?'active':''}" data-page="misTramites">
+                    <i class="bi bi-file-earmark-text"></i> Mis Trámites
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link ${currentPage==='formularioNuevoTramite'?'active':''}" data-page="formularioNuevoTramite">
+                    <i class="bi bi-plus-circle"></i> Iniciar Trámite
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link ${currentPage==='misPagos'?'active':''}" data-page="misPagos">
+                    <i class="bi bi-cash-coin"></i> Mis Pagos
+                </a>
+            </li>
+        `;
     }
     
     menuItems.innerHTML = menuHTML;
@@ -1625,6 +1649,18 @@ async function obtenerTramitesUsuarioAPI(usuarioId) {
 
 // Funciones para las secciones del portal ciudadano
 async function cargarMisTramites(usuario) {
+    // Asegurar perfil de usuario si no se pasa como argumento
+    if (!usuario || !usuario.id) {
+        try {
+            const localUser = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+            if (localUser && localUser.id) {
+                usuario = localUser;
+            } else {
+                const perfil = await fetchAPI('/usuarios/perfil');
+                if (perfil && perfil.id) usuario = perfil;
+            }
+        } catch (_) {}
+    }
     const mainContent = document.getElementById('main-content');
     if (mainContent) {
         // Obtener trámites del usuario desde la API
@@ -1642,44 +1678,33 @@ async function cargarMisTramites(usuario) {
         } else {
             contenidoTramites = `
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover w-100" id="tabla-mis-tramites">
                         <thead>
                             <tr>
-                                <th>Código</th>
-                                <th>Tipo</th>
-                                <th>Título</th>
-                                <th>Fecha</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
+                                <th class="text-nowrap">Código</th>
+                                <th class="text-nowrap">Tipo</th>
+                                <th class="text-nowrap">Título</th>
+                                <th class="text-nowrap">Fecha</th>
+                                <th class="text-nowrap">Estado</th>
+                                <th class="text-nowrap">Acciones</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            ${tramitesUsuario.map(tramite => `
-                                <tr>
-                                    <td>${tramite.codigo}</td>
-                                    <td class="text-uppercase">${obtenerNombreTipoTramite(tramite.tipo)}</td>
-                                    <td>${tramite.titulo}</td>
-                                    <td>${formatearFecha(tramite.fecha_solicitud)}</td>
-                                    <td>
-                                        <span class="badge ${obtenerColorEstadoTramite(tramite.estado)}">
-                                            ${obtenerNombreEstadoTramite(tramite.estado)}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-primary ver-detalle-tramite" data-id="${tramite.id}">
-                                            <i class="bi bi-eye"></i> Ver
-                                        </button>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
+                        <tbody id="tabla-tramites-body"></tbody>
                     </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3" id="paginacion-tramites">
+                    <div class="small text-muted" id="info-paginacion"></div>
+                    <div class="btn-group" role="group" aria-label="Paginación">
+                        <button class="btn btn-outline-secondary" id="btn-prev">Anterior</button>
+                        <span class="btn btn-outline-secondary disabled" id="pagina-actual">1 / 1</span>
+                        <button class="btn btn-outline-secondary" id="btn-next">Siguiente</button>
+                    </div>
                 </div>
             `;
         }
         
         mainContent.innerHTML = `
-            <div class="container py-4">
+            <div class="container-fluid py-4">
                 <div class="row">
                     <div class="col-12">
                         <nav aria-label="breadcrumb">
@@ -1690,9 +1715,14 @@ async function cargarMisTramites(usuario) {
                         </nav>
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h2 class="mb-0">Mis Trámites</h2>
-                            <button class="btn btn-success" id="btn-nuevo-tramite-desde-lista">
-                                <i class="bi bi-plus-circle"></i> Nuevo Trámite
-                            </button>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-secondary" id="btn-volver-portal">
+                                    <i class="bi bi-arrow-left"></i> Volver al Portal
+                                </button>
+                                <button class="btn btn-success" id="btn-nuevo-tramite-desde-lista">
+                                    <i class="bi bi-plus-circle"></i> Nuevo Trámite
+                                </button>
+                            </div>
                         </div>
                         ${contenidoTramites}
                     </div>
@@ -1702,11 +1732,66 @@ async function cargarMisTramites(usuario) {
         
         // Configurar eventos
         const volverPortal = document.getElementById('volver-portal');
+        const btnVolverPortal = document.getElementById('btn-volver-portal');
         const btnNuevoTramiteDesdeList = document.getElementById('btn-nuevo-tramite-desde-lista');
         const botonesVerDetalle = document.querySelectorAll('.ver-detalle-tramite');
+        const tbody = document.getElementById('tabla-tramites-body');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+        const paginaActualEl = document.getElementById('pagina-actual');
+        const infoPaginacion = document.getElementById('info-paginacion');
+        let paginaActual = 1;
+        const tamPagina = 8;
+        const totalPaginas = Math.max(1, Math.ceil(tramitesUsuario.length / tamPagina));
+
+        function renderPagina() {
+            const start = (paginaActual - 1) * tamPagina;
+            const end = Math.min(start + tamPagina, tramitesUsuario.length);
+            const slice = tramitesUsuario.slice(start, end);
+            if (tbody) {
+                tbody.innerHTML = slice.map(tramite => `
+                    <tr>
+                        <td>${tramite.codigo}</td>
+                        <td class="text-uppercase">${obtenerNombreTipoTramite(tramite.tipo)}</td>
+                        <td>${tramite.titulo}</td>
+                        <td>${formatearFecha(tramite.fecha_solicitud)}</td>
+                        <td><span class="badge ${obtenerColorEstadoTramite(tramite.estado)}">${obtenerNombreEstadoTramite(tramite.estado)}</span></td>
+                        <td><button class="btn btn-sm btn-primary ver-detalle-tramite" data-id="${tramite.id}"><i class="bi bi-eye"></i> Ver</button></td>
+                    </tr>
+                `).join('');
+            }
+            if (paginaActualEl) paginaActualEl.textContent = `${paginaActual} / ${totalPaginas}`;
+            if (infoPaginacion) infoPaginacion.textContent = `Mostrando ${start + 1}–${end} de ${tramitesUsuario.length}`;
+            const nuevosBotones = document.querySelectorAll('.ver-detalle-tramite');
+            if (nuevosBotones && nuevosBotones.length > 0) {
+                nuevosBotones.forEach(b => {
+                    b.onclick = (e) => {
+                        e.preventDefault();
+                        const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                        mostrarDetalleTramiteModal(id);
+                    };
+                });
+            }
+            if (btnPrev) btnPrev.disabled = paginaActual <= 1;
+            if (btnNext) btnNext.disabled = paginaActual >= totalPaginas;
+        }
+
+        if (btnPrev) {
+            btnPrev.onclick = (e) => { e.preventDefault(); if (paginaActual > 1) { paginaActual--; renderPagina(); } };
+        }
+        if (btnNext) {
+            btnNext.onclick = (e) => { e.preventDefault(); if (paginaActual < totalPaginas) { paginaActual++; renderPagina(); } };
+        }
+        if (tbody) renderPagina();
         
         if (volverPortal) {
             volverPortal.addEventListener('click', (e) => {
+                e.preventDefault();
+                cargarPortalCiudadano(usuario);
+            });
+        }
+        if (btnVolverPortal) {
+            btnVolverPortal.addEventListener('click', (e) => {
                 e.preventDefault();
                 cargarPortalCiudadano(usuario);
             });
@@ -1729,6 +1814,7 @@ async function cargarMisTramites(usuario) {
                 });
             });
         }
+        
     }
 
     // Refresco automático de la tabla "Mis Trámites" al crear un nuevo trámite
@@ -1740,6 +1826,15 @@ async function cargarMisTramites(usuario) {
 }
 
 function cargarFormularioNuevoTramite(usuario) {
+    // Asegurar perfil de usuario si no se pasa como argumento
+    if (!usuario || !usuario.id) {
+        try {
+            const localUser = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+            if (localUser && localUser.id) {
+                usuario = localUser;
+            }
+        } catch (_) {}
+    }
     const mainContent = document.getElementById('main-content');
     if (mainContent) {
         // Crear el contenido HTML
@@ -1753,7 +1848,14 @@ function cargarFormularioNuevoTramite(usuario) {
                                 <li class="breadcrumb-item active">Nuevo Trámite</li>
                             </ol>
                         </nav>
-                        <h2 class="mb-4">Iniciar Nuevo Trámite</h2>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h2 class="mb-0">Iniciar Nuevo Trámite</h2>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-outline-secondary" id="btn-volver-portal">
+                                    <i class="bi bi-arrow-left"></i> Volver al Portal
+                                </button>
+                            </div>
+                        </div>
                         <div class="card shadow-sm">
                             <div class="card-body">
                                 <div id="form-container">
@@ -1809,6 +1911,13 @@ function cargarFormularioNuevoTramite(usuario) {
                 cargarPortalCiudadano(usuario);
                 return false;
             };
+            const btnVolverPortal = document.getElementById('btn-volver-portal');
+            if (btnVolverPortal) {
+                btnVolverPortal.onclick = function(e) {
+                    e.preventDefault();
+                    cargarPortalCiudadano(usuario);
+                };
+            }
             
             // Botón para cancelar el trámite
             document.getElementById('btn-cancelar-tramite').onclick = function() {
@@ -2173,6 +2282,41 @@ function obtenerColorEstadoTramite(estado) {
     return colores[estado] || 'bg-secondary';
 }
 
+function renderCiudadanoNavbar(usuario) {
+    return `
+    <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom mb-3">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#" id="cit-brand">Corex</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#cit-nav" aria-controls="cit-nav" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="cit-nav">
+          <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            <li class="nav-item"><a class="nav-link" href="#" id="cit-nav-tramites">Mis Trámites</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" id="cit-nav-nuevo">Iniciar Trámite</a></li>
+            <li class="nav-item"><a class="nav-link" href="#" id="cit-nav-pagos">Mis Pagos</a></li>
+          </ul>
+          <div class="d-flex">
+            <button class="btn btn-outline-danger" id="cit-logout">Cerrar sesión</button>
+          </div>
+        </div>
+      </div>
+    </nav>`;
+}
+
+function bindCiudadanoNavbar(usuario) {
+    const brand = document.getElementById('cit-brand');
+    const nTram = document.getElementById('cit-nav-tramites');
+    const nNuevo = document.getElementById('cit-nav-nuevo');
+    const nPagos = document.getElementById('cit-nav-pagos');
+    const btnLogout = document.getElementById('cit-logout');
+    if (brand) brand.onclick = (e) => { e.preventDefault(); cargarPortalCiudadano(usuario); };
+    if (nTram) nTram.onclick = (e) => { e.preventDefault(); cargarMisTramites(usuario); };
+    if (nNuevo) nNuevo.onclick = (e) => { e.preventDefault(); cargarFormularioNuevoTramite(usuario); };
+    if (nPagos) nPagos.onclick = (e) => { e.preventDefault(); cargarMisPagos(usuario); };
+    if (btnLogout) btnLogout.onclick = (e) => { e.preventDefault(); cerrarSesion(); };
+}
+
 async function cargarMisPagos(usuario) {
     try {
         mostrarCargando(true);
@@ -2338,8 +2482,11 @@ async function cargarMisPagos(usuario) {
                 const pagoExistente = pagosPorTramite.get(t.id);
                 const estadoPago = pagoExistente?.estado || 'sin_pago';
 
-                const requiere = !!t.requiere_pago;
-                const montoTramite = parseFloat(t.monto || 0);
+                const requiere = !!t.requiere_pago || !!(config && config.requiere === true);
+                let montoTramite = parseFloat(t.monto || 0);
+                if (montoTramite <= 0 && config && config.tipo === 'fijo' && parseFloat(config.montoFijo || 0) > 0) {
+                    montoTramite = parseFloat(config.montoFijo || 0);
+                }
                 const esGratis = !requiere || montoTramite <= 0;
 
                 const estadoBadge = estadoPago === 'completado'
