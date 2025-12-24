@@ -33,6 +33,11 @@ router.get('/tipos',
   tramitesController.getTiposTramites
 );
 
+router.get('/tipos/diagnostico',
+  isAuthenticated,
+  tramitesController.getTiposDiagnostico
+);
+
 // Nueva ruta para configuración de pago de trámites
 router.get('/configuracion-pago',
   isAuthenticated,
@@ -134,6 +139,18 @@ router.delete('/:id',
   hasRole(['administrador', 'superadministrador']),
   validateParams(tramiteSchemas.idParam), 
   tramitesController.deleteTramite
+);
+
+/**
+ * @route DELETE /api/tramites/:id/ciudadano
+ * @desc Elimina un trámite propio si está pendiente y sin pagos
+ * @access Private/Ciudadano
+ */
+router.delete('/:id/ciudadano',
+  isAuthenticated,
+  hasRole(['ciudadano']),
+  validateParams(tramiteSchemas.idParam),
+  tramitesController.deleteTramiteCiudadano
 );
 
 /**

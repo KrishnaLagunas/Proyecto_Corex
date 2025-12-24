@@ -545,7 +545,7 @@ async function verDetallePago(pagoId) {
                             <!-- Acciones -->
                             <div class="d-flex gap-2 mt-2">
                                 ${estado === 'pendiente' ? `<button class="btn btn-sm btn-success" onclick="procesarPago(${pago.id})"><i class="bi bi-check-circle"></i> Procesar</button>` : ''}
-                                ${estado === 'pendiente' ? `<button class="btn btn-sm btn-outline-danger" onclick="anularPago(${pago.id})"><i class="bi bi-x-circle"></i> Anular</button>` : ''}
+                                ${estado === 'pendiente' ? `<button class="btn btn-sm btn-outline-danger" onclick="anularPago(${pago.id})"><i class="bi bi-x-circle"></i> Cancelar</button>` : ''}
                             </div>
                         </div>
                     </div>
@@ -556,6 +556,20 @@ async function verDetallePago(pagoId) {
     } catch (error) {
         console.error('Error al cargar detalle del pago:', error);
         mostrarNotificacion('Error al cargar detalle: ' + error.message, 'danger');
+    } finally {
+        mostrarCargando(false);
+    }
+}
+
+async function anularPago(pagoId) {
+    try {
+        mostrarCargando(true);
+        await fetchAPI(`/pagos/${pagoId}/ciudadano`, { method: 'DELETE' });
+        mostrarNotificacion('Pago cancelado.', 'success');
+        cargarPagos();
+    } catch (error) {
+        const msg = (error && ((error.body && (error.body.message || error.body.error)) || error.message || error.status)) ? `No se pudo cancelar: ${(error.body && (error.body.message || error.body.error)) || error.message || error.status}` : 'No se pudo cancelar el pago';
+        mostrarNotificacion(msg, 'danger');
     } finally {
         mostrarCargando(false);
     }

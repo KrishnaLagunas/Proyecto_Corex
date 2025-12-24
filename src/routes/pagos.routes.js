@@ -81,6 +81,13 @@ router.post('/:id/procesar',
   pagosController.procesarPago
 );
 
+router.delete('/:id/ciudadano',
+  isAuthenticated,
+  hasRole(['ciudadano']),
+  validateParams(pagoSchemas.idParam),
+  pagosController.deletePagoCiudadano
+);
+
 /**
  * @route GET /api/pagos/stats/general
  * @desc Obtiene estadísticas de pagos

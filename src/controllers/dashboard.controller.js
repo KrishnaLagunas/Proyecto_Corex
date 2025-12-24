@@ -348,48 +348,55 @@ const dashboardController = {
           muniNombre = m?.nombre || null;
         } catch (_) {}
       }
-      try {
-        const path = require('path');
-        const fs = require('fs');
-        const logoPath = path.join(__dirname, '../../public/images/muni1.jpg');
-        const x0 = doc.page.margins.left;
-        const y0 = doc.page.margins.top;
-        if (fs.existsSync(logoPath)) {
-          try { doc.image(logoPath, x0, y0, { width: 48, height: 48 }); } catch (_) {}
-          doc.fontSize(14).fillColor('#000').text(String(muniNombre || 'Municipalidad'), x0 + 56, y0 + 14);
-        } else {
-          doc.fontSize(14).fillColor('#000').text(String(muniNombre || 'Municipalidad'), x0, y0);
-        }
-        doc.moveDown(1);
-      } catch (_) {}
-      doc.fontSize(18).text(String(titulo || 'Reporte'), { align: 'left' });
-      doc.moveDown(0.3);
-      doc.fontSize(10).fillColor('#666').text(`Generado ${new Date().toLocaleString('es-CL')}`);
-      doc.moveDown(1);
+      // Encabezado limpio sin imagen
+      doc.fontSize(12).fillColor('#000').text(String(muniNombre || 'Municipalidad'), { align: 'left' });
+      doc.moveDown(0.2);
+      doc.fontSize(18).fillColor('#000').text(String(titulo || 'Reporte'), { align: 'left' });
+      doc.moveDown(0.2);
+      doc.fontSize(10).fillColor('#666').text(`Generado ${new Date().toLocaleString('es-CL')}`, { align: 'left' });
+      doc.moveDown(0.8);
+
+      // Gráfico de referencia (imagen del canvas)
       if (chartDataUrl && typeof chartDataUrl === 'string') {
         const m = chartDataUrl.match(/^data:image\/(png|jpeg);base64,(.+)$/i);
         if (m) {
           const buf = Buffer.from(m[2], 'base64');
-          try { doc.image(buf, { fit: [520, 300], align: 'center' }); } catch (_) {}
-          doc.moveDown(1);
+          try { doc.image(buf, { fit: [520, 280], align: 'center' }); } catch (_) {}
+          doc.moveDown(0.8);
         }
       }
+      // Tabla ordenada con encabezado y valores alineados
       if (Array.isArray(columns) && Array.isArray(rows) && rows.length > 0) {
+        const startX = doc.page.margins.left;
+        const usableW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
         const colCount = columns.length;
-        const usable = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-        const colW = Math.floor(usable / colCount);
-        doc.fontSize(11).fillColor('#000');
+        const colW = Math.floor(usableW / colCount);
+        const headerHeight = 20;
+        const rowHeight = 18;
+
+        // Encabezado
+        doc.save();
+        doc.rect(startX, doc.y, usableW, headerHeight).fill('#f1f3f5');
+        doc.fillColor('#000').fontSize(11);
         columns.forEach((c, i) => {
-          doc.text(String(c || ''), doc.page.margins.left + i * colW, doc.y, { width: colW, continued: i < colCount - 1 });
+          const x = startX + i * colW + 6;
+          doc.text(String(c || ''), x, doc.y + 4, { width: colW - 12 });
         });
-        doc.moveDown(0.5);
+        doc.restore();
+        doc.moveDown(1.2);
+
+        // Filas
         doc.fontSize(10).fillColor('#111');
         rows.forEach(r => {
+          const baseY = doc.y;
           columns.forEach((c, i) => {
             const v = r && r[c];
-            doc.text(String(v == null ? '' : v), doc.page.margins.left + i * colW, doc.y, { width: colW, continued: i < colCount - 1 });
+            const isNumber = typeof v === 'number' || (typeof v === 'string' && v.match(/^\d+(\.\d+)?$/));
+            const x = startX + i * colW + 6;
+            const opts = { width: colW - 12, align: isNumber ? 'right' : 'left' };
+            doc.text(String(v == null ? '' : v), x, baseY, opts);
           });
-          doc.moveDown(0.2);
+          doc.moveDown(0.7);
         });
       }
       doc.end();

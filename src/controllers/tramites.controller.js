@@ -255,9 +255,12 @@ const tramitesController = {
       }
       
       // Verificar que la municipalidad existe
-      const municipalidad = await Municipalidad.findByPk(municipalidad_id);
+      const municipalidad = municipalidad_id ? await Municipalidad.findByPk(municipalidad_id) : null;
       if (!municipalidad) {
-        throw new ApiError('La municipalidad seleccionada no existe', 400);
+        if (req.user.rol_nombre !== 'ciudadano') {
+          throw new ApiError('La municipalidad seleccionada no existe', 400);
+        }
+        municipalidad_id = null;
       }
       if (req.user.rol_nombre === 'administrador') {
         if (!req.user.municipalidad_id || req.user.municipalidad_id !== municipalidad_id) {
@@ -272,9 +275,12 @@ const tramitesController = {
         }
       }
       const { Departamento } = require('../models');
-      const depObj = await Departamento.findByPk(departamento_id);
+      const depObj = departamento_id ? await Departamento.findByPk(departamento_id) : null;
       if (!depObj) {
-        throw new ApiError('El departamento seleccionado no existe', 400);
+        if (req.user.rol_nombre !== 'ciudadano') {
+          throw new ApiError('El departamento seleccionado no existe', 400);
+        }
+        departamento_id = null;
       }
       const TRAMITES_POR_DEPTO = {
         educacion: [
@@ -313,7 +319,7 @@ const tramitesController = {
       else if (depNorm.includes('seguridad')) clave = 'seguridad';
       else if (depNorm.includes('tránsito') || depNorm.includes('transito') || depNorm.includes('transporte')) clave = 'transito';
       else clave = null;
-      if (clave && TRAMITES_POR_DEPTO[clave]) {
+      if (depObj && clave && TRAMITES_POR_DEPTO[clave]) {
         const lista = TRAMITES_POR_DEPTO[clave];
         const matchNombre = lista.find(t => norm(req.body.tipo) === norm(t.nombre));
         if (!matchNombre) {
@@ -604,6 +610,43 @@ const tramitesController = {
       res.json({
         message: 'Trámite eliminado exitosamente'
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+  
+  /**
+   * Elimina un trámite propio del ciudadano si está pendiente y sin pagos
+   * @param {Object} req
+   * @param {Object} res
+   * @param {Function} next
+   */
+  deleteTramiteCiudadano: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      if (req.user.rol_nombre !== 'ciudadano') {
+        throw new ApiError('No tienes permiso para eliminar este trámite', 403);
+      }
+      const tramite = await Tramite.findByPk(id);
+      if (!tramite) {
+        throw new ApiError('Trámite no encontrado', 404);
+      }
+      if (tramite.ciudadano_id !== req.user.id) {
+        throw new ApiError('No puedes eliminar trámites de otro ciudadano', 403);
+      }
+      if (tramite.estado !== 'pendiente') {
+        throw new ApiError('Solo se pueden eliminar trámites en estado pendiente', 400);
+      }
+      const pagosCompletados = await Pago.count({ where: { tramite_id: id, estado: 'completado' } });
+      if (pagosCompletados > 0) {
+        throw new ApiError('No se puede eliminar el trámite porque tiene pago(s) completado(s)', 400);
+      }
+      await Pago.destroy({ where: { tramite_id: id, estado: { [Op.ne]: 'completado' } } });
+      await Documento.destroy({ where: { tramite_id: id } });
+      const codigoTramite = tramite.codigo;
+      await tramite.destroy();
+      try { logger.info(`[Ciudadano][Eliminar Trámite] código=${codigoTramite} id=${id} ciudadano=${req.user.id}`); } catch (_) {}
+      res.json({ message: 'Trámite eliminado exitosamente' });
     } catch (error) {
       next(error);
     }
@@ -1214,6 +1257,48 @@ tramitesController.generateConstanciaLocal = async (req, res, next) => {
     doc.fontSize(10).text('Emitido y autorizado por la municipalidad correspondiente. Este documento es una constancia oficial del trámite realizado por el ciudadano.', { align: 'left' });
 
     doc.end();
+  } catch (error) {
+    next(error);
+  }
+};
+
+tramitesController.getTiposDiagnostico = async (req, res, next) => {
+  try {
+    const registros = await Tramite.findAll({
+      attributes: [
+        'tipo',
+        [sequelize.fn('COUNT', sequelize.col('Tramite.id')), 'total']
+      ],
+      group: ['tipo'],
+      order: [['tipo', 'ASC']]
+    });
+    const tiposRegistrados = registros.map(r => ({ nombre: r.tipo, total: parseInt(r.get('total')) || 0 }));
+    const normalize = (s) => String(s || '').toLowerCase().trim().replace(/\.$/, '');
+    const expectedList = [
+      'solicitudes de becas municipales',
+      'solicitud de traslado de establecimiento',
+      'reclamos y revisiones de casos de convivencia escolar',
+      'solicitud de cambio de consultorio',
+      'solicitud de inscripción de consultorio',
+      'solicitud de ayuda técnica',
+      'reclamos por centro de salud',
+      'certificado de construcción de obras',
+      'regularización de viviendas',
+      'denuncias por obras ilegales',
+      'solicitud de rondas preventivas',
+      'instalación de cámaras o alarmas comunitarias',
+      'charlas de seguridad',
+      'rectificación de datos o errores en licencias',
+      'permiso de circulación',
+      'rectificación de datos o errores en licencias.',
+      'permiso de circulación.'
+    ];
+    const expectedSet = new Set(expectedList.map(normalize));
+    const registradosSet = new Set(tiposRegistrados.map(t => normalize(t.nombre)));
+    const faltantes = Array.from(expectedSet).filter(n => !registradosSet.has(n));
+    const desconocidos = tiposRegistrados.filter(t => !expectedSet.has(normalize(t.nombre)));
+    const ok = faltantes.length === 0 && desconocidos.length === 0;
+    res.json({ ok, registrados: tiposRegistrados, faltantes, desconocidos });
   } catch (error) {
     next(error);
   }

@@ -60,7 +60,7 @@ async function fetchAPI(endpoint, options = {}) {
         if (uStr) {
             try { const u = JSON.parse(uStr); cookieToken = getCookie(getUserCookieName(u.id, u.role || u.rol || u.rol_nombre)); } catch (_) {}
         }
-        const token = cookieToken || (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('token')) || localStorage.getItem('token');
+        const token = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('token')) || localStorage.getItem('token') || cookieToken;
         if (token) {
             defaultOptions.headers['x-access-token'] = token;
         }
@@ -530,7 +530,19 @@ function exportarCSV(data, filename) {
 function exportarReportePDF(titulo, columns, rows, canvasId) {
     try {
         const canvas = document.getElementById(canvasId);
-        const dataUrl = canvas ? canvas.toDataURL('image/jpeg', 0.9) : null;
+        let dataUrl = null;
+        if (canvas) {
+            const w = canvas.width;
+            const h = canvas.height;
+            const off = document.createElement('canvas');
+            off.width = w;
+            off.height = h;
+            const ctx = off.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(canvas, 0, 0);
+            dataUrl = off.toDataURL('image/jpeg', 0.95);
+        }
         const payload = { titulo, columns, rows, chartDataUrl: dataUrl };
         return fetchAPI('/dashboard/reporte/pdf', { method: 'POST', body: payload, responseType: 'blob', headers: { Accept: 'application/pdf' } })
             .then(blob => {

@@ -260,6 +260,7 @@ const pagosController = {
         tramite_id,
         ciudadano_id
       } = req.body;
+      const esSimulacion = typeof referencia_externa === 'string' && referencia_externa.startsWith('SIM-');
       
       // Verificar que el trámite existe y requiere pago
       const tramite = await Tramite.findByPk(tramite_id);
@@ -304,9 +305,41 @@ const pagosController = {
               tramite.monto = 1000;
               await tramite.save();
             }
+            // Fallback adicional para tipos conocidos sin configuración en BD
+            const esCamarasAlarmas = tLower.includes('instalación') || tLower.includes('instalacion')
+              ? (tLower.includes('cámara') || tLower.includes('camara') || tLower.includes('alarma') || tLower.includes('alarmas'))
+              : false;
+            const esRegularizacionViviendas = tLower.includes('regularización') || tLower.includes('regularizacion');
+            const esCertificadoConstruccion = tLower.includes('certificado') && (tLower.includes('construcción') || tLower.includes('construccion') || tLower.includes('obras'));
+            if (!tramite.requiere_pago || !(parseFloat(tramite.monto || 0) > 0)) {
+              if (esCamarasAlarmas) {
+                tramite.requiere_pago = true;
+                tramite.monto = 20000;
+                await tramite.save();
+              } else if (esRegularizacionViviendas) {
+                tramite.requiere_pago = true;
+                tramite.monto = 200000;
+                await tramite.save();
+              } else if (esCertificadoConstruccion) {
+                tramite.requiere_pago = true;
+                tramite.monto = 500000;
+                await tramite.save();
+              }
+            }
           }
         } catch (e) {
           logger.warn(`No se pudo resolver monto desde configuración: ${e.message}`);
+        }
+      }
+      const isCiudadano = req.user.rol_nombre === 'ciudadano';
+      if (!tramite.requiere_pago && (parseFloat(monto || 0) > 0) && (isCiudadano || esSimulacion)) {
+        try {
+          tramite.requiere_pago = true;
+          tramite.monto = parseFloat(monto);
+          await tramite.save();
+          try { logger.info(`[Pagos][CREATE][CIUDADANO_FALLBACK] tramite_id=${tramite.id} monto_set=${tramite.monto}`); } catch (_) {}
+        } catch (e) {
+          try { logger.warn(`[Pagos][CREATE][CIUDADANO_FALLBACK_FAIL] ${e.message}`); } catch (_) {}
         }
       }
       if (req.user.rol_nombre === 'administrador') {
@@ -323,13 +356,29 @@ const pagosController = {
       }
       
       if (!tramite.requiere_pago) {
+        try { logger.warn(`[Pagos][CREATE][RECHAZADO] tramite_id=${tramite.id} tipo="${String(tramite.tipo||'')}" monto=${tramite.monto} requiere_pago=${tramite.requiere_pago}`); } catch (_) {}
         throw new ApiError('El trámite seleccionado no requiere pago', 400);
       }
       
       // Verificar que el monto coincide con el del trámite
       logger.info(`Comparando montos - Trámite: ${tramite.monto} (${typeof tramite.monto}) vs Enviado: ${monto} (${typeof monto})`);
       if (parseFloat(tramite.monto) !== parseFloat(monto)) {
-        throw new ApiError(`El monto debe ser ${tramite.monto}`, 400);
+        const tMon = parseFloat(tramite.monto || 0);
+        const mMon = parseFloat(monto || 0);
+        if (isCiudadano && tMon <= 0 && mMon > 0) {
+          try {
+            tramite.monto = mMon;
+            await tramite.save();
+            try { logger.info(`[Pagos][CREATE][CIUDADANO_MONTO_SET] tramite_id=${tramite.id} monto_set=${mMon}`); } catch (_) {}
+          } catch (e) {
+            try { logger.warn(`[Pagos][CREATE][CIUDADANO_MONTO_SET_FAIL] ${e.message}`); } catch (_) {}
+            try { logger.warn(`[Pagos][CREATE][MONTO_MISMATCH] tramite_id=${tramite.id} esperado=${tMon} recibido=${mMon}`); } catch (_) {}
+            throw new ApiError(`El monto debe ser ${tramite.monto}`, 400);
+          }
+        } else {
+          try { logger.warn(`[Pagos][CREATE][MONTO_MISMATCH] tramite_id=${tramite.id} esperado=${tMon} recibido=${mMon}`); } catch (_) {}
+          throw new ApiError(`El monto debe ser ${tramite.monto}`, 400);
+        }
       }
       
       // Verificar que el ciudadano existe
@@ -536,8 +585,11 @@ const pagosController = {
       // Marcar trámite como pago completado si corresponde
       if (pago.tramite_id) {
         const tramite = await Tramite.findByPk(pago.tramite_id);
-        if (tramite && tramite.requiere_pago) {
+        if (tramite) {
           tramite.pago_completado = true;
+          if (tramite.estado === 'pendiente') {
+            tramite.estado = 'aprobado';
+          }
           await tramite.save();
         }
       }
@@ -772,6 +824,38 @@ const pagosController = {
     } catch (error) {
       next(error);
     }
+  }
+};
+
+// Ciudadano: eliminar pago no completado propio
+pagosController.deletePagoCiudadano = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (req.user.rol_nombre !== 'ciudadano') {
+      throw new (require('../middlewares/errorHandler').ApiError)('No tienes permiso para eliminar pagos', 403);
+    }
+    const { Pago, Tramite } = require('../models');
+    const pago = await Pago.findByPk(id);
+    if (!pago) {
+      throw new (require('../middlewares/errorHandler').ApiError)('Pago no encontrado', 404);
+    }
+    if (String(pago.estado).toLowerCase() === 'completado') {
+      throw new (require('../middlewares/errorHandler').ApiError)('No se puede eliminar un pago completado', 400);
+    }
+    let pertenece = false;
+    if (pago.ciudadano_id && pago.ciudadano_id === req.user.id) pertenece = true;
+    if (!pertenece && pago.tramite_id) {
+      const tr = await Tramite.findByPk(pago.tramite_id);
+      if (tr && tr.ciudadano_id === req.user.id) pertenece = true;
+    }
+    if (!pertenece) {
+      throw new (require('../middlewares/errorHandler').ApiError)('No puedes eliminar pagos de otro ciudadano', 403);
+    }
+    await pago.destroy();
+    try { (require('../utils/logger')).info(`[Ciudadano][Eliminar Pago] id=${id} ciudadano=${req.user.id}`); } catch (_) {}
+    res.json({ message: 'Pago eliminado correctamente' });
+  } catch (error) {
+    next(error);
   }
 };
 

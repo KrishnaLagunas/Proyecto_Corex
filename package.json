@@ -18,7 +18,8 @@
     "test": "node scripts/run_tests.js",
     "test:integration": "node scripts/run_integration_tests.js",
     "img:convert:wordmark": "node scripts/convert_wordmark_to_webp.js",
-    "img:convert:fondo": "node scripts/convert_fondo_to_webp.js"
+    "img:convert:fondo": "node scripts/convert_fondo_to_webp.js",
+    "db:tramites:pagados": "node scripts/query_tramites_pagados.js"
   },
   "keywords": [
     "erp",

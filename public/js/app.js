@@ -210,8 +210,18 @@ function cargarContenidoPagina(pagina) {
                 const preview = document.getElementById('report-preview');
                 const renderCanvas = (title) => {
                     if (!preview) return null;
-                    preview.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-2"><h6 class="mb-0">${title}</h6><div class="d-flex align-items-center gap-2"><button id="btn-export-report-csv" class="btn btn-sm btn-outline-secondary">Descargar CSV</button><button id="btn-export-report-pdf" class="btn btn-sm btn-outline-primary">Descargar PDF</button><div class="small text-muted">Generado ${new Date().toLocaleString('es-CL')}</div></div></div><div style="position:relative;height:360px"><canvas id="report-canvas"></canvas></div>`;
+                    preview.innerHTML = `<div class="d-flex justify-content-between align-items-center mb-2"><h6 class="mb-0">${title}</h6><div class="d-flex align-items-center gap-2"><button id="btn-export-report-csv" class="btn btn-sm btn-outline-secondary">Descargar CSV</button><button id="btn-export-report-pdf" class="btn btn-sm btn-outline-primary">Descargar PDF</button><div class="small text-muted">Generado ${new Date().toLocaleString('es-CL')}</div></div></div><div style="position:relative;height:360px"><canvas id="report-canvas"></canvas></div><div id="report-legend" class="mt-3"></div>`;
                     return document.getElementById('report-canvas');
+                };
+                const renderLegendFrom = (arr, labelKey, valueKey, suffix = '') => {
+                    const legend = document.getElementById('report-legend');
+                    if (!legend) return;
+                    const html = arr.map(o => {
+                        const label = String(o[labelKey] ?? '');
+                        const value = Number(o[valueKey] ?? 0);
+                        return `<div class="d-flex justify-content-between align-items-center py-1 border-bottom"><div class="text-truncate me-2">${label}</div><div class="fw-semibold">${value}${suffix}</div></div>`;
+                    }).join('');
+                    legend.innerHTML = html;
                 };
                 const genTramitesDepto = async () => {
                     try {
@@ -232,6 +242,7 @@ function cargarContenidoPagina(pagina) {
                         if (btnCSV) btnCSV.onclick = () => { try { exportarCSV(window.currentReportData, 'tramites_por_departamento.csv'); } catch (_) {} };
                         if (btnPDF) btnPDF.onclick = () => { try { exportarReportePDF('Trámites por Departamento', ['departamento','total'], window.currentReportData, 'report-canvas'); } catch (_) {} };
                         crearGraficoBarras('report-canvas', labels, data, 'Trámites por Departamento');
+                        renderLegendFrom(window.currentReportData, 'departamento', 'total', ' trámites');
                     } catch (e) {
                         preview.innerHTML = `<div class="alert alert-danger">Error al generar el reporte: ${e.message || e}</div>`;
                     } finally { mostrarCargando(false); }
@@ -270,6 +281,7 @@ function cargarContenidoPagina(pagina) {
                         if (btnCSV) btnCSV.onclick = () => { try { exportarCSV(window.currentReportData, 'tramites_por_estado.csv'); } catch (_) {} };
                         if (btnPDF) btnPDF.onclick = () => { try { exportarReportePDF('Trámites por Estado', ['estado','total'], window.currentReportData, 'report-canvas'); } catch (_) {} };
                         crearGraficoBarras('report-canvas', labels, data, 'Trámites por Estado');
+                        renderLegendFrom(window.currentReportData, 'estado', 'total', ' trámites');
                     } catch (e) {
                         console.error('[REPORT][Trámites por Estado] Error', e);
                         preview.innerHTML = `<div class="alert alert-danger">Error al generar el reporte: ${e.message || e}</div>`;
@@ -294,6 +306,7 @@ function cargarContenidoPagina(pagina) {
                         if (btnCSV) btnCSV.onclick = () => { try { exportarCSV(window.currentReportData, 'pagos_mensuales.csv'); } catch (_) {} };
                         if (btnPDF) btnPDF.onclick = () => { try { exportarReportePDF('Pagos Mensuales', ['mes','pagos','monto_total'], window.currentReportData, 'report-canvas'); } catch (_) {} };
                         crearGraficoBarras('report-canvas', labels, data, 'Pagos');
+                        renderLegendFrom(window.currentReportData, 'mes', 'pagos', ' pagos');
                     } catch (e) {
                         preview.innerHTML = `<div class="alert alert-danger">Error al generar el reporte: ${e.message || e}</div>`;
                     } finally { mostrarCargando(false); }
@@ -317,6 +330,7 @@ function cargarContenidoPagina(pagina) {
                         if (btnCSV) btnCSV.onclick = () => { try { exportarCSV(window.currentReportData, 'pagos_por_estado.csv'); } catch (_) {} };
                         if (btnPDF) btnPDF.onclick = () => { try { exportarReportePDF('Pagos por Estado', ['estado','total'], window.currentReportData, 'report-canvas'); } catch (_) {} };
                         crearGraficoBarras('report-canvas', labels, data, 'Pagos por Estado');
+                        renderLegendFrom(window.currentReportData, 'estado', 'total', ' pagos');
                     } catch (e) {
                         preview.innerHTML = `<div class="alert alert-danger">Error al generar el reporte: ${e.message || e}</div>`;
                     } finally { mostrarCargando(false); }

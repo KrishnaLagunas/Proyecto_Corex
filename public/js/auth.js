@@ -777,8 +777,8 @@ async function cargarPortalCiudadano(usuario) {
                                     <td>${tramite.titulo}</td>
                                     <td>${formatearFecha(tramite.fecha_solicitud)}</td>
                                     <td>
-                                        <span class="badge ${obtenerColorEstadoTramite(tramite.estado)}">
-                                            ${obtenerNombreEstadoTramite(tramite.estado)}
+                                        <span class="badge ${obtenerColorEstadoTramite(tramite.pago_completado ? 'pagado' : tramite.estado)}" data-estado="${tramite.pago_completado ? 'pagado' : tramite.estado}">
+                                            ${obtenerNombreEstadoTramite(tramite.pago_completado ? 'pagado' : tramite.estado)}
                                         </span>
                                     </td>
                                     <td>
@@ -800,16 +800,17 @@ async function cargarPortalCiudadano(usuario) {
         // Cargar portal ciudadano
         mainContent.innerHTML = `
             <div class="container py-4">
-                <div class="row">
-                    <div class="col-12">
-                        <div class="d-flex justify-content-between align-items-center mb-4">
-                            <h2 class="mb-0">Portal Ciudadano</h2>
-                        </div>
-                        <div class="alert alert-success">
-                            <i class="bi bi-person-check-fill me-2"></i>
-                            Bienvenido/a, ${usuario.nombre} ${usuario.apellido}. Accede a tus trámites y servicios municipales.
+                <div class="row mb-3 align-items-center">
+                    <div class="col-4">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-hand-thumbs-up"></i>
+                            <span>Bienvenido/a ${usuario.nombre} ${usuario.apellido}</span>
                         </div>
                     </div>
+                    <div class="col-4 text-center">
+                        <h2 class="section-title">Portal Ciudadano</h2>
+                    </div>
+                    <div class="col-4"></div>
                 </div>
                 <div class="row">
                     <div class="col-md-4 mb-4">
@@ -1665,6 +1666,18 @@ async function cargarMisTramites(usuario) {
     if (mainContent) {
         // Obtener trámites del usuario desde la API
         const tramitesUsuario = await obtenerTramitesUsuarioAPI(usuario.id);
+        const ocultosRaw = localStorage.getItem('__tramites_ocultos');
+        const ocultos = Array.isArray(JSON.parse(ocultosRaw || '[]')) ? JSON.parse(ocultosRaw || '[]') : [];
+        const listaFiltrada = Array.isArray(tramitesUsuario) ? tramitesUsuario.filter(t => !ocultos.includes(t.id)) : [];
+        const pagosCompletadosPorTramite = new Set();
+        try {
+            const respPagos = await fetchAPI(`/pagos?ciudadanoId=${usuario.id}`);
+            const pagos = Array.isArray(respPagos) ? respPagos : (respPagos.pagos || []);
+            pagos.forEach(p => {
+                const tid = p.tramite_id ?? p.tramiteId;
+                if (tid && String(p.estado).toLowerCase() === 'completado') pagosCompletadosPorTramite.add(tid);
+            });
+        } catch (_) {}
         
         let contenidoTramites = '';
         
@@ -1742,12 +1755,12 @@ async function cargarMisTramites(usuario) {
         const infoPaginacion = document.getElementById('info-paginacion');
         let paginaActual = 1;
         const tamPagina = 8;
-        const totalPaginas = Math.max(1, Math.ceil(tramitesUsuario.length / tamPagina));
+        const totalPaginas = Math.max(1, Math.ceil(listaFiltrada.length / tamPagina));
 
         function renderPagina() {
             const start = (paginaActual - 1) * tamPagina;
-            const end = Math.min(start + tamPagina, tramitesUsuario.length);
-            const slice = tramitesUsuario.slice(start, end);
+            const end = Math.min(start + tamPagina, listaFiltrada.length);
+            const slice = listaFiltrada.slice(start, end);
             if (tbody) {
                 tbody.innerHTML = slice.map(tramite => `
                     <tr>
@@ -1755,13 +1768,18 @@ async function cargarMisTramites(usuario) {
                         <td class="text-uppercase">${obtenerNombreTipoTramite(tramite.tipo)}</td>
                         <td>${tramite.titulo}</td>
                         <td>${formatearFecha(tramite.fecha_solicitud)}</td>
-                        <td><span class="badge ${obtenerColorEstadoTramite(tramite.estado)}">${obtenerNombreEstadoTramite(tramite.estado)}</span></td>
-                        <td><button class="btn btn-sm btn-primary ver-detalle-tramite" data-id="${tramite.id}"><i class="bi bi-eye"></i> Ver</button></td>
+                        <td><span class="badge ${obtenerColorEstadoTramite(pagosCompletadosPorTramite.has(tramite.id) || tramite.pago_completado ? 'pagado' : tramite.estado)}" data-estado="${pagosCompletadosPorTramite.has(tramite.id) || tramite.pago_completado ? 'pagado' : tramite.estado}">${obtenerNombreEstadoTramite(pagosCompletadosPorTramite.has(tramite.id) || tramite.pago_completado ? 'pagado' : tramite.estado)}</span></td>
+                        <td>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-primary ver-detalle-tramite" data-id="${tramite.id}"><i class="bi bi-eye"></i> Ver</button>
+                                ${String(tramite.estado).toLowerCase() === 'pendiente' && !pagosCompletadosPorTramite.has(tramite.id) ? `<button class="btn btn-sm btn-outline-danger quitar-tramite" data-id="${tramite.id}"><i class="bi bi-x-circle"></i> Quitar</button>` : ''}
+                            </div>
+                        </td>
                     </tr>
                 `).join('');
             }
             if (paginaActualEl) paginaActualEl.textContent = `${paginaActual} / ${totalPaginas}`;
-            if (infoPaginacion) infoPaginacion.textContent = `Mostrando ${start + 1}–${end} de ${tramitesUsuario.length}`;
+            if (infoPaginacion) infoPaginacion.textContent = `Mostrando ${start + 1}–${end} de ${listaFiltrada.length}`;
             const nuevosBotones = document.querySelectorAll('.ver-detalle-tramite');
             if (nuevosBotones && nuevosBotones.length > 0) {
                 nuevosBotones.forEach(b => {
@@ -1769,6 +1787,32 @@ async function cargarMisTramites(usuario) {
                         e.preventDefault();
                         const id = parseInt(e.currentTarget.getAttribute('data-id'));
                         mostrarDetalleTramiteModal(id);
+                    };
+                });
+            }
+            const quitarBtns = document.querySelectorAll('.quitar-tramite');
+            if (quitarBtns && quitarBtns.length > 0) {
+                quitarBtns.forEach(b => {
+                    b.onclick = async (e) => {
+                        e.preventDefault();
+                        const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                        try {
+                            mostrarCargando(true);
+                            await fetchAPI(`/tramites/${id}/ciudadano`, { method: 'DELETE' });
+                            const idx = listaFiltrada.findIndex(t => t.id === id);
+                            if (idx >= 0) {
+                                listaFiltrada.splice(idx, 1);
+                                const total = Math.max(1, Math.ceil(listaFiltrada.length / tamPagina));
+                                if (paginaActual > total) paginaActual = total;
+                            }
+                            renderPagina();
+                            mostrarNotificacion('Trámite eliminado.', 'success');
+                        } catch (err) {
+                            const msg = (err && ((err.body && (err.body.message || err.body.error)) || err.message || err.status)) ? `No se pudo eliminar: ${(err.body && (err.body.message || err.body.error)) || err.message || err.status}` : 'No se pudo eliminar el trámite';
+                            mostrarNotificacion(msg, 'danger');
+                        } finally {
+                            mostrarCargando(false);
+                        }
                     };
                 });
             }
@@ -2185,12 +2229,8 @@ async function enviarNuevoTramite(usuario) {
             // Notificar y refrescar vistas que escuchan el evento
             window.dispatchEvent(new CustomEvent('tramite:creado', { detail: nuevoTramite }));
 
-            // Navegar sólo si no estamos ya en Portal o Mis Trámites
-            const enPortal = !!document.getElementById('btn-nuevo-tramite');
-            const enMisTramites = !!document.getElementById('btn-nuevo-tramite-desde-lista');
-            if (!enPortal && !enMisTramites) {
-                cargarPortalCiudadano(usuario);
-            }
+            // Redirigir automáticamente a Mis Pagos
+            cargarMisPagos(usuario);
         } else {
             throw new Error('No se pudo guardar el trámite');
         }
@@ -2266,7 +2306,7 @@ function obtenerNombreEstadoTramite(estado) {
         'finalizado': 'Finalizado'
     };
     
-    return estados[estado] || estado;
+    return estados[estado] || (estado === 'pagado' ? 'Pagado' : estado);
 }
 
 function obtenerColorEstadoTramite(estado) {
@@ -2279,7 +2319,7 @@ function obtenerColorEstadoTramite(estado) {
         'finalizado': 'bg-secondary'
     };
     
-    return colores[estado] || 'bg-secondary';
+    return colores[estado] || (estado === 'pagado' ? 'bg-success' : 'bg-secondary');
 }
 
 function renderCiudadanoNavbar(usuario) {
@@ -2340,18 +2380,40 @@ async function cargarMisPagos(usuario) {
                 const norm = (nombre || '').toLowerCase();
                 let clave = 'otro';
                 if (norm.includes('licencia')) clave = 'licencia';
-                else if (norm.includes('permiso') || norm.includes('construcción') || norm.includes('construccion')) clave = 'permiso';
-                else if (norm.includes('certificado')) clave = 'certificado';
+                else if (norm.includes('permiso')) clave = 'permiso';
+                else if (norm.includes('certificado') || norm.includes('construcción') || norm.includes('construccion')) clave = 'certificado';
                 else if (norm.includes('solicitud')) clave = 'solicitud';
+
+                const precios = {
+                    'solicitudes de becas municipales': 0,
+                    'solicitud de traslado de establecimiento': 0,
+                    'reclamos y revisiones de casos de convivencia escolar': 0,
+                    'solicitud de cambio de consultorio': 0,
+                    'solicitud de inscripción de consultorio': 0,
+                    'solicitud de ayuda técnica': 1000,
+                    'reclamos por centro de salud': 0,
+                    'certificado de construcción de obras': 500000,
+                    'regularización de viviendas': 200000,
+                    'denuncias por obras ilegales': 0,
+                    'solicitud de rondas preventivas': 0,
+                    'instalación de cámaras o alarmas comunitarias': 20000,
+                    'charlas de seguridad': 0,
+                    'rectificación de datos o errores en licencias': 3000,
+                    'permiso de circulación': 25000
+                };
+                const precioLocal = precios[norm] ?? null;
+                if (precioLocal !== null && precioLocal > 0) {
+                    return { requiere: true, tipo: 'fijo', montoFijo: precioLocal };
+                }
 
                 const resp = await fetchAPI(`/tramites/configuracion-pago?tramite_nombre=${encodeURIComponent(clave)}&estado=activo&order=DESC`);
                 const data = Array.isArray(resp?.configuraciones)
                     ? resp.configuraciones
                     : (Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : []));
                 if (!data.length) {
-                    if (norm.includes('solicitud') && norm.includes('ayuda') && (norm.includes('técnica') || norm.includes('tecnica'))) {
-                        return { requiere: true, tipo: 'fijo', montoFijo: 1000 };
-                    }
+                    const precio = precioLocal;
+                    if (precio !== null) return { requiere: precio > 0, tipo: precio > 0 ? 'fijo' : 'gratis', montoFijo: precio };
+                    if (norm.includes('solicitud') && norm.includes('ayuda') && (norm.includes('técnica') || norm.includes('tecnica'))) return { requiere: true, tipo: 'fijo', montoFijo: 1000 };
                     return { requiere: false, tipo: 'gratis' };
                 }
 
@@ -2461,6 +2523,16 @@ async function cargarMisPagos(usuario) {
                                 </button>
                             </div>
                         </div>
+                        <div class="d-flex gap-2 mb-3">
+                            <div class="btn-group" role="group" aria-label="Filtrar trámites">
+                                <button id="btn-filtro-pago" class="btn btn-outline-primary active">
+                                    <i class="bi bi-cash-coin"></i> Trámites de pago
+                                </button>
+                                <button id="btn-filtro-gratis" class="btn btn-outline-info">
+                                    <i class="bi bi-gift"></i> Trámites gratis
+                                </button>
+                            </div>
+                        </div>
                         <div id="contenedor-pagos"></div>
                     </div>
                 </div>
@@ -2472,11 +2544,12 @@ async function cargarMisPagos(usuario) {
             contenedor.innerHTML = `<div class="alert alert-info"><i class="bi bi-info-circle-fill me-2"></i>No tienes trámites registrados.</div>`;
         } else {
             const configPorTramite = new Map();
-            const pendientes = [];
-            const realizadosYGratuitos = [];
+            const pagoPendientes = [];
+            const pagoCompletados = [];
+            const gratisTramites = [];
 
             await Promise.all(tramites.map(async (t) => {
-                const tipoNombre = obtenerNombreTipoTramite(t.tipo);
+                const tipoNombre = (t && typeof t.tipo === 'object' && t.tipo?.nombre) ? t.tipo.nombre : String(t.tipo || '');
                 const config = await obtenerConfiguracionPagoPorNombreLocal(tipoNombre);
                 configPorTramite.set(t.id, config);
                 const pagoExistente = pagosPorTramite.get(t.id);
@@ -2487,12 +2560,15 @@ async function cargarMisPagos(usuario) {
                 if (montoTramite <= 0 && config && config.tipo === 'fijo' && parseFloat(config.montoFijo || 0) > 0) {
                     montoTramite = parseFloat(config.montoFijo || 0);
                 }
-                const esGratis = !requiere || montoTramite <= 0;
+                const esGratis = (!requiere) || !(montoTramite > 0);
 
                 const estadoBadge = estadoPago === 'completado'
                     ? '<span class="badge bg-success">Pago completado</span>'
                     : (estadoPago === 'pendiente' ? '<span class="badge bg-warning text-dark">Pendiente</span>' : (estadoPago === 'rechazado' ? '<span class="badge bg-danger">Rechazado</span>' : '<span class="badge bg-secondary">Sin pago</span>'));
                 const gratisBadge = esGratis ? '<span class="badge bg-info ms-2">Gratis</span>' : '';
+                const cancelarHtml = (estadoPago === 'pendiente' && pagoExistente?.id)
+                    ? `<div class="mt-2"><button class="btn btn-sm btn-outline-danger cancelar-pago" data-id="${pagoExistente.id}"><i class="bi bi-x-circle"></i> Cancelar pago</button></div>`
+                    : '';
 
                 const cardHtml = `
                     <div class="card shadow-sm mb-3" id="card-tramite-${t.id}">
@@ -2504,41 +2580,72 @@ async function cargarMisPagos(usuario) {
                                 </div>
                             </div>
                             ${construirModuloPagoHtml(t, config, estadoPago)}
+                            ${cancelarHtml}
                         </div>
                     </div>
                 `;
 
-                if (estadoPago === 'completado' || esGratis) {
-                    realizadosYGratuitos.push(cardHtml);
+                if (esGratis) {
+                    gratisTramites.push(cardHtml);
+                } else if (estadoPago === 'completado') {
+                    pagoCompletados.push(cardHtml);
                 } else {
-                    pendientes.push(cardHtml);
+                    pagoPendientes.push(cardHtml);
                 }
             }));
 
-            const toolbar = pendientes.length ? `
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div class="d-flex gap-2">
-                        <button id="seleccionar-todos" class="btn btn-sm btn-outline-primary">Seleccionar todos</button>
-                        <button id="deseleccionar-todos" class="btn btn-sm btn-outline-secondary">Deseleccionar</button>
-                    </div>
-                    <div class="d-flex align-items-center gap-3">
-                        <span id="resumen-seleccion" class="text-muted">Seleccionados: 0 • Total: ${formatearMoneda(0)}</span>
-                        <button id="btn-simular-seleccion" class="btn btn-warning"><i class="bi bi-play-circle"></i> Simular pago</button>
-                        <button id="btn-pagar-seleccion" class="btn btn-success"><i class="bi bi-credit-card"></i> Pagar seleccionados</button>
-                    </div>
-                </div>
-            ` : '';
+            let filtroActual = 'pago';
 
-            contenedor.innerHTML = `
-                <div class="mb-4">
-                    <h4 class="mb-2">Pendientes de pago</h4>
-                    ${pendientes.length ? toolbar + pendientes.join('') : '<div class="alert alert-info"><i class="bi bi-info-circle-fill me-2"></i>No tienes pagos pendientes.</div>'}
-                </div>
-            `;
+            function renderContenido() {
+                const toolbar = pagoPendientes.length ? `
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="d-flex gap-2">
+                            <button id="seleccionar-todos" class="btn btn-sm btn-outline-primary">Seleccionar todos</button>
+                            <button id="deseleccionar-todos" class="btn btn-sm btn-outline-secondary">Deseleccionar</button>
+                        </div>
+                        <div class="d-flex align-items-center gap-3">
+                            <span id="resumen-seleccion" class="text-muted">Seleccionados: 0 • Total: ${formatearMoneda(0)}</span>
+                            <button id="btn-simular-seleccion" class="btn btn-warning"><i class="bi bi-play-circle"></i> Simular pago</button>
+                            <button id="btn-pagar-seleccion" class="btn btn-success"><i class="bi bi-credit-card"></i> Pagar seleccionados</button>
+                        </div>
+                    </div>
+                ` : '';
+
+                if (filtroActual === 'pago') {
+                    const tienePago = pagoPendientes.length;
+                    contenedor.innerHTML = tienePago ? `
+                        <div class="mb-4">
+                            <h4 class="mb-2">Pendientes de pago</h4>
+                            ${pagoPendientes.length ? toolbar + pagoPendientes.join('') : '<div class="alert alert-info"><i class="bi bi-info-circle-fill me-2"></i>No tienes pagos pendientes.</div>'}
+                        </div>
+                    ` : '<div class="alert alert-info"><i class="bi bi-info-circle-fill me-2"></i>No tienes trámites de pago.</div>';
+                } else {
+                    contenedor.innerHTML = `
+                        <div class="mb-4">
+                            <h4 class="mb-2">Trámites gratuitos</h4>
+                            ${gratisTramites.length ? gratisTramites.join('') : '<div class="alert alert-secondary"><i class="bi bi-gift me-2"></i>No hay trámites gratuitos.</div>'}
+                        </div>
+                    `;
+                }
+
+                const btnPago = document.getElementById('btn-filtro-pago');
+                const btnGratis = document.getElementById('btn-filtro-gratis');
+                if (btnPago && btnGratis) {
+                    if (filtroActual === 'pago') {
+                        btnPago.classList.add('active');
+                        btnGratis.classList.remove('active');
+                    } else {
+                        btnGratis.classList.add('active');
+                        btnPago.classList.remove('active');
+                    }
+                }
+            }
+
+            renderContenido();
 
             // Selección y resumen (solo sobre pendientes)
-            const checkboxes = Array.from(document.querySelectorAll('.seleccionar-tramite'));
-            const resumen = document.getElementById('resumen-seleccion');
+            let checkboxes = Array.from(document.querySelectorAll('.seleccionar-tramite'));
+            let resumen = document.getElementById('resumen-seleccion');
 
             function actualizarResumen() {
                 let total = 0;
@@ -2552,16 +2659,39 @@ async function cargarMisPagos(usuario) {
                 if (resumen) resumen.textContent = `Seleccionados: ${count} • Total: ${formatearMoneda(total)}`;
             }
 
-            checkboxes.forEach(chk => {
-                chk.addEventListener('change', () => {
-                    actualizarResumen();
+            function bindSeleccionEventos() {
+                checkboxes.forEach(chk => {
+                    chk.addEventListener('change', () => {
+                        actualizarResumen();
+                    });
                 });
-            });
+            }
+            bindSeleccionEventos();
+            const cancelarBtns = Array.from(document.querySelectorAll('.cancelar-pago'));
+            if (cancelarBtns.length) {
+                cancelarBtns.forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        e.preventDefault();
+                        const idPago = parseInt(e.currentTarget.dataset.id);
+                        try {
+                            mostrarCargando(true);
+                            await fetchAPI(`/pagos/${idPago}/ciudadano`, { method: 'DELETE' });
+                            mostrarNotificacion('Pago cancelado.', 'success');
+                            await cargarMisPagos(usuario);
+                        } catch (err) {
+                            const msg = (err && ((err.body && (err.body.message || err.body.error)) || err.message || err.status)) ? `No se pudo cancelar: ${(err.body && (err.body.message || err.body.error)) || err.message || err.status}` : 'No se pudo cancelar el pago';
+                            mostrarNotificacion(msg, 'danger');
+                        } finally {
+                            mostrarCargando(false);
+                        }
+                    });
+                });
+            }
 
-            const btnSelTodos = document.getElementById('seleccionar-todos');
-            const btnDesTodos = document.getElementById('deseleccionar-todos');
-            const btnPagarSel = document.getElementById('btn-pagar-seleccion');
-            const btnSimularSel = document.getElementById('btn-simular-seleccion');
+            let btnSelTodos = document.getElementById('seleccionar-todos');
+            let btnDesTodos = document.getElementById('deseleccionar-todos');
+            let btnPagarSel = document.getElementById('btn-pagar-seleccion');
+            let btnSimularSel = document.getElementById('btn-simular-seleccion');
 
             if (btnSelTodos) {
                 btnSelTodos.addEventListener('click', () => {
@@ -2657,13 +2787,30 @@ async function cargarMisPagos(usuario) {
                                 } catch (_) {}
                             }
 
+                            // Consultar el trámite en backend para obtener el monto oficial y requerimiento de pago
+                            let montoParaPago = parseFloat(sel.monto || 0);
+                            try {
+                                const det = await fetchAPI(`/tramites/${tidReal}`);
+                                const montoBackend = parseFloat(det?.monto || 0);
+                                const requiereBackend = !!det?.requiere_pago;
+                                if (requiereBackend && montoBackend > 0) {
+                                    montoParaPago = montoBackend;
+                                }
+                            } catch (_) {
+                                // Si no se pudo consultar, se mantiene el monto de selección
+                            }
+                            if (!(montoParaPago > 0)) {
+                                resultados.push({ ok: false, id: sel.id, error: 'El trámite no tiene monto válido en el sistema' });
+                                continue;
+                            }
+
                             let pago = pagosPorTramite.get(tidReal);
                             if (!pago) {
                                 try {
                                     const creado = await fetchAPI('/pagos', {
                                         method: 'POST',
                                         body: {
-                                            monto: parseFloat(sel.monto || 0),
+                                            monto: montoParaPago,
                                             metodo_pago: 'otro',
                                             referencia_externa: `SIM-${Date.now()}-${sel.id}`,
                                             notas: 'Pago simulado desde portal ciudadano',
@@ -2674,7 +2821,7 @@ async function cargarMisPagos(usuario) {
                                     pago = (creado && (creado.pago || creado)) || null;
                                     if (pago) pagosPorTramite.set(tidReal, pago);
                                 } catch (e) {
-                                    resultados.push({ ok: false, id: sel.id, error: e.message });
+                                    resultados.push({ ok: false, id: sel.id, error: e.message, status: e.status, body: e.body });
                                     continue;
                                 }
                             }
@@ -2691,13 +2838,70 @@ async function cargarMisPagos(usuario) {
                                 });
                                 resultados.push({ ok: true, id: sel.id });
                             } catch (e2) {
-                                resultados.push({ ok: false, id: sel.id, error: e2.message });
+                                resultados.push({ ok: false, id: sel.id, error: e2.message, status: e2.status, body: e2.body });
                             }
                         }
 
                         const ok = resultados.filter(r => r.ok).length;
                         const fail = resultados.length - ok;
                         mostrarNotificacion(`Pagos simulados: ${ok}. Fallidos: ${fail}.`, ok ? 'success' : 'danger');
+                        try {
+                            const debugContainerId = 'debug-simulacion-pagos';
+                            let dbg = document.getElementById(debugContainerId);
+                            const detalle = resultados.map(r => {
+                                const t = Array.isArray(tramites) ? tramites.find(tr => tr.id === r.id) : null;
+                                const codigo = t?.codigo || r.id;
+                                const titulo = t?.titulo || 'Trámite';
+                                const tipo = t ? obtenerNombreTipoTramite(t.tipo) : 'Trámite';
+                                const estado = r.ok ? 'OK' : 'FALLÓ';
+                                const causa = (r && (r.error || (r.body && (r.body.message || r.body.error)) || '')) || '';
+                                const detalleBody = r && r.body ? JSON.stringify(r.body) : '';
+                                return `<tr>
+                                    <td>${codigo}</td>
+                                    <td>${tipo} - ${titulo}</td>
+                                    <td>${estado}</td>
+                                    <td class="text-muted small">${causa}${detalleBody ? `<br><code class="small">${detalleBody}</code>` : ''}</td>
+                                </tr>`;
+                            }).join('');
+                            const htmlDbg = `
+                                <div class="card border-danger mb-3">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <span><i class="bi bi-bug-fill me-2"></i>Detalle de simulación de pagos</span>
+                                        <button class="btn btn-sm btn-outline-secondary" id="cerrar-debug-simulacion">Ocultar</button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Código</th>
+                                                        <th>Trámite</th>
+                                                        <th>Resultado</th>
+                                                        <th>Mensaje</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>${detalle || '<tr><td colspan="4" class="text-muted">Sin detalles</td></tr>'}</tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            if (!dbg) {
+                                dbg = document.createElement('div');
+                                dbg.id = debugContainerId;
+                                const contenedor = document.getElementById('contenedor-pagos');
+                                if (contenedor) contenedor.prepend(dbg);
+                            }
+                            if (dbg) dbg.innerHTML = htmlDbg;
+                            const cerrarBtn = document.getElementById('cerrar-debug-simulacion');
+                            if (cerrarBtn) cerrarBtn.addEventListener('click', () => {
+                                const el = document.getElementById(debugContainerId);
+                                if (el) el.remove();
+                            });
+                            console.group('[SIMULACION PAGOS]');
+                            resultados.forEach(r => console.log('Resultado', r));
+                            console.groupEnd();
+                        } catch (e) { console.warn('No se pudo renderizar el debug de simulación', e); }
                         await cargarMisPagos(usuario);
                     } catch (error) {
                         console.error('Error al simular pagos seleccionados:', error);
@@ -2705,6 +2909,37 @@ async function cargarMisPagos(usuario) {
                     } finally {
                         mostrarCargando(false);
                     }
+                });
+            }
+
+            const btnFiltroPago = document.getElementById('btn-filtro-pago');
+            const btnFiltroGratis = document.getElementById('btn-filtro-gratis');
+            if (btnFiltroPago) {
+                btnFiltroPago.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    filtroActual = 'pago';
+                    renderContenido();
+                    checkboxes = Array.from(document.querySelectorAll('.seleccionar-tramite'));
+                    resumen = document.getElementById('resumen-seleccion');
+                    btnSelTodos = document.getElementById('seleccionar-todos');
+                    btnDesTodos = document.getElementById('deseleccionar-todos');
+                    btnPagarSel = document.getElementById('btn-pagar-seleccion');
+                    btnSimularSel = document.getElementById('btn-simular-seleccion');
+                    actualizarResumen();
+                    bindSeleccionEventos();
+                });
+            }
+            if (btnFiltroGratis) {
+                btnFiltroGratis.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    filtroActual = 'gratis';
+                    renderContenido();
+                    checkboxes = Array.from(document.querySelectorAll('.seleccionar-tramite'));
+                    resumen = document.getElementById('resumen-seleccion');
+                    btnSelTodos = document.getElementById('seleccionar-todos');
+                    btnDesTodos = document.getElementById('deseleccionar-todos');
+                    btnPagarSel = document.getElementById('btn-pagar-seleccion');
+                    btnSimularSel = document.getElementById('btn-simular-seleccion');
                 });
             }
         }
@@ -2783,18 +3018,40 @@ async function cargarPagosRealizados(usuario) {
                 const norm = (nombre || '').toLowerCase();
                 let clave = 'otro';
                 if (norm.includes('licencia')) clave = 'licencia';
-                else if (norm.includes('permiso') || norm.includes('construcción') || norm.includes('construccion')) clave = 'permiso';
-                else if (norm.includes('certificado')) clave = 'certificado';
+                else if (norm.includes('permiso')) clave = 'permiso';
+                else if (norm.includes('certificado') || norm.includes('construcción') || norm.includes('construccion')) clave = 'certificado';
                 else if (norm.includes('solicitud')) clave = 'solicitud';
+
+                const precios = {
+                    'solicitudes de becas municipales': 0,
+                    'solicitud de traslado de establecimiento': 0,
+                    'reclamos y revisiones de casos de convivencia escolar': 0,
+                    'solicitud de cambio de consultorio': 0,
+                    'solicitud de inscripción de consultorio': 0,
+                    'solicitud de ayuda técnica': 1000,
+                    'reclamos por centro de salud': 0,
+                    'certificado de construcción de obras': 500000,
+                    'regularización de viviendas': 200000,
+                    'denuncias por obras ilegales': 0,
+                    'solicitud de rondas preventivas': 0,
+                    'instalación de cámaras o alarmas comunitarias': 20000,
+                    'charlas de seguridad': 0,
+                    'rectificación de datos o errores en licencias': 3000,
+                    'permiso de circulación': 25000
+                };
+                const precioLocal = precios[norm] ?? null;
+                if (precioLocal !== null && precioLocal > 0) {
+                    return { requiere: true, tipo: 'fijo', montoFijo: precioLocal };
+                }
 
                 const resp = await fetchAPI(`/tramites/configuracion-pago?tramite_nombre=${encodeURIComponent(clave)}&estado=activo&order=DESC`);
                 const data = Array.isArray(resp?.configuraciones)
                     ? resp.configuraciones
                     : (Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : []));
                 if (!data.length) {
-                    if (norm.includes('solicitud') && norm.includes('ayuda') && (norm.includes('técnica') || norm.includes('tecnica'))) {
-                        return { requiere: true, tipo: 'fijo', montoFijo: 1000 };
-                    }
+                    const precio = precioLocal;
+                    if (precio !== null) return { requiere: precio > 0, tipo: precio > 0 ? 'fijo' : 'gratis', montoFijo: precio };
+                    if (norm.includes('solicitud') && norm.includes('ayuda') && (norm.includes('técnica') || norm.includes('tecnica'))) return { requiere: true, tipo: 'fijo', montoFijo: 1000 };
                     return { requiere: false, tipo: 'gratis' };
                 }
 
@@ -2865,13 +3122,16 @@ async function cargarPagosRealizados(usuario) {
         } else {
             const tarjetas = [];
             await Promise.all(tramites.map(async (t) => {
-                const tipoNombre = obtenerNombreTipoTramite(t.tipo);
+                const tipoNombre = (t && typeof t.tipo === 'object' && t.tipo?.nombre) ? t.tipo.nombre : String(t.tipo || '');
                 const config = await obtenerConfiguracionPagoPorNombreLocal(tipoNombre);
                 const pagoExistente = pagosPorTramite.get(t.id);
                 const estadoPago = pagoExistente?.estado || 'sin_pago';
-                const requiere = !!t.requiere_pago;
-                const montoTramite = parseFloat(t.monto || 0);
-                const esGratis = !requiere || montoTramite <= 0;
+                const requiere = !!t.requiere_pago || !!(config && config.requiere === true);
+                let montoTramite = parseFloat(t.monto || 0);
+                if (montoTramite <= 0 && config && config.tipo === 'fijo' && parseFloat(config.montoFijo || 0) > 0) {
+                    montoTramite = parseFloat(config.montoFijo || 0);
+                }
+                const esGratis = !requiere;
 
                 if (estadoPago === 'completado' || esGratis) {
                     const estadoBadge = estadoPago === 'completado'
