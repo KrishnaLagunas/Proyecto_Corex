@@ -703,25 +703,9 @@ function redirigirMercadoPagoAuth() {
  * Procesa pago con tarjeta para pagos Auth
  */
 function procesarPagoTarjetaAuth() {
-    const titular = document.getElementById('auth-nombre-titular').value;
-    const numero = document.getElementById('auth-numero-tarjeta').value;
-    const expiracion = document.getElementById('auth-fecha-expiracion').value;
-    const cvv = document.getElementById('auth-codigo-seguridad').value;
-
-    if (!titular || !numero || !expiracion || !cvv) {
-        mostrarNotificacion('Por favor complete todos los datos de la tarjeta', 'warning');
-        return;
-    }
-
-    if (numero.length < 16 || cvv.length < 3) {
-        mostrarNotificacion('Datos de tarjeta inválidos', 'warning');
-        return;
-    }
-
-    mostrarCargando(true);
-    setTimeout(() => {
-        procesarPagoBackendAuth('tarjeta');
-    }, 2000);
+    const formContainer = document.getElementById('formulario-tarjeta-auth');
+    const metodo = formContainer ? (formContainer.dataset.metodo || 'credito') : 'credito';
+    procesarPagoBackendAuth(metodo);
 }
 
 /**
@@ -729,49 +713,79 @@ function procesarPagoTarjetaAuth() {
  */
 async function procesarPagoBackendAuth(metodo) {
     try {
-        const seleccionados = Array.from(document.querySelectorAll('.seleccionar-tramite:checked'))
-            .map(chk => Number(chk.dataset.id))
-            .filter(Boolean);
-            
-        if (seleccionados.length === 0) return;
+        mostrarCargando(true);
+        const seleccionados = Array.from(document.querySelectorAll('.seleccionar-tramite:checked'));
+        if (seleccionados.length === 0) {
+            mostrarCargando(false);
+            mostrarNotificacion('No hay trámites seleccionados.', 'warning');
+            return;
+        }
+
+        let metodoNormalizado = metodo;
+        if (metodo === 'debito') metodoNormalizado = 'tarjeta_debito';
+        else if (metodo === 'credito') metodoNormalizado = 'tarjeta_credito';
+        else if (metodo === 'tarjeta') metodoNormalizado = 'tarjeta_credito';
 
         const payloadBase = {
-            metodoPago: metodo,
+            metodoPago: metodoNormalizado,
             observaciones: `Pago realizado vía ${metodo === 'mercado_pago' ? 'Mercado Pago' : 'Tarjeta'} (Portal Auth)`,
+            fechaPago: new Date().toISOString()
         };
 
-        const resultados = await Promise.allSettled(seleccionados.map(id => fetchAPI(`/pagos/${id}/procesar`, {
-            method: 'PUT',
-            body: { 
-                ...payloadBase, 
-                referencia: `ONLINE-${Date.now()}-${id}`, 
-                fechaPago: new Date().toISOString() 
+        const usrStr = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario');
+        const usuario = usrStr ? JSON.parse(usrStr) : null;
+
+        const resultados = await Promise.allSettled(seleccionados.map(async (chk) => {
+            const tramiteId = chk.dataset.id;
+            const monto = parseFloat(chk.dataset.monto);
+
+            // Buscar pago pendiente
+            let pagoId = null;
+            try {
+                const resp = await fetchAPI(`/pagos?tramiteId=${tramiteId}&limit=1`);
+                const pagos = Array.isArray(resp) ? resp : (resp.pagos || []);
+                const pendiente = pagos.find(p => p.estado === 'pendiente');
+                if (pendiente) pagoId = pendiente.id;
+            } catch (_) {}
+
+            // Crear si no existe
+            if (!pagoId) {
+                const nuevo = await fetchAPI('/pagos', {
+                    method: 'POST',
+                    body: {
+                        tramite_id: parseInt(tramiteId),
+                        ciudadano_id: usuario?.id,
+                        monto: monto,
+                        metodo_pago: metodoNormalizado,
+                        estado: 'pendiente'
+                    }
+                });
+                pagoId = nuevo.id;
             }
-        })));
+
+            // Confirmar
+            return fetchAPI(`/pagos/${pagoId}/procesar`, {
+                method: 'PUT',
+                body: {
+                    ...payloadBase,
+                    referencia: `ONLINE-${Date.now()}-${tramiteId}`
+                }
+            });
+        }));
 
         const ok = resultados.filter(r => r.status === 'fulfilled').length;
-        const fail = resultados.length - ok;
-        
         mostrarCargando(false);
         cancelarPagoAuth();
-        
         if (ok > 0) {
             mostrarNotificacion(`Pago exitoso. Procesados: ${ok}.`, 'success');
             try {
-                const usrStr = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario');
-                if (usrStr) {
-                    const u = JSON.parse(usrStr);
-                    if (typeof cargarMisPagos === 'function') {
-                        await cargarMisPagos(u);
-                    } else if (typeof cargarPortalCiudadano === 'function') {
-                        await cargarPortalCiudadano(u);
-                    }
+                if (usuario && typeof cargarMisPagos === 'function') {
+                    await cargarMisPagos(usuario);
                 }
             } catch (_) {}
         } else {
             mostrarNotificacion('Error al procesar los pagos.', 'danger');
         }
-        
     } catch (error) {
         console.error('Error al procesar pagos:', error);
         mostrarCargando(false);
@@ -3295,27 +3309,6 @@ async function redirigirMercadoPagoAuth() {
 function procesarPagoTarjetaAuth() {
     const formContainer = document.getElementById('formulario-tarjeta-auth');
     const metodo = formContainer ? (formContainer.dataset.metodo || 'credito') : 'credito';
-    
-    const nombre = document.getElementById('auth-nombre-titular').value;
-    const numero = document.getElementById('auth-numero-tarjeta').value;
-    const expiracion = document.getElementById('auth-fecha-expiracion').value;
-    const cvv = document.getElementById('auth-codigo-seguridad').value;
-    
-    if (!nombre || !numero || !expiracion || !cvv) {
-        mostrarNotificacion('Por favor, complete todos los campos de la tarjeta.', 'warning');
-        return;
-    }
-    
-    if (numero.length < 16) {
-        mostrarNotificacion('El número de tarjeta debe tener 16 dígitos.', 'warning');
-        return;
-    }
-    
-    if (cvv.length < 3) {
-        mostrarNotificacion('El código de seguridad debe tener 3 dígitos.', 'warning');
-        return;
-    }
-    
     procesarPagoBackendAuth(metodo);
 }
 
@@ -3336,9 +3329,9 @@ async function procesarPagoBackendAuth(metodo) {
         else if (metodo === 'tarjeta') metodoNormalizado = 'tarjeta_credito';
 
         const payloadBase = {
-            metodo_pago: metodoNormalizado,
+            metodoPago: metodoNormalizado,
             observaciones: `Pago realizado vía ${metodo === 'mercado_pago' ? 'Mercado Pago' : 'Tarjeta'} (Portal)`,
-            fecha_pago: new Date().toISOString()
+            fechaPago: new Date().toISOString()
         };
 
         const usuarioStr = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario');

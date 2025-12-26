@@ -1442,21 +1442,6 @@ async function redirigirMercadoPago(montoInput) {
  * Procesa el pago con tarjeta (Simulado)
  */
 function procesarPagoTarjeta() {
-    const titular = document.getElementById('nombre-titular').value;
-    const numero = document.getElementById('numero-tarjeta').value;
-    const expiracion = document.getElementById('fecha-expiracion').value;
-    const cvv = document.getElementById('codigo-seguridad').value;
-
-    if (!titular || !numero || !expiracion || !cvv) {
-        mostrarNotificacion('Por favor complete todos los datos de la tarjeta', 'warning');
-        return;
-    }
-
-    if (numero.length < 16 || cvv.length < 3) {
-        mostrarNotificacion('Datos de tarjeta inválidos', 'warning');
-        return;
-    }
-
     mostrarCargando(true);
     setTimeout(() => {
         mostrarCargando(false);
@@ -1465,7 +1450,7 @@ function procesarPagoTarjeta() {
         const tipo = container ? (container.dataset.tipo || 'tarjeta') : 'tarjeta';
         if(container) container.classList.add('d-none');
         completarPagoExitoso(tipo);
-    }, 2000);
+    }, 500);
 }
 
 /**
