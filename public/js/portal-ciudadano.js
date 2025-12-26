@@ -179,15 +179,62 @@ async function verTodosPagosCiudadano() {
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5>Listado de Pagos</h5>
                     <div class="d-flex gap-2">
-                        <button class="btn btn-warning" id="btn-simular-seleccionados">
-                            <i class="bi bi-play-circle"></i> Simular pago
-                        </button>
-                        <button class="btn btn-success" id="btn-pagar-seleccionados">
-                            <i class="bi bi-credit-card"></i> Pagar seleccionados
+                        <button class="btn btn-warning" id="btn-iniciar-pago-seleccionados">
+                            <i class="bi bi-credit-card"></i> Pagar
                         </button>
                     </div>
                 </div>
                 <div class="card-body">
+                    <div id="contenedor-pago-existente" class="mb-4 d-none border p-3 rounded bg-light">
+                        <h5 class="card-title text-center mb-3">Seleccione Método de Pago</h5>
+                        <div id="opciones-pago-existente" class="d-grid gap-2 col-md-6 mx-auto">
+                            <button class="btn btn-primary" onclick="mostrarFormularioTarjetaExistente('debito')">
+                                <i class="bi bi-credit-card"></i> Débito
+                            </button>
+                            <button class="btn btn-primary" onclick="mostrarFormularioTarjetaExistente('credito')">
+                                <i class="bi bi-credit-card-2-front"></i> Crédito
+                            </button>
+                            <button class="btn btn-info text-white" onclick="redirigirMercadoPagoExistente()">
+                                <i class="bi bi-shop"></i> Mercado Pago
+                            </button>
+                        </div>
+                        
+                        <div id="formulario-tarjeta-existente" class="d-none mt-3 col-md-8 mx-auto">
+                           <div class="card">
+                              <div class="card-body">
+                                 <h6 class="card-title" id="titulo-formulario-tarjeta-existente">Datos de la Tarjeta</h6>
+                                 <form id="form-tarjeta-pago-existente">
+                                    <div class="mb-3">
+                                       <label class="form-label">Nombre del Titular</label>
+                                       <input type="text" class="form-control" id="existente-nombre-titular" required>
+                                    </div>
+                                    <div class="mb-3">
+                                       <label class="form-label">Número de Tarjeta</label>
+                                       <input type="text" class="form-control" id="existente-numero-tarjeta" maxlength="16" placeholder="XXXX XXXX XXXX XXXX" required>
+                                    </div>
+                                    <div class="row">
+                                       <div class="col-md-6 mb-3">
+                                          <label class="form-label">Fecha Expiración</label>
+                                          <input type="text" class="form-control" id="existente-fecha-expiracion" placeholder="MM/YY" maxlength="5" required>
+                                       </div>
+                                       <div class="col-md-6 mb-3">
+                                          <label class="form-label">CVV</label>
+                                          <input type="password" class="form-control" id="existente-codigo-seguridad" maxlength="3" placeholder="123" required>
+                                       </div>
+                                    </div>
+                                    <div class="d-grid gap-2">
+                                        <button type="button" class="btn btn-success" onclick="procesarPagoTarjetaExistente()">
+                                           <i class="bi bi-lock"></i> Confirmar Pago
+                                        </button>
+                                        <button type="button" class="btn btn-secondary" onclick="cancelarPagoExistente()">
+                                           Cancelar
+                                        </button>
+                                    </div>
+                                 </form>
+                              </div>
+                           </div>
+                        </div>
+                    </div>
                     ${pagos.length === 0 ? `
                         <div class="alert alert-info">No tiene pagos registrados.</div>
                     ` : `
@@ -243,10 +290,10 @@ async function verTodosPagosCiudadano() {
         // Agregar evento para el formulario de filtros
         const formFiltros = document.getElementById('form-filtros-pagos');
         formFiltros.addEventListener('submit', filtrarPagosCiudadano);
-        const btnBulk = document.getElementById('btn-pagar-seleccionados');
-        if (btnBulk) btnBulk.addEventListener('click', pagarSeleccionados);
-        const btnSimular = document.getElementById('btn-simular-seleccionados');
-        if (btnSimular) btnSimular.addEventListener('click', simularSeleccionados);
+        
+        const btnIniciarPago = document.getElementById('btn-iniciar-pago-seleccionados');
+        if (btnIniciarPago) btnIniciarPago.addEventListener('click', mostrarOpcionesPagoExistente);
+        
         const chkAll = document.getElementById('chk-select-all');
         if (chkAll) {
             chkAll.addEventListener('change', () => {
@@ -921,6 +968,135 @@ async function mostrarFormularioNuevoTramite() {
   }
 }
 
+/**
+ * Muestra el contenedor de opciones de pago para pagos existentes
+ */
+function mostrarOpcionesPagoExistente() {
+    const seleccionados = document.querySelectorAll('#tabla-pagos input.chk-pago:checked');
+    if (seleccionados.length === 0) {
+        mostrarNotificacion('Seleccione al menos un pago pendiente', 'warning');
+        return;
+    }
+    
+    const contenedor = document.getElementById('contenedor-pago-existente');
+    const opciones = document.getElementById('opciones-pago-existente');
+    const formulario = document.getElementById('formulario-tarjeta-existente');
+    
+    if (contenedor) {
+        contenedor.classList.remove('d-none');
+        contenedor.scrollIntoView({ behavior: 'smooth' });
+    }
+    if (opciones) opciones.classList.remove('d-none');
+    if (formulario) formulario.classList.add('d-none');
+}
+
+/**
+ * Muestra formulario de tarjeta para pagos existentes
+ */
+function mostrarFormularioTarjetaExistente(tipo) {
+    const opciones = document.getElementById('opciones-pago-existente');
+    const formulario = document.getElementById('formulario-tarjeta-existente');
+    const titulo = document.getElementById('titulo-formulario-tarjeta-existente');
+    
+    if (opciones) opciones.classList.add('d-none');
+    if (formulario) {
+        formulario.classList.remove('d-none');
+        if (titulo) titulo.textContent = `Datos de Tarjeta de ${tipo === 'debito' ? 'Débito' : 'Crédito'}`;
+        const form = document.getElementById('form-tarjeta-pago-existente');
+        if (form) form.reset();
+    }
+}
+
+/**
+ * Cancela el proceso de pago existente
+ */
+function cancelarPagoExistente() {
+    const contenedor = document.getElementById('contenedor-pago-existente');
+    if (contenedor) contenedor.classList.add('d-none');
+}
+
+/**
+ * Redirige a Mercado Pago para pagos existentes
+ */
+function redirigirMercadoPagoExistente() {
+    mostrarNotificacion('Redirigiendo a Mercado Pago...', 'info');
+    setTimeout(() => {
+        window.open('https://www.mercadopago.cl/home', '_blank');
+        procesarPagoBackend('mercado_pago');
+    }, 1500);
+}
+
+/**
+ * Procesa pago con tarjeta para pagos existentes
+ */
+function procesarPagoTarjetaExistente() {
+    const titular = document.getElementById('existente-nombre-titular').value;
+    const numero = document.getElementById('existente-numero-tarjeta').value;
+    const expiracion = document.getElementById('existente-fecha-expiracion').value;
+    const cvv = document.getElementById('existente-codigo-seguridad').value;
+
+    if (!titular || !numero || !expiracion || !cvv) {
+        mostrarNotificacion('Por favor complete todos los datos de la tarjeta', 'warning');
+        return;
+    }
+
+    if (numero.length < 16 || cvv.length < 3) {
+        mostrarNotificacion('Datos de tarjeta inválidos', 'warning');
+        return;
+    }
+
+    mostrarCargando(true);
+    setTimeout(() => {
+        procesarPagoBackend('tarjeta');
+    }, 2000);
+}
+
+/**
+ * Función común para enviar pagos al backend
+ */
+async function procesarPagoBackend(metodo) {
+    try {
+        const seleccionados = Array.from(document.querySelectorAll('#tabla-pagos input.chk-pago:checked'))
+            .map(chk => Number(chk.getAttribute('data-id')))
+            .filter(Boolean);
+            
+        if (seleccionados.length === 0) return;
+
+        const payloadBase = {
+            metodoPago: metodo,
+            observaciones: `Pago realizado vía ${metodo === 'mercado_pago' ? 'Mercado Pago' : 'Tarjeta'} (Portal)`,
+        };
+
+        const resultados = await Promise.allSettled(seleccionados.map(id => fetchAPI(`/pagos/${id}/procesar`, {
+            method: 'PUT',
+            body: { 
+                ...payloadBase, 
+                referencia: `ONLINE-${Date.now()}-${id}`, 
+                fechaPago: new Date().toISOString() 
+            }
+        })));
+
+        const ok = resultados.filter(r => r.status === 'fulfilled').length;
+        const fail = resultados.length - ok;
+        
+        mostrarCargando(false);
+        cancelarPagoExistente();
+        
+        if (ok > 0) {
+            mostrarNotificacion(`Pago exitoso. Procesados: ${ok}.`, 'success');
+            // Recargar listado
+            await verTodosPagosCiudadano();
+        } else {
+            mostrarNotificacion('Error al procesar los pagos.', 'danger');
+        }
+        
+    } catch (error) {
+        console.error('Error al procesar pagos:', error);
+        mostrarCargando(false);
+        mostrarNotificacion('Error: ' + error.message, 'danger');
+    }
+}
+
 async function iniciarTramite(e) {
   e.preventDefault();
   try {
@@ -1042,63 +1218,99 @@ function renderModuloPagoParaNuevoTramite(config) {
   let contenido = '';
   if (config.tipo === 'fijo') {
     contenido = `
-      <div class=\"card border-success\">
-        <div class=\"card-body\">
-          <h5 class=\"card-title\">Módulo de Pago</h5>
-          <div class=\"alert alert-info\">Monto a pagar: <strong>${formatearMoneda(config.montoFijo)}</strong></div>
-          <div class=\"row g-3\">
-            <div class=\"col-md-6\">
-              <label class=\"form-label\" for=\"metodo-pago\">Método de pago</label>
-              <select class=\"form-select\" id=\"metodo-pago\">
-                <option value=\"\">Seleccione</option>
-                <option value=\"efectivo\">Efectivo</option>
-                <option value=\"tarjeta_credito\">Tarjeta de Crédito</option>
-                <option value=\"tarjeta_debito\">Tarjeta de Débito</option>
-                <option value=\"transferencia\">Transferencia</option>
-                <option value=\"cheque\">Cheque</option>
-                <option value=\"otro\">Otro</option>
-              </select>
+      <div class="card border-success">
+        <div class="card-body">
+          <h5 class="card-title">Módulo de Pago</h5>
+          <div class="alert alert-info">Monto a pagar: <strong>${formatearMoneda(config.montoFijo)}</strong></div>
+          <div class="row g-3">
+            <div class="col-md-12 text-center" id="contenedor-boton-inicial-pago">
+               <button type="button" class="btn btn-primary btn-lg" onclick="mostrarOpcionesPago()">
+                  <i class="bi bi-credit-card-2-back"></i> Pagar
+               </button>
             </div>
-            <div class=\"col-md-6\">
-              <label class=\"form-label\" for=\"referencia-externa\">Referencia externa (opcional)</label>
-              <input type=\"text\" id=\"referencia-externa\" class=\"form-control\" placeholder=\"N° operación, folio, etc\" />
+
+            <div id="contenedor-opciones-pago" class="col-md-12 d-none">
+              <label class="form-label">Seleccione Método de Pago</label>
+              <div class="d-grid gap-2">
+                 <button type="button" class="btn btn-success btn-lg w-100 btn-payment-option" onclick="mostrarFormularioTarjeta('debito', ${config.montoFijo})">
+                    <i class="bi bi-credit-card"></i> Débito
+                 </button>
+                 <button type="button" class="btn btn-warning btn-lg w-100 text-dark btn-payment-option" onclick="mostrarFormularioTarjeta('credito', ${config.montoFijo})">
+                    <i class="bi bi-credit-card-2-front"></i> Crédito
+                 </button>
+                 <button type="button" class="btn btn-info btn-lg w-100 text-white btn-payment-option" onclick="redirigirMercadoPago(${config.montoFijo})">
+                    <i class="bi bi-shop"></i> Mercado Pago
+                 </button>
+              </div>
             </div>
-          </div>
-          <div class=\"mt-3\">
-            <button type=\"button\" id=\"btn-enviar-con-pago\" class=\"btn btn-success\">
-              <i class=\"bi bi-send\"></i> Enviar Solicitud
-            </button>
+            
+            <div id="formulario-tarjeta-container" class="col-12 d-none mt-3">
+               <div class="card bg-light">
+                  <div class="card-body">
+                     <h6 class="card-title" id="titulo-formulario-tarjeta">Datos de la Tarjeta</h6>
+                     <form id="form-tarjeta-pago">
+                        <div class="mb-3">
+                           <label for="nombre-titular" class="form-label">Nombre del Titular</label>
+                           <input type="text" class="form-control" id="nombre-titular" required>
+                        </div>
+                        <div class="mb-3">
+                           <label for="numero-tarjeta" class="form-label">Número de Tarjeta</label>
+                           <input type="text" class="form-control" id="numero-tarjeta" maxlength="16" placeholder="XXXX XXXX XXXX XXXX" required>
+                        </div>
+                        <div class="row">
+                           <div class="col-md-6 mb-3">
+                              <label for="fecha-expiracion" class="form-label">Fecha Expiración</label>
+                              <input type="text" class="form-control" id="fecha-expiracion" placeholder="MM/YY" maxlength="5" required>
+                           </div>
+                           <div class="col-md-6 mb-3">
+                              <label for="codigo-seguridad" class="form-label">CVV</label>
+                              <input type="password" class="form-control" id="codigo-seguridad" maxlength="3" placeholder="123" required>
+                           </div>
+                        </div>
+                        <button type="button" class="btn btn-success w-100" onclick="procesarPagoTarjeta()">
+                           <i class="bi bi-lock"></i> Pagar ${formatearMoneda(config.montoFijo)}
+                        </button>
+                     </form>
+                  </div>
+               </div>
+            </div>
+
+            <div class="col-md-12 mt-3 text-end">
+                <button type="button" id="btn-enviar-con-pago" class="btn btn-secondary d-none">
+                  <i class="bi bi-send"></i> Enviar Solicitud (Pago Procesado)
+                </button>
+            </div>
           </div>
         </div>
       </div>
     `;
   } else if (config.tipo === 'porcentaje') {
     const categorias = Object.keys(config.categorias);
-    const opcionesCategoria = categorias.map(c => `<option value=\"${c}\">${c}</option>`).join('');
-    const opcionesPorcentaje = (cat) => (config.categorias[cat] || []).map(p => `<option value=\"${p}\">${p}%</option>`).join('');
+    const opcionesCategoria = categorias.map(c => `<option value="${c}">${c}</option>`).join('');
+    const opcionesPorcentaje = (cat) => (config.categorias[cat] || []).map(p => `<option value="${p}">${p}%</option>`).join('');
     const primeraCat = categorias[0];
     contenido = `
-      <div class=\"card border-warning\">
-        <div class=\"card-body\">
-          <h5 class=\"card-title\">Módulo de Pago</h5>
-          <p class=\"mb-2\">Permiso de Construcción: monto basado en porcentaje del presupuesto.</p>
-          <div class=\"row g-3\">
-            <div class=\"col-md-4\">
-              <label class=\"form-label\" for=\"categoria-construccion\">Categoría</label>
-              <select class=\"form-select\" id=\"categoria-construccion\">${opcionesCategoria}</select>
+      <div class="card border-warning">
+        <div class="card-body">
+          <h5 class="card-title">Módulo de Pago</h5>
+          <p class="mb-2">Permiso de Construcción: monto basado en porcentaje del presupuesto.</p>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label" for="categoria-construccion">Categoría</label>
+              <select class="form-select" id="categoria-construccion">${opcionesCategoria}</select>
             </div>
-            <div class=\"col-md-4\">
-              <label class=\"form-label\" for=\"porcentaje-construccion\">Porcentaje</label>
-              <select class=\"form-select\" id=\"porcentaje-construccion\">${opcionesPorcentaje(primeraCat)}</select>
+            <div class="col-md-4">
+              <label class="form-label" for="porcentaje-construccion">Porcentaje</label>
+              <select class="form-select" id="porcentaje-construccion">${opcionesPorcentaje(primeraCat)}</select>
             </div>
-            <div class=\"col-md-4\">
-              <label class=\"form-label\" for=\"presupuesto-obra\">Presupuesto de la obra (CLP)</label>
-              <input type=\"number\" min=\"0\" id=\"presupuesto-obra\" class=\"form-control\" placeholder=\"Ej: 150000000\" />
+            <div class="col-md-4">
+              <label class="form-label" for="presupuesto-obra">Presupuesto de la obra (CLP)</label>
+              <input type="number" min="0" id="presupuesto-obra" class="form-control" placeholder="Ej: 150000000" />
             </div>
           </div>
-          <div class=\"mt-3\">
-            <button type=\"button\" id=\"btn-enviar-con-pago\" class=\"btn btn-success\">
-              <i class=\"bi bi-send\"></i> Enviar Solicitud
+          <div class="mt-3">
+            <button type="button" id="btn-enviar-con-pago" class="btn btn-success">
+              <i class="bi bi-send"></i> Enviar Solicitud
             </button>
           </div>
         </div>
@@ -1115,13 +1327,240 @@ function renderModuloPagoParaNuevoTramite(config) {
 
   function actualizarOpcionesPorcentaje() {
     const cat = categoriaSel.value;
-    const opciones = (config.categorias[cat] || []).map(p => `<option value=\"${p}\">${p}%</option>`).join('');
+    const opciones = (config.categorias[cat] || []).map(p => `<option value="${p}">${p}%</option>`).join('');
     porcentajeSel.innerHTML = opciones;
   }
   if (categoriaSel && porcentajeSel) categoriaSel.addEventListener('change', actualizarOpcionesPorcentaje);
 
   const btnEnviarConPago = document.getElementById('btn-enviar-con-pago');
   if (btnEnviarConPago) btnEnviarConPago.onclick = enviarSolicitudConPago;
+}
+
+/**
+ * Muestra las opciones de pago (Débito, Crédito, Mercado Pago)
+ */
+function mostrarOpcionesPago() {
+    const contenedorBoton = document.getElementById('contenedor-boton-inicial-pago');
+    const contenedorOpciones = document.getElementById('contenedor-opciones-pago');
+    
+    if (contenedorBoton && contenedorOpciones) {
+        contenedorBoton.classList.add('d-none');
+        contenedorOpciones.classList.remove('d-none');
+    }
+}
+
+/**
+ * Muestra el formulario de tarjeta para débito o crédito
+ * @param {string} tipo - 'debito' o 'credito'
+ * @param {number} monto - Monto a pagar
+ */
+function mostrarFormularioTarjeta(tipo, monto) {
+    const container = document.getElementById('formulario-tarjeta-container');
+    const titulo = document.getElementById('titulo-formulario-tarjeta');
+    
+    if(container) {
+        container.classList.remove('d-none');
+        container.dataset.tipo = tipo; // Guardar el tipo (debito/credito)
+        if(titulo) titulo.textContent = `Datos de Tarjeta de ${tipo === 'debito' ? 'Débito' : 'Crédito'}`;
+        
+        // Limpiar campos
+        const form = document.getElementById('form-tarjeta-pago');
+        if(form) form.reset();
+        
+        // Scroll al formulario
+        container.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+/**
+ * Redirige a Mercado Pago
+ * @param {number} monto - Monto a pagar
+ */
+async function redirigirMercadoPago(montoInput) {
+    try {
+        mostrarCargando(true);
+        let items = [];
+
+        if (typeof montoInput === 'number' || (typeof montoInput === 'string' && !isNaN(parseFloat(montoInput)))) {
+            // Caso: Nuevo Trámite (Monto fijo directo)
+            const monto = parseFloat(montoInput);
+            const tituloInput = document.getElementById('titulo');
+            const titulo = tituloInput ? tituloInput.value : 'Nuevo Trámite';
+            items.push({
+                title: titulo,
+                quantity: 1,
+                unit_price: monto,
+                currency_id: 'CLP'
+            });
+        } else {
+            // Caso: Mis Pagos (Checkboxes)
+            items = Array.from(document.querySelectorAll('#tabla-pagos input.chk-pago:checked'))
+                .map(chk => {
+                    const row = chk.closest('tr');
+                    // Try to get description from row, fallback to generic
+                    let desc = 'Pago Trámite';
+                    if (row && row.cells.length > 1) {
+                        desc = row.cells[1].textContent.trim();
+                    }
+                    const m = parseFloat(chk.getAttribute('data-monto'));
+                    return {
+                        title: desc,
+                        quantity: 1,
+                        unit_price: m,
+                        currency_id: 'CLP',
+                        id: chk.getAttribute('data-id')
+                    };
+                })
+                .filter(item => item.unit_price > 0);
+        }
+
+        if (items.length === 0) {
+            mostrarCargando(false);
+            mostrarNotificacion('No hay pagos seleccionados o monto inválido.', 'warning');
+            return;
+        }
+
+        const response = await fetchAPI('/mercado-pago/preferencias', {
+            method: 'POST',
+            body: { items: items }
+        });
+
+        if (response && response.init_point) {
+            window.location.href = response.init_point;
+        } else {
+            throw new Error('No se recibió URL de pago');
+        }
+
+    } catch (error) {
+        console.error('Error MP:', error);
+        mostrarCargando(false);
+        mostrarNotificacion('Error al iniciar Mercado Pago: ' + error.message, 'danger');
+    }
+}
+
+/**
+ * Procesa el pago con tarjeta (Simulado)
+ */
+function procesarPagoTarjeta() {
+    const titular = document.getElementById('nombre-titular').value;
+    const numero = document.getElementById('numero-tarjeta').value;
+    const expiracion = document.getElementById('fecha-expiracion').value;
+    const cvv = document.getElementById('codigo-seguridad').value;
+
+    if (!titular || !numero || !expiracion || !cvv) {
+        mostrarNotificacion('Por favor complete todos los datos de la tarjeta', 'warning');
+        return;
+    }
+
+    if (numero.length < 16 || cvv.length < 3) {
+        mostrarNotificacion('Datos de tarjeta inválidos', 'warning');
+        return;
+    }
+
+    mostrarCargando(true);
+    setTimeout(() => {
+        mostrarCargando(false);
+        mostrarNotificacion('Pago procesado correctamente', 'success');
+        const container = document.getElementById('formulario-tarjeta-container');
+        const tipo = container ? (container.dataset.tipo || 'tarjeta') : 'tarjeta';
+        if(container) container.classList.add('d-none');
+        completarPagoExitoso(tipo);
+    }, 2000);
+}
+
+/**
+ * Finaliza el proceso tras un pago exitoso
+ * @param {string} metodo - Método utilizado
+ */
+async function completarPagoExitoso(metodo) {
+    const moduloPago = document.getElementById('modulo-pago');
+    
+    // Marcar visualmente como pagado
+    moduloPago.innerHTML = `
+        <div class="alert alert-success">
+            <h4><i class="bi bi-check-circle-fill"></i> Pago Realizado con Éxito</h4>
+            <p>Método: ${metodo === 'mercado_pago' ? 'Mercado Pago' : 'Tarjeta Bancaria'}</p>
+            <p>Puede proceder a enviar su solicitud.</p>
+        </div>
+        <div class="d-grid gap-2">
+             <button type="button" class="btn btn-success btn-lg" onclick="enviarSolicitudPagada('${metodo}')">
+               <i class="bi bi-send-check"></i> Finalizar y Enviar Solicitud
+             </button>
+        </div>
+    `;
+}
+
+/**
+ * Envía la solicitud final con el pago registrado
+ * @param {string} metodoPago 
+ */
+async function enviarSolicitudPagada(metodoPago) {
+    try {
+        mostrarCargando(true);
+        const tipoSelect = document.getElementById('tipo-tramite');
+        const tipoNombre = tipoSelect.options[tipoSelect.selectedIndex]?.text || '';
+        const titulo = document.getElementById('titulo').value.trim();
+        const descripcion = document.getElementById('descripcion').value.trim();
+        const departamentoId = document.getElementById('departamento').value;
+        
+        // Obtener configuración original guardada
+        const moduloPago = document.getElementById('modulo-pago');
+        const config = JSON.parse(moduloPago.dataset.configPago || '{}');
+
+        const normalizarTipo = (nombre) => {
+             const n = (nombre || '').toLowerCase();
+             if (n.includes('licencia') && n.includes('conduc')) return 'licencia';
+             if (n.includes('permiso') || n.includes('construcción') || n.includes('construccion')) return 'permiso';
+             if (n.includes('certificado')) return 'certificado';
+             if (n.includes('registro')) return 'registro';
+             if (n.includes('solicitud')) return 'solicitud';
+             if (n.includes('reclamo')) return 'reclamo';
+             return 'otro';
+        };
+
+        const tipo = normalizarTipo(tipoNombre);
+
+        // Normalizar método de pago para backend
+        let metodoPagoNormalizado = metodoPago;
+        if (metodoPago === 'debito') metodoPagoNormalizado = 'tarjeta_debito';
+        else if (metodoPago === 'credito') metodoPagoNormalizado = 'tarjeta_credito';
+        else if (metodoPago === 'tarjeta') metodoPagoNormalizado = 'tarjeta_credito';
+
+        const nuevoTramite = {
+            titulo,
+            descripcion,
+            tipo,
+            departamento_id: parseInt(departamentoId),
+            requiere_pago: true,
+            monto: config.montoFijo || 0,
+            estado_pago: 'completado',
+            metodo_pago: metodoPagoNormalizado,
+            fecha_pago: new Date().toISOString()
+        };
+
+        const creado = await fetchAPI('/tramites', { method: 'POST', body: JSON.stringify(nuevoTramite) });
+        const tramite = creado?.tramite || creado;
+
+        const usuario = await fetchAPI('/usuarios/perfil');
+        const ciudadanoId = usuario?.id;
+        const cuerpoPago = {
+             monto: config.montoFijo || 0,
+             metodo_pago: metodoPagoNormalizado,
+             referencia_externa: 'PAGO-ONLINE-' + Date.now(),
+             tramite_id: tramite.id,
+             ciudadano_id: ciudadanoId
+        };
+        await fetchAPI('/pagos', { method: 'POST', body: JSON.stringify(cuerpoPago) });
+
+        mostrarNotificacion('Trámite iniciado y pago registrado correctamente', 'success');
+        await cargarPortalCiudadano();
+
+    } catch (error) {
+        console.error('Error al enviar solicitud pagada:', error);
+        mostrarNotificacion('Error: ' + error.message, 'danger');
+    } finally {
+        mostrarCargando(false);
+    }
 }
 
 async function enviarSolicitudConPago() {
@@ -1144,12 +1583,8 @@ async function enviarSolicitudConPago() {
     const descripcion = document.getElementById('descripcion').value.trim();
     const departamentoId = parseInt(document.getElementById('departamento').value);
 
-    const metodoPago = document.getElementById('metodo-pago')?.value;
-    if (!metodoPago) {
-      mostrarNotificacion('Seleccione un método de pago', 'warning');
-      mostrarCargando(false);
-      return;
-    }
+    // Flujo legacy para porcentajes u otros que no usan el nuevo selector
+    const metodoPago = document.getElementById('metodo-pago')?.value || 'otro';
     const referenciaExterna = document.getElementById('referencia-externa')?.value || null;
 
     const moduloPago = document.getElementById('modulo-pago');

@@ -642,6 +642,144 @@ async function cargarInterfazSuperadmin(usuario) {
 }
 
 /**
+ * Muestra el contenedor de opciones de pago para pagos seleccionados en Auth
+ */
+function mostrarOpcionesPagoAuth() {
+    const seleccionados = document.querySelectorAll('.seleccionar-tramite:checked');
+    if (seleccionados.length === 0) {
+        mostrarNotificacion('Seleccione al menos un pago pendiente', 'warning');
+        return;
+    }
+    
+    const contenedor = document.getElementById('contenedor-pago-auth');
+    const opciones = document.getElementById('opciones-pago-auth');
+    const formulario = document.getElementById('formulario-tarjeta-auth');
+    
+    if (contenedor) {
+        contenedor.classList.remove('d-none');
+        contenedor.scrollIntoView({ behavior: 'smooth' });
+    }
+    if (opciones) opciones.classList.remove('d-none');
+    if (formulario) formulario.classList.add('d-none');
+}
+
+/**
+ * Muestra formulario de tarjeta para pagos Auth
+ */
+function mostrarFormularioTarjetaAuth(tipo) {
+    const opciones = document.getElementById('opciones-pago-auth');
+    const formulario = document.getElementById('formulario-tarjeta-auth');
+    const titulo = document.getElementById('titulo-formulario-tarjeta-auth');
+    
+    if (opciones) opciones.classList.add('d-none');
+    if (formulario) {
+        formulario.classList.remove('d-none');
+        if (titulo) titulo.textContent = `Datos de Tarjeta de ${tipo === 'debito' ? 'Débito' : 'Crédito'}`;
+        const form = document.getElementById('form-tarjeta-pago-auth');
+        if (form) form.reset();
+    }
+}
+
+/**
+ * Cancela el proceso de pago Auth
+ */
+function cancelarPagoAuth() {
+    const contenedor = document.getElementById('contenedor-pago-auth');
+    if (contenedor) contenedor.classList.add('d-none');
+}
+
+/**
+ * Redirige a Mercado Pago para pagos Auth
+ */
+function redirigirMercadoPagoAuth() {
+    mostrarNotificacion('Redirigiendo a Mercado Pago...', 'info');
+    setTimeout(() => {
+        window.open('https://www.mercadopago.cl/home', '_blank');
+        procesarPagoBackendAuth('mercado_pago');
+    }, 1500);
+}
+
+/**
+ * Procesa pago con tarjeta para pagos Auth
+ */
+function procesarPagoTarjetaAuth() {
+    const titular = document.getElementById('auth-nombre-titular').value;
+    const numero = document.getElementById('auth-numero-tarjeta').value;
+    const expiracion = document.getElementById('auth-fecha-expiracion').value;
+    const cvv = document.getElementById('auth-codigo-seguridad').value;
+
+    if (!titular || !numero || !expiracion || !cvv) {
+        mostrarNotificacion('Por favor complete todos los datos de la tarjeta', 'warning');
+        return;
+    }
+
+    if (numero.length < 16 || cvv.length < 3) {
+        mostrarNotificacion('Datos de tarjeta inválidos', 'warning');
+        return;
+    }
+
+    mostrarCargando(true);
+    setTimeout(() => {
+        procesarPagoBackendAuth('tarjeta');
+    }, 2000);
+}
+
+/**
+ * Función común para enviar pagos al backend en Auth
+ */
+async function procesarPagoBackendAuth(metodo) {
+    try {
+        const seleccionados = Array.from(document.querySelectorAll('.seleccionar-tramite:checked'))
+            .map(chk => Number(chk.dataset.id))
+            .filter(Boolean);
+            
+        if (seleccionados.length === 0) return;
+
+        const payloadBase = {
+            metodoPago: metodo,
+            observaciones: `Pago realizado vía ${metodo === 'mercado_pago' ? 'Mercado Pago' : 'Tarjeta'} (Portal Auth)`,
+        };
+
+        const resultados = await Promise.allSettled(seleccionados.map(id => fetchAPI(`/pagos/${id}/procesar`, {
+            method: 'PUT',
+            body: { 
+                ...payloadBase, 
+                referencia: `ONLINE-${Date.now()}-${id}`, 
+                fechaPago: new Date().toISOString() 
+            }
+        })));
+
+        const ok = resultados.filter(r => r.status === 'fulfilled').length;
+        const fail = resultados.length - ok;
+        
+        mostrarCargando(false);
+        cancelarPagoAuth();
+        
+        if (ok > 0) {
+            mostrarNotificacion(`Pago exitoso. Procesados: ${ok}.`, 'success');
+            try {
+                const usrStr = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario');
+                if (usrStr) {
+                    const u = JSON.parse(usrStr);
+                    if (typeof cargarMisPagos === 'function') {
+                        await cargarMisPagos(u);
+                    } else if (typeof cargarPortalCiudadano === 'function') {
+                        await cargarPortalCiudadano(u);
+                    }
+                }
+            } catch (_) {}
+        } else {
+            mostrarNotificacion('Error al procesar los pagos.', 'danger');
+        }
+        
+    } catch (error) {
+        console.error('Error al procesar pagos:', error);
+        mostrarCargando(false);
+        mostrarNotificacion('Error: ' + error.message, 'danger');
+    }
+}
+
+/**
  * Carga la interfaz para administradores
  * @param {Object} usuario - Información del usuario
  */
@@ -2605,8 +2743,60 @@ async function cargarMisPagos(usuario) {
                         </div>
                         <div class="d-flex align-items-center gap-3">
                             <span id="resumen-seleccion" class="text-muted">Seleccionados: 0 • Total: ${formatearMoneda(0)}</span>
-                            <button id="btn-simular-seleccion" class="btn btn-warning"><i class="bi bi-play-circle"></i> Simular pago</button>
-                            <button id="btn-pagar-seleccion" class="btn btn-success"><i class="bi bi-credit-card"></i> Pagar seleccionados</button>
+                            <button id="btn-iniciar-pago-auth" class="btn btn-warning"><i class="bi bi-credit-card"></i> Pagar</button>
+                        </div>
+                    </div>
+                    
+                    <div id="contenedor-pago-auth" class="mb-4 d-none border p-3 rounded bg-light">
+                        <h5 class="card-title text-center mb-3">Seleccione Método de Pago</h5>
+                        <div id="opciones-pago-auth" class="col-md-6 mx-auto">
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-success btn-lg w-100 btn-payment-option" onclick="mostrarFormularioTarjetaAuth('debito')">
+                                    <i class="bi bi-credit-card"></i> Débito
+                                </button>
+                                <button class="btn btn-warning btn-lg w-100 text-dark btn-payment-option" onclick="mostrarFormularioTarjetaAuth('credito')">
+                                    <i class="bi bi-credit-card-2-front"></i> Crédito
+                                </button>
+                                <button class="btn btn-info btn-lg w-100 text-white btn-payment-option" onclick="redirigirMercadoPagoAuth()">
+                                    <i class="bi bi-shop"></i> Mercado Pago
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="formulario-tarjeta-auth" class="d-none mt-3 col-md-8 mx-auto">
+                           <div class="card">
+                              <div class="card-body">
+                                 <h6 class="card-title" id="titulo-formulario-tarjeta-auth">Datos de la Tarjeta</h6>
+                                 <form id="form-tarjeta-pago-auth">
+                                    <div class="mb-3">
+                                       <label class="form-label">Nombre del Titular</label>
+                                       <input type="text" class="form-control" id="auth-nombre-titular" required>
+                                    </div>
+                                    <div class="mb-3">
+                                       <label class="form-label">Número de Tarjeta</label>
+                                       <input type="text" class="form-control" id="auth-numero-tarjeta" maxlength="16" placeholder="XXXX XXXX XXXX XXXX" required>
+                                    </div>
+                                    <div class="row">
+                                       <div class="col-md-6 mb-3">
+                                          <label class="form-label">Fecha Expiración</label>
+                                          <input type="text" class="form-control" id="auth-fecha-expiracion" placeholder="MM/YY" maxlength="5" required>
+                                       </div>
+                                       <div class="col-md-6 mb-3">
+                                          <label class="form-label">CVV</label>
+                                          <input type="password" class="form-control" id="auth-codigo-seguridad" maxlength="3" placeholder="123" required>
+                                       </div>
+                                    </div>
+                                    <div class="d-grid gap-2">
+                                        <button type="button" class="btn btn-success" onclick="procesarPagoTarjetaAuth()">
+                                           <i class="bi bi-lock"></i> Confirmar Pago
+                                        </button>
+                                        <button type="button" class="btn btn-secondary" onclick="cancelarPagoAuth()">
+                                           Cancelar
+                                        </button>
+                                    </div>
+                                 </form>
+                              </div>
+                           </div>
                         </div>
                     </div>
                 ` : '';
@@ -2690,8 +2880,7 @@ async function cargarMisPagos(usuario) {
 
             let btnSelTodos = document.getElementById('seleccionar-todos');
             let btnDesTodos = document.getElementById('deseleccionar-todos');
-            let btnPagarSel = document.getElementById('btn-pagar-seleccion');
-            let btnSimularSel = document.getElementById('btn-simular-seleccion');
+            let btnIniciarPago = document.getElementById('btn-iniciar-pago-auth');
 
             if (btnSelTodos) {
                 btnSelTodos.addEventListener('click', () => {
@@ -2707,210 +2896,13 @@ async function cargarMisPagos(usuario) {
                 });
             }
 
-            if (btnPagarSel) {
-                btnPagarSel.addEventListener('click', async () => {
-                    try {
-                        const seleccionados = checkboxes
-                            .filter(chk => chk.checked && !chk.disabled)
-                            .map(chk => ({ id: parseInt(chk.dataset.id), codigo: chk.dataset.codigo || null, monto: parseFloat(chk.dataset.monto || 0) }));
-
-                        if (seleccionados.length === 0) {
-                            mostrarNotificacion('Seleccione al menos un trámite para pagar', 'warning');
-                            return;
-                        }
-
-                        // Construir items para Mercado Pago
-                        const items = seleccionados.map(sel => {
-                            const t = Array.isArray(tramites) ? tramites.find(tr => tr.id === sel.id) : null;
-                            const titulo = t ? (t.titulo || 'Trámite') : 'Trámite';
-                            const tipoNombre = t ? obtenerNombreTipoTramite(t.tipo) : 'Trámite';
-                            const codigo = t?.codigo || sel.id;
-                            return {
-                                id: sel.id,
-                                title: `${tipoNombre} - ${titulo} (${codigo})`,
-                                quantity: 1,
-                                unit_price: sel.monto,
-                                currency_id: 'CLP'
-                            };
-                        });
-
-                        mostrarCargando(true);
-                        const pref = await fetchAPI('/mercado-pago/preferencias', {
-                            method: 'POST',
-                            body: { items }
-                        });
-
-                        if (pref && pref.init_point) {
-                            window.location.href = pref.init_point;
-                        } else {
-                            mostrarNotificacion('No se pudo obtener la URL de pago de Mercado Pago', 'danger');
-                        }
-                    } catch (error) {
-                        console.error('Error al iniciar pago en Mercado Pago:', error);
-                        mostrarNotificacion(`Error al iniciar pago: ${error.message}`, 'danger');
-                    } finally {
-                        mostrarCargando(false);
-                    }
+            if (btnIniciarPago) {
+                btnIniciarPago.addEventListener('click', () => {
+                    mostrarOpcionesPagoAuth();
                 });
             }
 
-            if (btnSimularSel) {
-                btnSimularSel.addEventListener('click', async () => {
-                    try {
-                        const seleccionados = checkboxes
-                            .filter(chk => chk.checked && !chk.disabled)
-                            .map(chk => ({ id: parseInt(chk.dataset.id), monto: parseFloat(chk.dataset.monto || 0) }));
 
-                        if (seleccionados.length === 0) {
-                            mostrarNotificacion('Seleccione al menos un trámite para simular pago', 'warning');
-                            return;
-                        }
-
-                        mostrarCargando(true);
-                        const resultados = [];
-
-                for (const sel of seleccionados) {
-                            const tramite = Array.isArray(tramites) ? tramites.find(tr => tr.id === sel.id) : null;
-                            if (!(parseFloat(sel.monto || 0) > 0)) {
-                                resultados.push({ ok: false, id: sel.id, error: 'Monto inválido para simulación' });
-                                continue;
-                            }
-
-                            let tidReal = sel.id;
-                            if (!tramite || typeof tramite.id !== 'number') {
-                                try {
-                                    const codigo = sel.codigo || (tramite && tramite.codigo) || String(sel.id);
-                                    const respBus = await fetchAPI(`/tramites?search=${encodeURIComponent(codigo)}&ciudadanoId=${ciudadanoId}`);
-                                    const listaBus = Array.isArray(respBus?.tramites) ? respBus.tramites : (Array.isArray(respBus) ? respBus : []);
-                                    const match = listaBus.find(x => x.codigo === codigo) || listaBus[0];
-                                    if (match && match.id) tidReal = match.id;
-                                } catch (_) {}
-                            }
-
-                            // Consultar el trámite en backend para obtener el monto oficial y requerimiento de pago
-                            let montoParaPago = parseFloat(sel.monto || 0);
-                            try {
-                                const det = await fetchAPI(`/tramites/${tidReal}`);
-                                const montoBackend = parseFloat(det?.monto || 0);
-                                const requiereBackend = !!det?.requiere_pago;
-                                if (requiereBackend && montoBackend > 0) {
-                                    montoParaPago = montoBackend;
-                                }
-                            } catch (_) {
-                                // Si no se pudo consultar, se mantiene el monto de selección
-                            }
-                            if (!(montoParaPago > 0)) {
-                                resultados.push({ ok: false, id: sel.id, error: 'El trámite no tiene monto válido en el sistema' });
-                                continue;
-                            }
-
-                            let pago = pagosPorTramite.get(tidReal);
-                            if (!pago) {
-                                try {
-                                    const creado = await fetchAPI('/pagos', {
-                                        method: 'POST',
-                                        body: {
-                                            monto: montoParaPago,
-                                            metodo_pago: 'otro',
-                                            referencia_externa: `SIM-${Date.now()}-${sel.id}`,
-                                            notas: 'Pago simulado desde portal ciudadano',
-                                            tramite_id: tidReal,
-                                            ciudadano_id: ciudadanoId
-                                        }
-                                    });
-                                    pago = (creado && (creado.pago || creado)) || null;
-                                    if (pago) pagosPorTramite.set(tidReal, pago);
-                                } catch (e) {
-                                    resultados.push({ ok: false, id: sel.id, error: e.message, status: e.status, body: e.body });
-                                    continue;
-                                }
-                            }
-
-                            try {
-                                await fetchAPI(`/pagos/${pago.id}/procesar`, {
-                                    method: 'PUT',
-                                    body: {
-                                        metodoPago: 'otro',
-                                        referencia: `SIM-${Date.now()}-${sel.id}`,
-                                        observaciones: 'Pago simulado desde portal ciudadano',
-                                        fechaPago: new Date().toISOString()
-                                    }
-                                });
-                                resultados.push({ ok: true, id: sel.id });
-                            } catch (e2) {
-                                resultados.push({ ok: false, id: sel.id, error: e2.message, status: e2.status, body: e2.body });
-                            }
-                        }
-
-                        const ok = resultados.filter(r => r.ok).length;
-                        const fail = resultados.length - ok;
-                        mostrarNotificacion(`Pagos simulados: ${ok}. Fallidos: ${fail}.`, ok ? 'success' : 'danger');
-                        try {
-                            const debugContainerId = 'debug-simulacion-pagos';
-                            let dbg = document.getElementById(debugContainerId);
-                            const detalle = resultados.map(r => {
-                                const t = Array.isArray(tramites) ? tramites.find(tr => tr.id === r.id) : null;
-                                const codigo = t?.codigo || r.id;
-                                const titulo = t?.titulo || 'Trámite';
-                                const tipo = t ? obtenerNombreTipoTramite(t.tipo) : 'Trámite';
-                                const estado = r.ok ? 'OK' : 'FALLÓ';
-                                const causa = (r && (r.error || (r.body && (r.body.message || r.body.error)) || '')) || '';
-                                const detalleBody = r && r.body ? JSON.stringify(r.body) : '';
-                                return `<tr>
-                                    <td>${codigo}</td>
-                                    <td>${tipo} - ${titulo}</td>
-                                    <td>${estado}</td>
-                                    <td class="text-muted small">${causa}${detalleBody ? `<br><code class="small">${detalleBody}</code>` : ''}</td>
-                                </tr>`;
-                            }).join('');
-                            const htmlDbg = `
-                                <div class="card border-danger mb-3">
-                                    <div class="card-header d-flex justify-content-between align-items-center">
-                                        <span><i class="bi bi-bug-fill me-2"></i>Detalle de simulación de pagos</span>
-                                        <button class="btn btn-sm btn-outline-secondary" id="cerrar-debug-simulacion">Ocultar</button>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="table-responsive">
-                                            <table class="table table-sm">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Código</th>
-                                                        <th>Trámite</th>
-                                                        <th>Resultado</th>
-                                                        <th>Mensaje</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>${detalle || '<tr><td colspan="4" class="text-muted">Sin detalles</td></tr>'}</tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
-                            if (!dbg) {
-                                dbg = document.createElement('div');
-                                dbg.id = debugContainerId;
-                                const contenedor = document.getElementById('contenedor-pagos');
-                                if (contenedor) contenedor.prepend(dbg);
-                            }
-                            if (dbg) dbg.innerHTML = htmlDbg;
-                            const cerrarBtn = document.getElementById('cerrar-debug-simulacion');
-                            if (cerrarBtn) cerrarBtn.addEventListener('click', () => {
-                                const el = document.getElementById(debugContainerId);
-                                if (el) el.remove();
-                            });
-                            console.group('[SIMULACION PAGOS]');
-                            resultados.forEach(r => console.log('Resultado', r));
-                            console.groupEnd();
-                        } catch (e) { console.warn('No se pudo renderizar el debug de simulación', e); }
-                        await cargarMisPagos(usuario);
-                    } catch (error) {
-                        console.error('Error al simular pagos seleccionados:', error);
-                        mostrarNotificacion(`Error al simular pago: ${error.message}`, 'danger');
-                    } finally {
-                        mostrarCargando(false);
-                    }
-                });
-            }
 
             const btnFiltroPago = document.getElementById('btn-filtro-pago');
             const btnFiltroGratis = document.getElementById('btn-filtro-gratis');
@@ -2923,8 +2915,7 @@ async function cargarMisPagos(usuario) {
                     resumen = document.getElementById('resumen-seleccion');
                     btnSelTodos = document.getElementById('seleccionar-todos');
                     btnDesTodos = document.getElementById('deseleccionar-todos');
-                    btnPagarSel = document.getElementById('btn-pagar-seleccion');
-                    btnSimularSel = document.getElementById('btn-simular-seleccion');
+                    btnIniciarPago = document.getElementById('btn-iniciar-pago-auth');
                     actualizarResumen();
                     bindSeleccionEventos();
                 });
@@ -2938,8 +2929,7 @@ async function cargarMisPagos(usuario) {
                     resumen = document.getElementById('resumen-seleccion');
                     btnSelTodos = document.getElementById('seleccionar-todos');
                     btnDesTodos = document.getElementById('deseleccionar-todos');
-                    btnPagarSel = document.getElementById('btn-pagar-seleccion');
-                    btnSimularSel = document.getElementById('btn-simular-seleccion');
+                    btnIniciarPago = document.getElementById('btn-iniciar-pago-auth');
                 });
             }
         }
@@ -3215,6 +3205,214 @@ async function cargarPagosRealizados(usuario) {
     } finally {
         mostrarCargando(false);
     }
+}
+
+// Funciones para el flujo de pago en auth.js
+function mostrarOpcionesPagoAuth() {
+    const seleccionados = document.querySelectorAll('.seleccionar-tramite:checked');
+    if (seleccionados.length === 0) {
+        mostrarNotificacion('Por favor, seleccione al menos un trámite para pagar.', 'warning');
+        return;
+    }
+    const contenedor = document.getElementById('contenedor-pago-auth');
+    if (contenedor) {
+        contenedor.classList.remove('d-none');
+        contenedor.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+function mostrarFormularioTarjetaAuth(metodo) {
+    const titulo = document.getElementById('titulo-formulario-tarjeta-auth');
+    const formContainer = document.getElementById('formulario-tarjeta-auth');
+    const form = document.getElementById('form-tarjeta-pago-auth');
+    
+    if (titulo) {
+        titulo.textContent = metodo === 'debito' ? 'Pago con Tarjeta de Débito' : 'Pago con Tarjeta de Crédito';
+    }
+    
+    if (form) form.reset();
+    
+    // Guardar el método seleccionado
+    if (formContainer) {
+        formContainer.dataset.metodo = metodo;
+        formContainer.classList.remove('d-none');
+        formContainer.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+function cancelarPagoAuth() {
+    const contenedor = document.getElementById('contenedor-pago-auth');
+    const formContainer = document.getElementById('formulario-tarjeta-auth');
+    const form = document.getElementById('form-tarjeta-pago-auth');
+    
+    if (contenedor) contenedor.classList.add('d-none');
+    if (formContainer) formContainer.classList.add('d-none');
+    if (form) form.reset();
+}
+
+async function redirigirMercadoPagoAuth() {
+    try {
+        mostrarCargando(true);
+        const seleccionados = Array.from(document.querySelectorAll('.seleccionar-tramite:checked'))
+            .map(chk => {
+                const card = document.getElementById(`card-tramite-${chk.dataset.id}`);
+                const descElement = card ? card.querySelector('h5') : null;
+                const desc = descElement ? descElement.textContent.trim() : `Trámite ${chk.dataset.id}`;
+                const monto = parseFloat(chk.dataset.monto);
+                return {
+                    title: desc,
+                    quantity: 1,
+                    unit_price: monto,
+                    currency_id: 'CLP',
+                    id: chk.dataset.id
+                };
+            });
+
+        if (seleccionados.length === 0) {
+            mostrarCargando(false);
+            mostrarNotificacion('No hay trámites seleccionados.', 'warning');
+            return;
+        }
+
+        const response = await fetchAPI('/mercado-pago/preferencias', {
+            method: 'POST',
+            body: { items: seleccionados }
+        });
+
+        if (response && response.init_point) {
+            window.location.href = response.init_point;
+        } else {
+            throw new Error('No se recibió URL de pago');
+        }
+
+    } catch (error) {
+        console.error('Error MP Auth:', error);
+        mostrarCargando(false);
+        mostrarNotificacion('Error al iniciar Mercado Pago: ' + error.message, 'danger');
+    }
+}
+
+function procesarPagoTarjetaAuth() {
+    const formContainer = document.getElementById('formulario-tarjeta-auth');
+    const metodo = formContainer ? (formContainer.dataset.metodo || 'credito') : 'credito';
+    
+    const nombre = document.getElementById('auth-nombre-titular').value;
+    const numero = document.getElementById('auth-numero-tarjeta').value;
+    const expiracion = document.getElementById('auth-fecha-expiracion').value;
+    const cvv = document.getElementById('auth-codigo-seguridad').value;
+    
+    if (!nombre || !numero || !expiracion || !cvv) {
+        mostrarNotificacion('Por favor, complete todos los campos de la tarjeta.', 'warning');
+        return;
+    }
+    
+    if (numero.length < 16) {
+        mostrarNotificacion('El número de tarjeta debe tener 16 dígitos.', 'warning');
+        return;
+    }
+    
+    if (cvv.length < 3) {
+        mostrarNotificacion('El código de seguridad debe tener 3 dígitos.', 'warning');
+        return;
+    }
+    
+    procesarPagoBackendAuth(metodo);
+}
+
+async function procesarPagoBackendAuth(metodo) {
+    try {
+        mostrarCargando(true);
+        const seleccionados = Array.from(document.querySelectorAll('.seleccionar-tramite:checked'));
+        
+        if (seleccionados.length === 0) {
+            mostrarCargando(false);
+            mostrarNotificacion('No hay trámites seleccionados.', 'warning');
+            return;
+        }
+
+        let metodoNormalizado = metodo;
+        if (metodo === 'debito') metodoNormalizado = 'tarjeta_debito';
+        else if (metodo === 'credito') metodoNormalizado = 'tarjeta_credito';
+        else if (metodo === 'tarjeta') metodoNormalizado = 'tarjeta_credito';
+
+        const payloadBase = {
+            metodo_pago: metodoNormalizado,
+            observaciones: `Pago realizado vía ${metodo === 'mercado_pago' ? 'Mercado Pago' : 'Tarjeta'} (Portal)`,
+            fecha_pago: new Date().toISOString()
+        };
+
+        const usuarioStr = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario');
+        const usuario = usuarioStr ? JSON.parse(usuarioStr) : null;
+        
+        if (!usuario) throw new Error('Usuario no identificado');
+
+        const resultados = await Promise.allSettled(seleccionados.map(async (chk) => {
+            const tramiteId = chk.dataset.id;
+            const monto = parseFloat(chk.dataset.monto);
+            
+            // Buscar si ya existe un pago pendiente para este trámite
+            let pagoId = null;
+            try {
+                const resp = await fetchAPI(`/pagos?tramiteId=${tramiteId}&limit=1`);
+                const pagos = Array.isArray(resp) ? resp : (resp.pagos || []);
+                const pendiente = pagos.find(p => p.estado === 'pendiente');
+                if (pendiente) pagoId = pendiente.id;
+            } catch (e) {}
+            
+            if (!pagoId) {
+                // Crear pago
+                const nuevoPago = await fetchAPI('/pagos', {
+                    method: 'POST',
+                    body: {
+                        tramite_id: parseInt(tramiteId),
+                        ciudadano_id: usuario.id,
+                        monto: monto,
+                        metodo_pago: metodoNormalizado,
+                        estado: 'pendiente' // Primero pendiente
+                    }
+                });
+                pagoId = nuevoPago.id;
+            }
+            
+            // Procesar el pago
+            return fetchAPI(`/pagos/${pagoId}/procesar`, {
+                method: 'PUT',
+                body: {
+                    ...payloadBase,
+                    referencia: `ONLINE-${Date.now()}-${tramiteId}`
+                }
+            });
+        }));
+
+        const ok = resultados.filter(r => r.status === 'fulfilled').length;
+        
+        mostrarCargando(false);
+        cancelarPagoAuth();
+
+        if (ok > 0) {
+            mostrarNotificacion(`Pago exitoso. Procesados: ${ok}.`, 'success');
+            // Recargar la vista
+            await cargarMisPagos(usuario);
+        } else {
+            mostrarNotificacion('Error al procesar los pagos.', 'danger');
+        }
+
+    } catch (error) {
+        console.error('Error en proceso de pago:', error);
+        mostrarCargando(false);
+        mostrarNotificacion('Error al procesar el pago: ' + error.message, 'danger');
+    }
+}
+
+function descargarComprobantePago(idPago) {
+    if (!idPago) return;
+    const url = `/api/pagos/${idPago}/comprobante`;
+    window.open(url, '_blank');
+}
+
+function descargarConstanciaTramite(idTramite) {
+    if (!idTramite) return;
+    mostrarNotificacion('Descarga de constancia no implementada en esta demo.', 'info');
 }
 
 /**

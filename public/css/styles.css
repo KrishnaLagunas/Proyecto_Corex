@@ -1297,6 +1297,42 @@ td .btn:last-child {
 }
 
 /* Contenedores responsivos para botones */
+
+/* Fix for payment buttons alignment in stacked grid */
+.btn-payment-option {
+    width: 100% !important;
+    margin: 0 !important;
+    border-radius: 0.5rem !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    /* Ensure no margin-left from adjacent sibling selectors */
+    margin-left: 0 !important;
+}
+
+.btn-payment-option + .btn-payment-option {
+    margin-left: 0 !important; /* Explicit override for .btn + .btn */
+}
+
+.btn-payment-option:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15) !important;
+}
+
+.btn-payment-option.btn-success {
+    border: 1px solid #198754 !important;
+}
+
+.btn-payment-option.btn-warning {
+    border: 1px solid #ffc107 !important;
+}
+
+.btn-payment-option.btn-info {
+    border: 1px solid #0dcaf0 !important;
+}
+
 .button-container {
     display: flex;
     flex-wrap: wrap;
