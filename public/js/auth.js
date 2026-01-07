@@ -2087,6 +2087,8 @@ function cargarFormularioNuevoTramite(usuario) {
                                     <div class="mb-3">
                                         <label for="documentos-tramite" class="form-label">Documentos Adjuntos</label>
                                         <input type="file" class="form-control" id="documentos-tramite" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
+                                        <small class="text-muted d-block mt-1">Máximo 7 archivos permitidos.</small>
+                                        <div id="lista-documentos-tramite" class="list-group mt-2"></div>
                                     </div>
                                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                                         <button type="button" class="btn btn-secondary" id="btn-cancelar-tramite">Cancelar</button>
@@ -2126,6 +2128,75 @@ function cargarFormularioNuevoTramite(usuario) {
                 enviarNuevoTramite(usuario);
                 return false;
             };
+
+            // Gestión de archivos adjuntos (Lógica nueva)
+            window.__archivosTramite = [];
+            const inputArchivos = document.getElementById('documentos-tramite');
+            const listaArchivosEl = document.getElementById('lista-documentos-tramite');
+
+            function renderizarArchivos() {
+                listaArchivosEl.innerHTML = '';
+                window.__archivosTramite.forEach((file, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    
+                    let icono = 'bi-file-earmark';
+                    if (file.type.includes('pdf')) icono = 'bi-file-earmark-pdf text-danger';
+                    else if (file.type.includes('image')) icono = 'bi-file-earmark-image text-primary';
+                    else if (file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) icono = 'bi-file-earmark-word text-primary';
+                    else if (file.type.includes('excel') || file.type.includes('sheet') || file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) icono = 'bi-file-earmark-excel text-success';
+
+                    item.innerHTML = `
+                        <div class="d-flex align-items-center overflow-hidden">
+                            <i class="bi ${icono} me-3 fs-5"></i>
+                            <div class="text-truncate">
+                                <div class="fw-semibold text-truncate" title="${file.name}">${file.name}</div>
+                                <small class="text-muted">${(file.size / 1024).toFixed(1)} KB</small>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-outline-danger btn-sm ms-2" onclick="eliminarArchivoTramite(${index})">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    `;
+                    listaArchivosEl.appendChild(item);
+                });
+            }
+
+            window.eliminarArchivoTramite = function(index) {
+                window.__archivosTramite.splice(index, 1);
+                renderizarArchivos();
+                // Limpiar input para permitir re-selección del mismo archivo si se desea
+                if(inputArchivos) inputArchivos.value = ''; 
+            };
+
+            if (inputArchivos) {
+                inputArchivos.addEventListener('change', function(e) {
+                    const nuevosArchivos = Array.from(e.target.files);
+                    
+                    // Filtrar duplicados por nombre y tamaño para evitar subir lo mismo dos veces
+                    const unicos = nuevosArchivos.filter(nuevo => 
+                        !window.__archivosTramite.some(existente => 
+                            existente.name === nuevo.name && existente.size === nuevo.size
+                        )
+                    );
+
+                    if (unicos.length < nuevosArchivos.length) {
+                        // Opcional: avisar que se ignoraron duplicados
+                    }
+
+                    const total = window.__archivosTramite.length + unicos.length;
+                    
+                    if (total > 7) {
+                        alert('Solo puedes subir un máximo de 7 archivos en total.');
+                        inputArchivos.value = '';
+                        return;
+                    }
+
+                    window.__archivosTramite = [...window.__archivosTramite, ...unicos];
+                    renderizarArchivos();
+                    inputArchivos.value = ''; // Limpiar input visualmente
+                });
+            }
 
             // Cargar departamentos dinámicamente desde la API
             (async () => {
@@ -2350,12 +2421,11 @@ async function enviarNuevoTramite(usuario) {
         console.log('Trámite creado con ID:', nuevoId);
 
         // 2. Subir documentos si existen
-        const inputArchivos = document.getElementById('documentos-tramite');
-        if (inputArchivos && inputArchivos.files && inputArchivos.files.length > 0) {
-            const archivos = Array.from(inputArchivos.files);
-            
+        const archivosParaSubir = window.__archivosTramite || [];
+        
+        if (archivosParaSubir.length > 0) {
             // Subir archivos secuencialmente
-            for (const archivo of archivos) {
+            for (const archivo of archivosParaSubir) {
                 const formData = new FormData();
                 formData.append('archivo', archivo);
                 formData.append('nombre', archivo.name);
@@ -3908,7 +3978,7 @@ function crearModalDocumentosTramite() {
     if (document.getElementById('modal-documentos-tramite')) return;
     const html = `
 <div class="modal fade" id="modal-documentos-tramite" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-centered">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header bg-info text-white">
         <h5 class="modal-title"><i class="bi bi-file-earmark-text"></i> Documentos del Trámite</h5>
@@ -3953,67 +4023,41 @@ async function mostrarDocumentosTramiteModal(tramiteId) {
             errorBox.classList.remove('d-none');
             return;
         }
-        const cards = documentos.map(d => {
+        const listItems = documentos.map(d => {
             // Si ruta_archivo ya es una URL de API (BLOB), usarla tal cual
             const url = (d.ruta_archivo && (d.ruta_archivo.startsWith('/api') || d.ruta_archivo.startsWith('http')))
                 ? d.ruta_archivo 
                 : `/uploads/${encodeURI(d.ruta_archivo)}`;
             
             const mime = String(d.mime_type || '').toLowerCase();
-            const isImg = mime.startsWith('image/');
-            const isPdf = mime.includes('pdf');
-            const isWord = mime.includes('word') || mime.includes('officedocument') || (d.nombre && (d.nombre.endsWith('.doc') || d.nombre.endsWith('.docx')));
-            const isExcel = mime.includes('excel') || mime.includes('spreadsheetml') || (d.nombre && (d.nombre.endsWith('.xls') || d.nombre.endsWith('.xlsx')));
-            
-            let preview = '';
-            if (isImg) {
-                preview = `<img src="${url}" class="img-fluid rounded border" style="max-height:360px">`;
-            } else if (isPdf) {
-                preview = `<iframe src="${url}" class="w-100" style="height:400px;border:1px solid #dee2e6;border-radius:.5rem;"></iframe>`;
-            } else if (isWord) {
-                preview = `
-                    <div class="d-flex flex-column align-items-center justify-content-center p-4 border rounded bg-light">
-                        <i class="bi bi-file-earmark-word text-primary" style="font-size: 3rem;"></i>
-                        <h6 class="mt-2 text-muted">Vista previa no disponible</h6>
-                        <small class="text-muted mb-2">Formato Word</small>
-                        <a href="${url}" class="btn btn-outline-primary btn-sm" download>
-                            <i class="bi bi-download"></i> Descargar
-                        </a>
-                    </div>
-                `;
-            } else if (isExcel) {
-                preview = `
-                    <div class="d-flex flex-column align-items-center justify-content-center p-4 border rounded bg-light">
-                        <i class="bi bi-file-earmark-excel text-success" style="font-size: 3rem;"></i>
-                        <h6 class="mt-2 text-muted">Vista previa no disponible</h6>
-                        <small class="text-muted mb-2">Formato Excel</small>
-                        <a href="${url}" class="btn btn-outline-success btn-sm" download>
-                            <i class="bi bi-download"></i> Descargar
-                        </a>
-                    </div>
-                `;
-            } else {
-                preview = `<div class="d-flex align-items-center gap-2 text-muted"><i class="bi bi-file-earmark"></i><span>No disponible vista previa</span></div>`;
-            }
+            let icono = 'bi-file-earmark-text text-secondary';
+            if (mime.includes('pdf')) icono = 'bi-file-earmark-pdf text-danger';
+            else if (mime.startsWith('image/')) icono = 'bi-file-earmark-image text-primary';
+            else if (mime.includes('word') || mime.includes('officedocument') || (d.nombre && (d.nombre.endsWith('.doc') || d.nombre.endsWith('.docx')))) icono = 'bi-file-earmark-word text-primary';
+            else if (mime.includes('excel') || mime.includes('spreadsheetml') || (d.nombre && (d.nombre.endsWith('.xls') || d.nombre.endsWith('.xlsx')))) icono = 'bi-file-earmark-excel text-success';
+
+            const fecha = d.createdAt ? formatearFecha(d.createdAt) : 'Fecha desconocida';
+            const tamaño = d.tamaño ? `${(d.tamaño / 1024).toFixed(1)} KB` : '';
+
             return `
-            <div class="card mb-3">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                  <div>
-                    <div class="fw-semibold">${d.nombre || 'Documento'}</div>
-                    <div class="small text-muted">${d.tipo || 'otro'} • ${formatearFecha(d.fecha_subida || d.createdAt)}</div>
-                  </div>
-                  <div class="btn-group btn-group-sm">
-                    <a class="btn btn-secondary" href="${url}" download>
-                      <i class="bi bi-download"></i> Descargar
-                    </a>
-                  </div>
+            <div class="list-group-item d-flex justify-content-between align-items-center p-3">
+                <div class="d-flex align-items-center overflow-hidden">
+                    <i class="bi ${icono} fs-1 me-3"></i>
+                    <div class="d-flex flex-column" style="min-width: 0;">
+                        <div class="fw-bold text-truncate" title="${d.nombre}">${d.nombre || 'Documento'}</div>
+                        <div class="small text-muted d-flex gap-2">
+                            <span>${d.tipo || 'Adjunto'}</span>
+                            ${tamaño ? `<span>• ${tamaño}</span>` : ''}
+                            <span>• ${fecha}</span>
+                        </div>
+                    </div>
                 </div>
-                ${preview}
-              </div>
+                <a href="${url}" class="btn btn-outline-primary btn-sm ms-3 flex-shrink-0" download>
+                    <i class="bi bi-download"></i> Descargar
+                </a>
             </div>`;
         }).join('');
-        contenido.innerHTML = cards;
+        contenido.innerHTML = `<div class="list-group list-group-flush border rounded shadow-sm">${listItems}</div>`;
         loader.classList.add('d-none');
         contenido.classList.remove('d-none');
     } catch (_) {
