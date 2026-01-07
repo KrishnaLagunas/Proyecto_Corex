@@ -16,6 +16,11 @@ async function fetchAPI(endpoint, options = {}) {
                 'Content-Type': 'application/json'
             }
         };
+
+        // Si el body es FormData, eliminar Content-Type para que el navegador lo establezca (con boundary)
+        if (options.body instanceof FormData) {
+            delete defaultOptions.headers['Content-Type'];
+        }
         
         function getCookie(name) {
             try {

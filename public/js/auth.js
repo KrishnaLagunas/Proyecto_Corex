@@ -1653,11 +1653,6 @@ function generarMenu(rol) {
                 </a>
             </li>
             <li class="nav-item">
-                <a href="#" class="nav-link ${currentPage==='formularioNuevoTramite'?'active':''}" data-page="formularioNuevoTramite">
-                    <i class="bi bi-plus-circle"></i> Iniciar Trámite
-                </a>
-            </li>
-            <li class="nav-item">
                 <a href="#" class="nav-link ${currentPage==='misPagos'?'active':''}" data-page="misPagos">
                     <i class="bi bi-cash-coin"></i> Mis Pagos
                 </a>
@@ -2151,8 +2146,25 @@ function cargarFormularioNuevoTramite(usuario) {
                                         <textarea class="form-control" id="descripcion-tramite" rows="4"></textarea>
                                     </div>
                                     <div class="mb-3">
-                                        <label for="documentos-tramite" class="form-label">Documentos Adjuntos</label>
-                                        <input type="file" class="form-control" id="documentos-tramite" multiple>
+                                        <label class="form-label">Documentos Adjuntos</label>
+                                        <div class="card bg-light border-0">
+                                            <div class="card-body">
+                                                <div class="d-flex align-items-center mb-3">
+                                                    <button type="button" class="btn btn-outline-primary" id="btn-select-files">
+                                                        <i class="bi bi-folder-plus me-2"></i>Seleccionar Archivos
+                                                    </button>
+                                                    <span class="ms-3 text-muted small" id="files-counter">0/7 archivos seleccionados</span>
+                                                </div>
+                                                <input type="file" id="documentos-tramite" multiple class="d-none" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png">
+                                                <div id="file-list-container" class="list-group list-group-flush bg-white rounded border d-none">
+                                                    <!-- Lista dinámica -->
+                                                </div>
+                                                <div class="form-text mt-2">
+                                                    <i class="bi bi-info-circle me-1"></i>
+                                                    Formatos permitidos: PDF, Word, Excel, Imágenes. Máximo 7 archivos.
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                                         <button type="button" class="btn btn-secondary" id="btn-cancelar-tramite">Cancelar</button>
@@ -2192,6 +2204,99 @@ function cargarFormularioNuevoTramite(usuario) {
                 enviarNuevoTramite(usuario);
                 return false;
             };
+
+            // --- Lógica de Manejo de Archivos (Restaurada) ---
+            const fileInput = document.getElementById('documentos-tramite');
+            const btnSelect = document.getElementById('btn-select-files');
+            const fileListContainer = document.getElementById('file-list-container');
+            const filesCounter = document.getElementById('files-counter');
+            
+            // Usar DataTransfer para manipular archivos en memoria
+            const dt = new DataTransfer();
+
+            if (btnSelect && fileInput) {
+                btnSelect.onclick = () => fileInput.click();
+            }
+
+            if (fileInput) {
+                fileInput.onchange = function(e) {
+                    const newFiles = Array.from(this.files);
+                    let addedCount = 0;
+                    
+                    newFiles.forEach(file => {
+                        // Verificar límite total de 7 archivos
+                        if (dt.items.length >= 7) {
+                            mostrarNotificacion('Máximo 7 archivos permitidos.', 'warning');
+                            return;
+                        }
+                        // Evitar duplicados por nombre y tamaño (simple check)
+                        const exists = Array.from(dt.files).some(f => f.name === file.name && f.size === file.size);
+                        if (!exists) {
+                            dt.items.add(file);
+                            addedCount++;
+                        }
+                    });
+
+                    // Actualizar input y vista
+                    this.files = dt.files;
+                    renderFileList();
+                };
+            }
+
+            function renderFileList() {
+                if (!fileListContainer) return;
+                
+                fileListContainer.innerHTML = '';
+                const files = Array.from(dt.files);
+                
+                if (files.length > 0) {
+                    fileListContainer.classList.remove('d-none');
+                    files.forEach((file, index) => {
+                        const ext = file.name.split('.').pop().toLowerCase();
+                        let iconClass = 'bi-file-earmark';
+                        let iconColor = 'text-secondary';
+                        
+                        if (['pdf'].includes(ext)) { iconClass = 'bi-file-earmark-pdf'; iconColor = 'text-danger'; }
+                        else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) { iconClass = 'bi-file-earmark-image'; iconColor = 'text-primary'; }
+                        else if (['xls', 'xlsx', 'csv'].includes(ext)) { iconClass = 'bi-file-earmark-excel'; iconColor = 'text-success'; }
+                        else if (['doc', 'docx'].includes(ext)) { iconClass = 'bi-file-earmark-word'; iconColor = 'text-primary'; }
+
+                        const item = document.createElement('div');
+                        item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                        item.innerHTML = `
+                            <div class="d-flex align-items-center overflow-hidden">
+                                <i class="bi ${iconClass} ${iconColor} fs-5 me-3"></i>
+                                <div class="text-truncate">
+                                    <div class="fw-bold text-truncate" style="max-width: 200px;">${file.name}</div>
+                                    <small class="text-muted">${(file.size / 1024).toFixed(1)} KB</small>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove-file" data-index="${index}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        `;
+                        fileListContainer.appendChild(item);
+                    });
+
+                    // Listeners para eliminar
+                    document.querySelectorAll('.btn-remove-file').forEach(btn => {
+                        btn.onclick = function() {
+                            const idx = parseInt(this.getAttribute('data-index'));
+                            dt.items.remove(idx);
+                            fileInput.files = dt.files;
+                            renderFileList();
+                        };
+                    });
+                } else {
+                    fileListContainer.classList.add('d-none');
+                }
+                
+                // Actualizar contador
+                if (filesCounter) {
+                    filesCounter.textContent = `${files.length}/7 archivos seleccionados`;
+                }
+            }
+            // -------------------------------------------------
 
             // Cargar departamentos dinámicamente desde la API
             (async () => {
@@ -2403,9 +2508,43 @@ async function enviarNuevoTramite(usuario) {
         let guardadoExitoso = false;
         
         try {
-            // Intentar guardar en la API y obtener el creado real
-            const creadoReal = await guardarTramite(nuevoTramite);
-            guardadoExitoso = !!creadoReal;
+            // 1. Crear trámite en la API (JSON)
+            // Usamos fetchAPI directamente para evitar dependencia de tramites.js y errores de contexto
+            const resp = await fetchAPI('/tramites', {
+                method: 'POST',
+                body: nuevoTramite
+            });
+            
+            const tramiteCreado = resp.tramite || resp;
+            const tramiteId = tramiteCreado.id;
+
+            if (tramiteId) {
+                // 2. Subir archivos si existen
+                const fileInput = document.getElementById('documentos-tramite');
+                if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                    const archivos = Array.from(fileInput.files);
+                    // Subir secuencialmente o en paralelo
+                    const subidas = archivos.map(file => {
+                        const fd = new FormData();
+                        fd.append('archivo', file);
+                        fd.append('nombre', file.name);
+                        fd.append('descripcion', 'Documento adjunto inicial');
+                        // El backend espera 'archivo' o 'documento' en multipart
+                        return fetchAPI(`/tramites/${tramiteId}/documentos`, {
+                            method: 'POST',
+                            body: fd
+                        }).catch(err => {
+                            console.error(`Error subiendo ${file.name}:`, err);
+                            mostrarNotificacion(`No se pudo subir ${file.name}`, 'warning');
+                        });
+                    });
+                    
+                    await Promise.all(subidas);
+                }
+                guardadoExitoso = true;
+            } else {
+                throw new Error('La API no devolvió el ID del trámite');
+            }
         } catch (apiError) {
             console.warn('Error al guardar en la API, intentando guardar solo en localStorage:', apiError);
             
@@ -3810,7 +3949,7 @@ function crearModalDetalleTramite() {
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title"><i class="bi bi-eye"></i> Detalle del Trámite</h5>
+        <h5 class="modal-title text-white"><i class="bi bi-eye"></i> Detalle del Trámite</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
@@ -3823,9 +3962,6 @@ function crearModalDetalleTramite() {
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
-        <button type="button" class="btn btn-primary" id="btn-ver-completo">
-          <i class="bi bi-box-arrow-up-right"></i> Ver completo
-        </button>
       </div>
     </div>
   </div>
@@ -3880,6 +4016,11 @@ async function mostrarDetalleTramiteModal(tramiteId) {
             } catch (_) {}
         }
 
+        const documentos = tramite.Documentos || tramite.documentos || [];
+        // Guardar referencia global para el modal de documentos
+        window.tramiteActualDocs = documentos;
+        window.tramiteActualId = tramite.id || tramiteId;
+
         contenido.innerHTML = `
       <div class="row g-3">
         <div class="col-md-8">
@@ -3914,33 +4055,27 @@ async function mostrarDetalleTramiteModal(tramiteId) {
             <div>${tramite.descripcion}</div>
           </div>` : ''}
         <div class="col-12">
+          <div class="small text-muted">Documentos Adjuntos</div>
+          <div class="mt-2 d-flex align-items-center">
+            <span class="fw-bold me-3">${documentos.length} Documentos adjuntos</span>
+            ${documentos.length > 0 ? `
+              <button class="btn btn-sm btn-primary" onclick="abrirModalDocumentos()">
+                <i class="bi bi-eye me-1"></i> Ver
+              </button>
+            ` : ''}
+          </div>
+        </div>
+        <div class="col-12">
           <div class="small text-muted">Observaciones</div>
           <div>${tramite.observaciones || 'Sin observaciones'}</div>
         </div>
       </div>
     `;
 
+        // Limpiar listeners viejos si existen (no necesario porque reemplazamos el HTML)
+        
         loader.classList.add('d-none');
         contenido.classList.remove('d-none');
-
-        const btnVerCompleto = document.getElementById('btn-ver-completo');
-        if (btnVerCompleto) {
-            btnVerCompleto.onclick = () => {
-                try {
-                    if (!esLocalFallback && typeof verDetalleTramiteCiudadano === 'function') {
-                        verDetalleTramiteCiudadano(tramiteId);
-                    } else if (!esLocalFallback && typeof verDetalleTramite === 'function') {
-                        verDetalleTramite(tramiteId);
-                    } else if (typeof cargarMisTramites === 'function') {
-                        const usuario = obtenerUsuario();
-                        cargarMisTramites(usuario);
-                    }
-                } finally {
-                    const instance = bootstrap.Modal.getInstance(modalEl);
-                    if (instance) instance.hide();
-                }
-            };
-        }
     } catch (err) {
         const loader = document.getElementById('detalle-tramite-loader');
         const contenido = document.getElementById('detalle-tramite-contenido');
@@ -3954,6 +4089,102 @@ async function mostrarDetalleTramiteModal(tramiteId) {
         }
     }
 }
+
+function abrirModalDocumentos() {
+    const documentos = window.tramiteActualDocs || [];
+    const tramiteId = window.tramiteActualId;
+    
+    // Crear modal si no existe
+    if (!document.getElementById('modal-lista-documentos')) {
+        const modalHtml = `
+<div class="modal fade" id="modal-lista-documentos" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-light">
+        <h5 class="modal-title"><i class="bi bi-paperclip"></i> Documentos Adjuntos</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div id="lista-documentos-contenido" class="list-group list-group-flush"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+
+    const contenido = document.getElementById('lista-documentos-contenido');
+    
+    if (documentos.length === 0) {
+        contenido.innerHTML = '<div class="p-3 text-center text-muted">No hay documentos disponibles.</div>';
+    } else {
+        contenido.innerHTML = documentos.map(doc => {
+            const nombre = doc.nombre || doc.nombre_archivo || 'Documento';
+            const ext = nombre.split('.').pop().toLowerCase();
+            let icono = 'bi-file-earmark';
+            let color = 'text-secondary';
+            
+            if (['pdf'].includes(ext)) { icono = 'bi-file-earmark-pdf'; color = 'text-danger'; }
+            else if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) { icono = 'bi-file-earmark-image'; color = 'text-primary'; }
+            else if (['xls', 'xlsx', 'csv'].includes(ext)) { icono = 'bi-file-earmark-excel'; color = 'text-success'; }
+            else if (['doc', 'docx'].includes(ext)) { icono = 'bi-file-earmark-word'; color = 'text-primary'; }
+            
+            return `
+              <div class="list-group-item d-flex align-items-center p-3">
+                <i class="bi ${icono} ${color} me-3 fs-4"></i>
+                <div class="flex-grow-1 text-truncate me-3">
+                    <div class="fw-semibold text-truncate" title="${nombre}">${nombre}</div>
+                    <div class="small text-muted text-uppercase">${ext}</div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary btn-descargar-doc" 
+                  data-id="${doc.id}" 
+                  data-tramite-id="${tramiteId}" 
+                  data-nombre="${nombre}">
+                  <i class="bi bi-download"></i>
+                </button>
+              </div>
+            `;
+        }).join('');
+    }
+
+    // Añadir listeners para descarga
+    contenido.querySelectorAll('.btn-descargar-doc').forEach(btn => {
+        btn.onclick = async (e) => {
+            e.preventDefault();
+            const docId = btn.getAttribute('data-id');
+            const tId = btn.getAttribute('data-tramite-id');
+            const nombre = btn.getAttribute('data-nombre');
+            
+            try {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                
+                const blob = await fetchAPI(`/tramites/${tId}/documentos/${docId}/descargar`, { responseType: 'blob' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = nombre;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } catch (err) {
+                console.error('Error descargando documento:', err);
+                mostrarNotificacion('Error al descargar el documento', 'danger');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-download"></i>';
+            }
+        };
+    });
+
+    const modal = new bootstrap.Modal(document.getElementById('modal-lista-documentos'));
+    modal.show();
+}
+
 function limpiarFondoLogin() {
     try {
         if (window.__loginBgInterval) { clearInterval(window.__loginBgInterval); window.__loginBgInterval = null; }
