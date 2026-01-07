@@ -810,7 +810,16 @@ tramitesController.getDocumentosByTramiteId = async (req, res, next) => {
       attributes: ['id', 'nombre', 'descripcion', 'tipo', 'ruta_archivo', 'mime_type', 'tamaño', 'es_publico', 'createdAt'],
       order: [['createdAt', 'DESC']]
     });
-    res.json(documentos);
+
+    const docsMapped = documentos.map(d => {
+      const doc = d.toJSON();
+      if (doc.ruta_archivo && doc.ruta_archivo.startsWith('blob/')) {
+        doc.ruta_archivo = `/api/tramites/${id}/documentos/${doc.id}/descargar`;
+      }
+      return doc;
+    });
+
+    res.json(docsMapped);
   } catch (error) {
     next(error);
   }
@@ -838,13 +847,15 @@ tramitesController.subirDocumentoTramite = async (req, res, next) => {
 
     const nombre = req.body.nombre || file.originalname;
     const descripcion = req.body.descripcion || '';
-    const rutaRelativa = `documentos/${file.filename}`;
+    // En memoryStorage no hay filename, usamos originalname como referencia
+    const rutaRelativa = `blob/${file.originalname}`;
 
     const doc = await Documento.create({
       nombre,
       descripcion,
       tipo,
       ruta_archivo: rutaRelativa,
+      archivo_data: file.buffer, // Guardar BLOB
       mime_type: file.mimetype,
       tamaño: file.size,
       es_publico: false,
@@ -852,8 +863,41 @@ tramitesController.subirDocumentoTramite = async (req, res, next) => {
       usuario_id: req.user.id
     });
 
-    logger.info(`Documento subido para trámite ${id}: ${file.filename}`);
-    res.status(201).json({ id: doc.id, nombre: doc.nombre, tipo: doc.tipo, ruta_archivo: doc.ruta_archivo });
+    logger.info(`Documento subido para trámite ${id}: ${nombre} (BLOB)`);
+    // Devolvemos la URL para descargar desde la API en lugar de estática
+    const downloadUrl = `/api/tramites/${id}/documentos/${doc.id}/descargar`;
+    res.status(201).json({ id: doc.id, nombre: doc.nombre, tipo: doc.tipo, ruta_archivo: downloadUrl });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Descargar documento (BLOB)
+ */
+tramitesController.descargarDocumento = async (req, res, next) => {
+  try {
+    const { id, docId } = req.params;
+    
+    const doc = await Documento.findOne({ where: { id: docId, tramite_id: id } });
+    if (!doc) throw new ApiError('Documento no encontrado', 404);
+
+    // Verificar permisos
+    const tramite = await Tramite.findByPk(id);
+    if (req.user.rol_nombre === 'ciudadano' && tramite.ciudadano_id !== req.user.id) {
+       throw new ApiError('No tienes permiso para ver este documento', 403);
+    }
+    // TODO: Validar permisos de funcionario si aplica
+
+    if (!doc.archivo_data) {
+       throw new ApiError('El contenido del documento no está disponible', 404);
+    }
+
+    res.setHeader('Content-Type', doc.mime_type || 'application/octet-stream');
+    // Usar inline para visualizar en navegador, attachment para forzar descarga
+    res.setHeader('Content-Disposition', `inline; filename="${doc.nombre}"`);
+    res.send(doc.archivo_data);
+
   } catch (error) {
     next(error);
   }

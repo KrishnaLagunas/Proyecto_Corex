@@ -32,7 +32,13 @@ const Documento = sequelize.define('Documento', {
   },
   ruta_archivo: {
     type: DataTypes.STRING(255),
-    allowNull: false
+    allowNull: true,
+    comment: 'Nombre referencial del archivo o ruta antigua'
+  },
+  archivo_data: {
+    type: DataTypes.BLOB('long'),
+    allowNull: true,
+    comment: 'Contenido binario del archivo'
   },
   mime_type: {
     type: DataTypes.STRING(100),
@@ -84,9 +90,9 @@ const Documento = sequelize.define('Documento', {
   // Hooks para validaciones adicionales
   hooks: {
     beforeCreate: (documento) => {
-      // Validar que la ruta del archivo no esté vacía
-      if (!documento.ruta_archivo || documento.ruta_archivo.trim() === '') {
-        throw new Error('La ruta del archivo es obligatoria');
+      // Validar que exista contenido o ruta
+      if ((!documento.ruta_archivo || documento.ruta_archivo.trim() === '') && !documento.archivo_data) {
+        throw new Error('Debe proporcionar un archivo (contenido o ruta)');
       }
     }
   }

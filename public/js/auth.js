@@ -2086,7 +2086,7 @@ function cargarFormularioNuevoTramite(usuario) {
                                     </div>
                                     <div class="mb-3">
                                         <label for="documentos-tramite" class="form-label">Documentos Adjuntos</label>
-                                        <input type="file" class="form-control" id="documentos-tramite" multiple>
+                                        <input type="file" class="form-control" id="documentos-tramite" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
                                     </div>
                                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                                         <button type="button" class="btn btn-secondary" id="btn-cancelar-tramite">Cancelar</button>
@@ -2315,14 +2315,14 @@ async function enviarNuevoTramite(usuario) {
         const optSel = tipoSelectEl.options[tipoSelectEl.selectedIndex];
         const precioSel = parseFloat((optSel && optSel.dataset && optSel.dataset.precio) ? optSel.dataset.precio : '0');
         const nuevoTramite = {
-            id: Date.now().toString(), // Usar timestamp como ID único
+            // No enviar ID manual, dejar que la BD lo genere
             codigo: generarCodigoTramite(tipoNombre),
             titulo: titulo,
             descripcion: descripcion,
             tipo: tipoNombre,
             estado: 'pendiente',
             fecha_inicio: new Date().toISOString(), // Cambiar de fecha_solicitud a fecha_inicio
-            fecha_solicitud: new Date().toISOString(), // Mantener para compatibilidad con localStorage
+            fecha_solicitud: new Date().toISOString(), // Mantener para compatibilidad
             departamento_id: parseInt(departamentoId, 10),
             municipalidad_id: parseInt(municipalidadId, 10),
             ciudadano_id: usuario.id,
@@ -2333,63 +2333,65 @@ async function enviarNuevoTramite(usuario) {
             prioridad: 'media' // Agregar prioridad por defecto
         };
         
-        // Intentar guardar el trámite (primero en la API, luego en localStorage como respaldo)
-        let guardadoExitoso = false;
+        // 1. Guardar el trámite en la API
+        const respuestaTramite = await fetchAPI('/tramites', {
+            method: 'POST',
+            body: nuevoTramite
+        });
         
-        try {
-            // Intentar guardar en la API y obtener el creado real
-            const creadoReal = await guardarTramite(nuevoTramite);
-            guardadoExitoso = !!creadoReal;
-        } catch (apiError) {
-            console.warn('Error al guardar en la API, intentando guardar solo en localStorage:', apiError);
+        // Obtener el ID del trámite de la respuesta (puede venir directo o anidado en .tramite)
+        const nuevoId = respuestaTramite.id || (respuestaTramite.tramite && respuestaTramite.tramite.id);
+        
+        if (!nuevoId) {
+            console.error('Respuesta API:', respuestaTramite);
+            throw new Error('La API no devolvió el ID del trámite creado');
+        }
+
+        console.log('Trámite creado con ID:', nuevoId);
+
+        // 2. Subir documentos si existen
+        const inputArchivos = document.getElementById('documentos-tramite');
+        if (inputArchivos && inputArchivos.files && inputArchivos.files.length > 0) {
+            const archivos = Array.from(inputArchivos.files);
             
-            try {
-                // Si falla la API, guardar solo en localStorage
-                const tramites = obtenerTramites();
-                tramites.push(nuevoTramite);
-                localStorage.setItem('tramites', JSON.stringify(tramites));
-                guardadoExitoso = true;
+            // Subir archivos secuencialmente
+            for (const archivo of archivos) {
+                const formData = new FormData();
+                formData.append('archivo', archivo);
+                formData.append('nombre', archivo.name);
+                formData.append('tipo', 'solicitud');
+                formData.append('descripcion', 'Documento adjunto al iniciar trámite');
                 
-                // Programar un reintento en segundo plano
-                setTimeout(() => {
-                    try {
-                        fetchAPI('/tramites', {
-                            method: 'POST',
-                            body: nuevoTramite
-                        }).then(response => {
-                            console.log('Reintento exitoso de guardar en la API:', response);
-                        }).catch(error => {
-                            console.warn('Reintento fallido de guardar en la API:', error);
-                        });
-                    } catch (e) {
-                        console.warn('Error en reintento programado:', e);
-                    }
-                }, 5000); // Reintento después de 5 segundos
-            } catch (localError) {
-                console.error('Error al guardar en localStorage:', localError);
-                throw new Error('No se pudo guardar el trámite en ningún almacenamiento');
+                try {
+                    await fetchAPI(`/tramites/${nuevoId}/documentos`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    console.log(`Archivo ${archivo.name} subido correctamente`);
+                } catch (docError) {
+                    console.error(`Error al subir archivo ${archivo.name}:`, docError);
+                    mostrarNotificacion(`Trámite creado, pero error al subir ${archivo.name}`, 'warning');
+                }
             }
         }
         
-        if (guardadoExitoso) {
-            // Mostrar mensaje de éxito
-            mostrarNotificacion('Trámite enviado correctamente', 'success');
-            
-            // Ocultar indicador de carga
-            mostrarCargando(false);
-            
-            // Notificar y refrescar vistas que escuchan el evento
-            window.dispatchEvent(new CustomEvent('tramite:creado', { detail: nuevoTramite }));
+        // Mostrar mensaje de éxito
+        mostrarNotificacion('Trámite enviado correctamente', 'success');
+        
+        // Ocultar indicador de carga
+        mostrarCargando(false);
+        
+        // Notificar y refrescar vistas que escuchan el evento
+        window.dispatchEvent(new CustomEvent('tramite:creado', { detail: respuestaTramite }));
 
-            // Redirigir automáticamente a Mis Pagos
-            cargarMisPagos(usuario);
-        } else {
-            throw new Error('No se pudo guardar el trámite');
-        }
+        // Redirigir automáticamente a Mis Pagos
+        cargarMisPagos(usuario);
+
     } catch (error) {
         console.error('Error al guardar el trámite:', error);
         mostrarCargando(false);
-        mostrarNotificacion('Ocurrió un error al guardar el trámite. Por favor, intente nuevamente.', 'danger');
+        const mensaje = error.message || 'Ocurrió un error al guardar el trámite. Por favor, intente nuevamente.';
+        mostrarNotificacion(mensaje, 'danger');
     }
 }
 
@@ -3952,12 +3954,35 @@ async function mostrarDocumentosTramiteModal(tramiteId) {
             return;
         }
         const cards = documentos.map(d => {
-            const url = `/uploads/${encodeURI(d.ruta_archivo)}`;
-            const isImg = String(d.mime_type || '').startsWith('image/');
-            const isPdf = String(d.mime_type || '').toLowerCase().includes('pdf');
-            const preview = isImg
-                ? `<img src="${url}" class="img-fluid rounded border" style="max-height:360px">`
-                : (isPdf ? `<iframe src="${url}" class="w-100" style="height:400px;border:1px solid #dee2e6;border-radius:.5rem;"></iframe>` : `<div class="d-flex align-items-center gap-2 text-muted"><i class="bi bi-file-earmark"></i><span>No disponible vista previa</span></div>`);
+            // Si ruta_archivo ya es una URL de API (BLOB), usarla tal cual
+            const url = (d.ruta_archivo && (d.ruta_archivo.startsWith('/api') || d.ruta_archivo.startsWith('http')))
+                ? d.ruta_archivo 
+                : `/uploads/${encodeURI(d.ruta_archivo)}`;
+            
+            const mime = String(d.mime_type || '').toLowerCase();
+            const isImg = mime.startsWith('image/');
+            const isPdf = mime.includes('pdf');
+            const isWord = mime.includes('word') || mime.includes('officedocument') || (d.nombre && (d.nombre.endsWith('.doc') || d.nombre.endsWith('.docx')));
+            
+            let preview = '';
+            if (isImg) {
+                preview = `<img src="${url}" class="img-fluid rounded border" style="max-height:360px">`;
+            } else if (isPdf) {
+                preview = `<iframe src="${url}" class="w-100" style="height:400px;border:1px solid #dee2e6;border-radius:.5rem;"></iframe>`;
+            } else if (isWord) {
+                preview = `
+                    <div class="d-flex flex-column align-items-center justify-content-center p-4 border rounded bg-light">
+                        <i class="bi bi-file-earmark-word text-primary" style="font-size: 3rem;"></i>
+                        <h6 class="mt-2 text-muted">Vista previa no disponible</h6>
+                        <small class="text-muted mb-2">Formato Word</small>
+                        <a href="${url}" class="btn btn-outline-primary btn-sm" download>
+                            <i class="bi bi-download"></i> Descargar
+                        </a>
+                    </div>
+                `;
+            } else {
+                preview = `<div class="d-flex align-items-center gap-2 text-muted"><i class="bi bi-file-earmark"></i><span>No disponible vista previa</span></div>`;
+            }
             return `
             <div class="card mb-3">
               <div class="card-body">

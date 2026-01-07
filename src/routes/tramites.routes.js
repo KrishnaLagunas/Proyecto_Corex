@@ -58,6 +58,11 @@ router.get('/:id/documentos',
   tramitesController.getDocumentosByTramiteId
 );
 
+router.get('/:id/documentos/:docId/descargar',
+  isAuthenticated,
+  tramitesController.descargarDocumento
+);
+
 router.post('/:id/documentos',
   isAuthenticated,
   validateParams(tramiteSchemas.idParam),
