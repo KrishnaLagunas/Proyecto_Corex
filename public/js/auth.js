@@ -3813,6 +3813,11 @@ async function mostrarDetalleTramiteModal(tramiteId) {
                 nombreDepartamento = dep?.nombre || dep?.nombre_departamento || null;
             } catch (_) {}
         }
+        let documentos = [];
+        try {
+            documentos = await fetchAPI(`/tramites/${tramiteId}/documentos`, { suppressErrorLog: true });
+        } catch (_) { documentos = []; }
+        const docCount = Array.isArray(documentos) ? documentos.length : 0;
 
         contenido.innerHTML = `
       <div class="row g-3">
@@ -3841,6 +3846,15 @@ async function mostrarDetalleTramiteModal(tramiteId) {
         <div class="col-md-6">
           <div class="small text-muted">Última actualización</div>
           <div class="fw-semibold">${fechaAct || '-'}</div>
+        </div>
+        <div class="col-md-6">
+          <div class="small text-muted">Documentos</div>
+          <div class="d-flex align-items-center gap-2">
+            <div class="fw-semibold">${docCount} ${docCount === 1 ? 'adjunto' : 'adjuntos'}</div>
+            <button class="btn btn-info btn-sm" ${docCount === 0 ? 'disabled' : ''} onclick="mostrarDocumentosTramiteModal(${tramiteId})">
+              <i class="bi bi-eye"></i> Ver
+            </button>
+          </div>
         </div>
         ${tramite.descripcion ? `
           <div class="col-12">
@@ -3884,6 +3898,95 @@ async function mostrarDetalleTramiteModal(tramiteId) {
         if (contenido) contenido.classList.add('d-none');
         if (errorBox) {
             errorBox.textContent = 'No se pudo cargar el detalle del trámite.';
+            errorBox.classList.remove('d-none');
+        }
+    }
+}
+function crearModalDocumentosTramite() {
+    if (document.getElementById('modal-documentos-tramite')) return;
+    const html = `
+<div class="modal fade" id="modal-documentos-tramite" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-info text-white">
+        <h5 class="modal-title"><i class="bi bi-file-earmark-text"></i> Documentos del Trámite</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="documentos-tramite-loader" class="d-flex align-items-center justify-content-center py-5">
+          <div class="spinner-border text-info" role="status"></div>
+          <span class="ms-2">Cargando documentos...</span>
+        </div>
+        <div id="documentos-tramite-contenido" class="d-none"></div>
+        <div id="documentos-tramite-error" class="alert alert-danger d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+}
+async function mostrarDocumentosTramiteModal(tramiteId) {
+    try {
+        crearModalDocumentosTramite();
+        const el = document.getElementById('modal-documentos-tramite');
+        const modal = new bootstrap.Modal(el);
+        const loader = document.getElementById('documentos-tramite-loader');
+        const contenido = document.getElementById('documentos-tramite-contenido');
+        const errorBox = document.getElementById('documentos-tramite-error');
+        errorBox.classList.add('d-none');
+        contenido.classList.add('d-none');
+        loader.classList.remove('d-none');
+        modal.show();
+        let documentos = [];
+        try {
+            documentos = await fetchAPI(`/tramites/${tramiteId}/documentos`, { suppressErrorLog: true });
+        } catch (e) { documentos = []; }
+        if (!Array.isArray(documentos) || documentos.length === 0) {
+            loader.classList.add('d-none');
+            contenido.classList.add('d-none');
+            errorBox.textContent = 'Este trámite no tiene documentos adjuntos.';
+            errorBox.classList.remove('d-none');
+            return;
+        }
+        const cards = documentos.map(d => {
+            const url = `/uploads/${encodeURI(d.ruta_archivo)}`;
+            const isImg = String(d.mime_type || '').startsWith('image/');
+            const isPdf = String(d.mime_type || '').toLowerCase().includes('pdf');
+            const preview = isImg
+                ? `<img src="${url}" class="img-fluid rounded border" style="max-height:360px">`
+                : (isPdf ? `<iframe src="${url}" class="w-100" style="height:400px;border:1px solid #dee2e6;border-radius:.5rem;"></iframe>` : `<div class="d-flex align-items-center gap-2 text-muted"><i class="bi bi-file-earmark"></i><span>No disponible vista previa</span></div>`);
+            return `
+            <div class="card mb-3">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <div>
+                    <div class="fw-semibold">${d.nombre || 'Documento'}</div>
+                    <div class="small text-muted">${d.tipo || 'otro'} • ${formatearFecha(d.fecha_subida || d.createdAt)}</div>
+                  </div>
+                  <div class="btn-group btn-group-sm">
+                    <a class="btn btn-secondary" href="${url}" download>
+                      <i class="bi bi-download"></i> Descargar
+                    </a>
+                  </div>
+                </div>
+                ${preview}
+              </div>
+            </div>`;
+        }).join('');
+        contenido.innerHTML = cards;
+        loader.classList.add('d-none');
+        contenido.classList.remove('d-none');
+    } catch (_) {
+        const loader = document.getElementById('documentos-tramite-loader');
+        const contenido = document.getElementById('documentos-tramite-contenido');
+        const errorBox = document.getElementById('documentos-tramite-error');
+        if (loader) loader.classList.add('d-none');
+        if (contenido) contenido.classList.add('d-none');
+        if (errorBox) {
+            errorBox.textContent = 'No se pudieron cargar los documentos.';
             errorBox.classList.remove('d-none');
         }
     }
