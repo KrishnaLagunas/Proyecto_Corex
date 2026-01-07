@@ -642,6 +642,63 @@ async function cargarInterfazSuperadmin(usuario) {
 }
 
 /**
+ * Muestra un modal de confirmación con diseño estilizado
+ * @param {string} titulo - Título del modal
+ * @param {string} mensaje - Mensaje descriptivo
+ * @param {Function} onConfirm - Callback a ejecutar si se confirma
+ */
+function mostrarModalConfirmacionEliminarTramite(titulo, mensaje, onConfirm) {
+    // Eliminar modal anterior si existe para asegurar actualización de diseño
+    const oldModal = document.getElementById('modal-confirmacion-gen');
+    if (oldModal) oldModal.remove();
+
+    let modalEl = document.getElementById('modal-confirmacion-eliminar-tramite');
+    if (!modalEl) {
+        const modalHTML = `
+        <div class="modal fade" id="modal-confirmacion-eliminar-tramite" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg" style="border-radius: 1rem; overflow: hidden;">
+                    <div class="modal-header border-0 justify-content-center pt-4 pb-0">
+                        <div class="bg-danger bg-opacity-10 p-3 rounded-circle d-flex align-items-center justify-content-center" style="width: 80px; height: 80px;">
+                            <i class="bi bi-trash3 text-danger" style="font-size: 2.5rem;"></i>
+                        </div>
+                    </div>
+                    <div class="modal-body p-4 text-center">
+                        <h4 class="fw-bold mb-3" id="modal-confirm-titulo"></h4>
+                        <div class="text-muted mb-0" id="modal-confirm-mensaje" style="font-size: 1.1rem;"></div>
+                    </div>
+                    <div class="modal-footer border-0 justify-content-center pb-4 pt-0 gap-3">
+                        <button type="button" class="btn btn-light btn-lg px-4 rounded-pill fw-medium" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-danger btn-lg px-4 rounded-pill fw-medium shadow-sm" id="modal-confirm-btn-si">
+                            <i class="bi bi-check-lg me-2"></i>Sí, eliminar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        modalEl = document.getElementById('modal-confirmacion-eliminar-tramite');
+    }
+
+    document.getElementById('modal-confirm-titulo').textContent = titulo;
+    document.getElementById('modal-confirm-mensaje').innerHTML = mensaje;
+
+    const btnConfirmar = document.getElementById('modal-confirm-btn-si');
+    // Clonar para eliminar listeners anteriores
+    const nuevoBtn = btnConfirmar.cloneNode(true);
+    btnConfirmar.parentNode.replaceChild(nuevoBtn, btnConfirmar);
+    
+    nuevoBtn.onclick = () => {
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.hide();
+        if (onConfirm) onConfirm();
+    };
+
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+}
+
+/**
  * Muestra el contenedor de opciones de pago para pagos seleccionados en Auth
  */
 function mostrarOpcionesPagoAuth() {
@@ -1924,7 +1981,7 @@ async function cargarMisTramites(usuario) {
                         <td>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-sm btn-primary ver-detalle-tramite" data-id="${tramite.id}"><i class="bi bi-eye"></i> Ver</button>
-                                ${String(tramite.estado).toLowerCase() === 'pendiente' && !pagosCompletadosPorTramite.has(tramite.id) ? `<button class="btn btn-sm btn-outline-danger quitar-tramite" data-id="${tramite.id}"><i class="bi bi-x-circle"></i> Quitar</button>` : ''}
+                                ${String(tramite.estado).toLowerCase() === 'pendiente' && !pagosCompletadosPorTramite.has(tramite.id) ? `<button class="btn btn-sm btn-outline-danger quitar-tramite" data-id="${tramite.id}" data-titulo="${tramite.titulo}" data-tipo="${obtenerNombreTipoTramite(tramite.tipo)}"><i class="bi bi-x-circle"></i> Quitar</button>` : ''}
                             </div>
                         </td>
                     </tr>
@@ -1945,26 +2002,35 @@ async function cargarMisTramites(usuario) {
             const quitarBtns = document.querySelectorAll('.quitar-tramite');
             if (quitarBtns && quitarBtns.length > 0) {
                 quitarBtns.forEach(b => {
-                    b.onclick = async (e) => {
+                    b.onclick = (e) => {
                         e.preventDefault();
                         const id = parseInt(e.currentTarget.getAttribute('data-id'));
-                        try {
-                            mostrarCargando(true);
-                            await fetchAPI(`/tramites/${id}/ciudadano`, { method: 'DELETE' });
-                            const idx = listaFiltrada.findIndex(t => t.id === id);
-                            if (idx >= 0) {
-                                listaFiltrada.splice(idx, 1);
-                                const total = Math.max(1, Math.ceil(listaFiltrada.length / tamPagina));
-                                if (paginaActual > total) paginaActual = total;
+                        const titulo = e.currentTarget.getAttribute('data-titulo') || 'Trámite';
+                        const tipo = e.currentTarget.getAttribute('data-tipo') || '';
+                        
+                        mostrarModalConfirmacionEliminarTramite(
+                            '¿Eliminar Trámite?', 
+                            `¿Estás seguro de que deseas eliminar el trámite <strong>"${titulo}"</strong>${tipo ? ` (${tipo})` : ''}? <br><br><span class="text-danger small"><i class="bi bi-exclamation-triangle"></i> Esta acción no se puede deshacer.</span>`,
+                            async () => {
+                                try {
+                                    mostrarCargando(true);
+                                    await fetchAPI(`/tramites/${id}/ciudadano`, { method: 'DELETE' });
+                                    const idx = listaFiltrada.findIndex(t => t.id === id);
+                                    if (idx >= 0) {
+                                        listaFiltrada.splice(idx, 1);
+                                        const total = Math.max(1, Math.ceil(listaFiltrada.length / tamPagina));
+                                        if (paginaActual > total) paginaActual = total;
+                                    }
+                                    renderPagina();
+                                    mostrarNotificacion('Trámite eliminado.', 'success');
+                                } catch (err) {
+                                    const msg = (err && ((err.body && (err.body.message || err.body.error)) || err.message || err.status)) ? `No se pudo eliminar: ${(err.body && (err.body.message || err.body.error)) || err.message || err.status}` : 'No se pudo eliminar el trámite';
+                                    mostrarNotificacion(msg, 'danger');
+                                } finally {
+                                    mostrarCargando(false);
+                                }
                             }
-                            renderPagina();
-                            mostrarNotificacion('Trámite eliminado.', 'success');
-                        } catch (err) {
-                            const msg = (err && ((err.body && (err.body.message || err.body.error)) || err.message || err.status)) ? `No se pudo eliminar: ${(err.body && (err.body.message || err.body.error)) || err.message || err.status}` : 'No se pudo eliminar el trámite';
-                            mostrarNotificacion(msg, 'danger');
-                        } finally {
-                            mostrarCargando(false);
-                        }
+                        );
                     };
                 });
             }
@@ -2086,9 +2152,7 @@ function cargarFormularioNuevoTramite(usuario) {
                                     </div>
                                     <div class="mb-3">
                                         <label for="documentos-tramite" class="form-label">Documentos Adjuntos</label>
-                                        <input type="file" class="form-control" id="documentos-tramite" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
-                                        <small class="text-muted d-block mt-1">Máximo 7 archivos permitidos.</small>
-                                        <div id="lista-documentos-tramite" class="list-group mt-2"></div>
+                                        <input type="file" class="form-control" id="documentos-tramite" multiple>
                                     </div>
                                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                                         <button type="button" class="btn btn-secondary" id="btn-cancelar-tramite">Cancelar</button>
@@ -2128,75 +2192,6 @@ function cargarFormularioNuevoTramite(usuario) {
                 enviarNuevoTramite(usuario);
                 return false;
             };
-
-            // Gestión de archivos adjuntos (Lógica nueva)
-            window.__archivosTramite = [];
-            const inputArchivos = document.getElementById('documentos-tramite');
-            const listaArchivosEl = document.getElementById('lista-documentos-tramite');
-
-            function renderizarArchivos() {
-                listaArchivosEl.innerHTML = '';
-                window.__archivosTramite.forEach((file, index) => {
-                    const item = document.createElement('div');
-                    item.className = 'list-group-item d-flex justify-content-between align-items-center';
-                    
-                    let icono = 'bi-file-earmark';
-                    if (file.type.includes('pdf')) icono = 'bi-file-earmark-pdf text-danger';
-                    else if (file.type.includes('image')) icono = 'bi-file-earmark-image text-primary';
-                    else if (file.type.includes('word') || file.name.endsWith('.doc') || file.name.endsWith('.docx')) icono = 'bi-file-earmark-word text-primary';
-                    else if (file.type.includes('excel') || file.type.includes('sheet') || file.name.endsWith('.xls') || file.name.endsWith('.xlsx')) icono = 'bi-file-earmark-excel text-success';
-
-                    item.innerHTML = `
-                        <div class="d-flex align-items-center overflow-hidden">
-                            <i class="bi ${icono} me-3 fs-5"></i>
-                            <div class="text-truncate">
-                                <div class="fw-semibold text-truncate" title="${file.name}">${file.name}</div>
-                                <small class="text-muted">${(file.size / 1024).toFixed(1)} KB</small>
-                            </div>
-                        </div>
-                        <button type="button" class="btn btn-outline-danger btn-sm ms-2" onclick="eliminarArchivoTramite(${index})">
-                            <i class="bi bi-x-lg"></i>
-                        </button>
-                    `;
-                    listaArchivosEl.appendChild(item);
-                });
-            }
-
-            window.eliminarArchivoTramite = function(index) {
-                window.__archivosTramite.splice(index, 1);
-                renderizarArchivos();
-                // Limpiar input para permitir re-selección del mismo archivo si se desea
-                if(inputArchivos) inputArchivos.value = ''; 
-            };
-
-            if (inputArchivos) {
-                inputArchivos.addEventListener('change', function(e) {
-                    const nuevosArchivos = Array.from(e.target.files);
-                    
-                    // Filtrar duplicados por nombre y tamaño para evitar subir lo mismo dos veces
-                    const unicos = nuevosArchivos.filter(nuevo => 
-                        !window.__archivosTramite.some(existente => 
-                            existente.name === nuevo.name && existente.size === nuevo.size
-                        )
-                    );
-
-                    if (unicos.length < nuevosArchivos.length) {
-                        // Opcional: avisar que se ignoraron duplicados
-                    }
-
-                    const total = window.__archivosTramite.length + unicos.length;
-                    
-                    if (total > 7) {
-                        alert('Solo puedes subir un máximo de 7 archivos en total.');
-                        inputArchivos.value = '';
-                        return;
-                    }
-
-                    window.__archivosTramite = [...window.__archivosTramite, ...unicos];
-                    renderizarArchivos();
-                    inputArchivos.value = ''; // Limpiar input visualmente
-                });
-            }
 
             // Cargar departamentos dinámicamente desde la API
             (async () => {
@@ -2386,14 +2381,14 @@ async function enviarNuevoTramite(usuario) {
         const optSel = tipoSelectEl.options[tipoSelectEl.selectedIndex];
         const precioSel = parseFloat((optSel && optSel.dataset && optSel.dataset.precio) ? optSel.dataset.precio : '0');
         const nuevoTramite = {
-            // No enviar ID manual, dejar que la BD lo genere
+            id: Date.now().toString(), // Usar timestamp como ID único
             codigo: generarCodigoTramite(tipoNombre),
             titulo: titulo,
             descripcion: descripcion,
             tipo: tipoNombre,
             estado: 'pendiente',
             fecha_inicio: new Date().toISOString(), // Cambiar de fecha_solicitud a fecha_inicio
-            fecha_solicitud: new Date().toISOString(), // Mantener para compatibilidad
+            fecha_solicitud: new Date().toISOString(), // Mantener para compatibilidad con localStorage
             departamento_id: parseInt(departamentoId, 10),
             municipalidad_id: parseInt(municipalidadId, 10),
             ciudadano_id: usuario.id,
@@ -2404,64 +2399,63 @@ async function enviarNuevoTramite(usuario) {
             prioridad: 'media' // Agregar prioridad por defecto
         };
         
-        // 1. Guardar el trámite en la API
-        const respuestaTramite = await fetchAPI('/tramites', {
-            method: 'POST',
-            body: nuevoTramite
-        });
+        // Intentar guardar el trámite (primero en la API, luego en localStorage como respaldo)
+        let guardadoExitoso = false;
         
-        // Obtener el ID del trámite de la respuesta (puede venir directo o anidado en .tramite)
-        const nuevoId = respuestaTramite.id || (respuestaTramite.tramite && respuestaTramite.tramite.id);
-        
-        if (!nuevoId) {
-            console.error('Respuesta API:', respuestaTramite);
-            throw new Error('La API no devolvió el ID del trámite creado');
-        }
-
-        console.log('Trámite creado con ID:', nuevoId);
-
-        // 2. Subir documentos si existen
-        const archivosParaSubir = window.__archivosTramite || [];
-        
-        if (archivosParaSubir.length > 0) {
-            // Subir archivos secuencialmente
-            for (const archivo of archivosParaSubir) {
-                const formData = new FormData();
-                formData.append('archivo', archivo);
-                formData.append('nombre', archivo.name);
-                formData.append('tipo', 'solicitud');
-                formData.append('descripcion', 'Documento adjunto al iniciar trámite');
+        try {
+            // Intentar guardar en la API y obtener el creado real
+            const creadoReal = await guardarTramite(nuevoTramite);
+            guardadoExitoso = !!creadoReal;
+        } catch (apiError) {
+            console.warn('Error al guardar en la API, intentando guardar solo en localStorage:', apiError);
+            
+            try {
+                // Si falla la API, guardar solo en localStorage
+                const tramites = obtenerTramites();
+                tramites.push(nuevoTramite);
+                localStorage.setItem('tramites', JSON.stringify(tramites));
+                guardadoExitoso = true;
                 
-                try {
-                    await fetchAPI(`/tramites/${nuevoId}/documentos`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    console.log(`Archivo ${archivo.name} subido correctamente`);
-                } catch (docError) {
-                    console.error(`Error al subir archivo ${archivo.name}:`, docError);
-                    mostrarNotificacion(`Trámite creado, pero error al subir ${archivo.name}`, 'warning');
-                }
+                // Programar un reintento en segundo plano
+                setTimeout(() => {
+                    try {
+                        fetchAPI('/tramites', {
+                            method: 'POST',
+                            body: nuevoTramite
+                        }).then(response => {
+                            console.log('Reintento exitoso de guardar en la API:', response);
+                        }).catch(error => {
+                            console.warn('Reintento fallido de guardar en la API:', error);
+                        });
+                    } catch (e) {
+                        console.warn('Error en reintento programado:', e);
+                    }
+                }, 5000); // Reintento después de 5 segundos
+            } catch (localError) {
+                console.error('Error al guardar en localStorage:', localError);
+                throw new Error('No se pudo guardar el trámite en ningún almacenamiento');
             }
         }
         
-        // Mostrar mensaje de éxito
-        mostrarNotificacion('Trámite enviado correctamente', 'success');
-        
-        // Ocultar indicador de carga
-        mostrarCargando(false);
-        
-        // Notificar y refrescar vistas que escuchan el evento
-        window.dispatchEvent(new CustomEvent('tramite:creado', { detail: respuestaTramite }));
+        if (guardadoExitoso) {
+            // Mostrar mensaje de éxito
+            mostrarNotificacion('Trámite enviado correctamente', 'success');
+            
+            // Ocultar indicador de carga
+            mostrarCargando(false);
+            
+            // Notificar y refrescar vistas que escuchan el evento
+            window.dispatchEvent(new CustomEvent('tramite:creado', { detail: nuevoTramite }));
 
-        // Redirigir automáticamente a Mis Pagos
-        cargarMisPagos(usuario);
-
+            // Redirigir automáticamente a Mis Pagos
+            cargarMisPagos(usuario);
+        } else {
+            throw new Error('No se pudo guardar el trámite');
+        }
     } catch (error) {
         console.error('Error al guardar el trámite:', error);
         mostrarCargando(false);
-        const mensaje = error.message || 'Ocurrió un error al guardar el trámite. Por favor, intente nuevamente.';
-        mostrarNotificacion(mensaje, 'danger');
+        mostrarNotificacion('Ocurrió un error al guardar el trámite. Por favor, intente nuevamente.', 'danger');
     }
 }
 
@@ -3885,11 +3879,6 @@ async function mostrarDetalleTramiteModal(tramiteId) {
                 nombreDepartamento = dep?.nombre || dep?.nombre_departamento || null;
             } catch (_) {}
         }
-        let documentos = [];
-        try {
-            documentos = await fetchAPI(`/tramites/${tramiteId}/documentos`, { suppressErrorLog: true });
-        } catch (_) { documentos = []; }
-        const docCount = Array.isArray(documentos) ? documentos.length : 0;
 
         contenido.innerHTML = `
       <div class="row g-3">
@@ -3918,15 +3907,6 @@ async function mostrarDetalleTramiteModal(tramiteId) {
         <div class="col-md-6">
           <div class="small text-muted">Última actualización</div>
           <div class="fw-semibold">${fechaAct || '-'}</div>
-        </div>
-        <div class="col-md-6">
-          <div class="small text-muted">Documentos</div>
-          <div class="d-flex align-items-center gap-2">
-            <div class="fw-semibold">${docCount} ${docCount === 1 ? 'adjunto' : 'adjuntos'}</div>
-            <button class="btn btn-info btn-sm" ${docCount === 0 ? 'disabled' : ''} onclick="mostrarDocumentosTramiteModal(${tramiteId})">
-              <i class="bi bi-eye"></i> Ver
-            </button>
-          </div>
         </div>
         ${tramite.descripcion ? `
           <div class="col-12">
@@ -3970,104 +3950,6 @@ async function mostrarDetalleTramiteModal(tramiteId) {
         if (contenido) contenido.classList.add('d-none');
         if (errorBox) {
             errorBox.textContent = 'No se pudo cargar el detalle del trámite.';
-            errorBox.classList.remove('d-none');
-        }
-    }
-}
-function crearModalDocumentosTramite() {
-    if (document.getElementById('modal-documentos-tramite')) return;
-    const html = `
-<div class="modal fade" id="modal-documentos-tramite" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header bg-info text-white">
-        <h5 class="modal-title"><i class="bi bi-file-earmark-text"></i> Documentos del Trámite</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-      </div>
-      <div class="modal-body">
-        <div id="documentos-tramite-loader" class="d-flex align-items-center justify-content-center py-5">
-          <div class="spinner-border text-info" role="status"></div>
-          <span class="ms-2">Cargando documentos...</span>
-        </div>
-        <div id="documentos-tramite-contenido" class="d-none"></div>
-        <div id="documentos-tramite-error" class="alert alert-danger d-none"></div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
-      </div>
-    </div>
-  </div>
-</div>`;
-    document.body.insertAdjacentHTML('beforeend', html);
-}
-async function mostrarDocumentosTramiteModal(tramiteId) {
-    try {
-        crearModalDocumentosTramite();
-        const el = document.getElementById('modal-documentos-tramite');
-        const modal = new bootstrap.Modal(el);
-        const loader = document.getElementById('documentos-tramite-loader');
-        const contenido = document.getElementById('documentos-tramite-contenido');
-        const errorBox = document.getElementById('documentos-tramite-error');
-        errorBox.classList.add('d-none');
-        contenido.classList.add('d-none');
-        loader.classList.remove('d-none');
-        modal.show();
-        let documentos = [];
-        try {
-            documentos = await fetchAPI(`/tramites/${tramiteId}/documentos`, { suppressErrorLog: true });
-        } catch (e) { documentos = []; }
-        if (!Array.isArray(documentos) || documentos.length === 0) {
-            loader.classList.add('d-none');
-            contenido.classList.add('d-none');
-            errorBox.textContent = 'Este trámite no tiene documentos adjuntos.';
-            errorBox.classList.remove('d-none');
-            return;
-        }
-        const listItems = documentos.map(d => {
-            // Si ruta_archivo ya es una URL de API (BLOB), usarla tal cual
-            const url = (d.ruta_archivo && (d.ruta_archivo.startsWith('/api') || d.ruta_archivo.startsWith('http')))
-                ? d.ruta_archivo 
-                : `/uploads/${encodeURI(d.ruta_archivo)}`;
-            
-            const mime = String(d.mime_type || '').toLowerCase();
-            let icono = 'bi-file-earmark-text text-secondary';
-            if (mime.includes('pdf')) icono = 'bi-file-earmark-pdf text-danger';
-            else if (mime.startsWith('image/')) icono = 'bi-file-earmark-image text-primary';
-            else if (mime.includes('word') || mime.includes('officedocument') || (d.nombre && (d.nombre.endsWith('.doc') || d.nombre.endsWith('.docx')))) icono = 'bi-file-earmark-word text-primary';
-            else if (mime.includes('excel') || mime.includes('spreadsheetml') || (d.nombre && (d.nombre.endsWith('.xls') || d.nombre.endsWith('.xlsx')))) icono = 'bi-file-earmark-excel text-success';
-
-            const fecha = d.createdAt ? formatearFecha(d.createdAt) : 'Fecha desconocida';
-            const tamaño = d.tamaño ? `${(d.tamaño / 1024).toFixed(1)} KB` : '';
-
-            return `
-            <div class="list-group-item d-flex justify-content-between align-items-center p-3">
-                <div class="d-flex align-items-center overflow-hidden">
-                    <i class="bi ${icono} fs-1 me-3"></i>
-                    <div class="d-flex flex-column" style="min-width: 0;">
-                        <div class="fw-bold text-truncate" title="${d.nombre}">${d.nombre || 'Documento'}</div>
-                        <div class="small text-muted d-flex gap-2">
-                            <span>${d.tipo || 'Adjunto'}</span>
-                            ${tamaño ? `<span>• ${tamaño}</span>` : ''}
-                            <span>• ${fecha}</span>
-                        </div>
-                    </div>
-                </div>
-                <a href="${url}" class="btn btn-outline-primary btn-sm ms-3 flex-shrink-0" download>
-                    <i class="bi bi-download"></i> Descargar
-                </a>
-            </div>`;
-        }).join('');
-        contenido.innerHTML = `<div class="list-group list-group-flush border rounded shadow-sm">${listItems}</div>`;
-        loader.classList.add('d-none');
-        contenido.classList.remove('d-none');
-    } catch (_) {
-        const loader = document.getElementById('documentos-tramite-loader');
-        const contenido = document.getElementById('documentos-tramite-contenido');
-        const errorBox = document.getElementById('documentos-tramite-error');
-        if (loader) loader.classList.add('d-none');
-        if (contenido) contenido.classList.add('d-none');
-        if (errorBox) {
-            errorBox.textContent = 'No se pudieron cargar los documentos.';
             errorBox.classList.remove('d-none');
         }
     }
