@@ -899,25 +899,33 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                                     ${municipalidades.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('')}
                                                 </select>
                                             ` : `
-                                                <label for="departamento_id" class="form-label">Departamento (solo funcionario)</label>
-                                                <select class="form-select" id="departamento_id">
-                                                    <option value="">Ninguno</option>
-                                                    ${departamentos.map(d => `<option value="${d.id}" ${usuario?.departamento_id === d.id || usuario?.Departamento?.id === d.id ? 'selected' : ''}>${d.nombre}</option>`).join('')}
-                                                </select>
+                                                <label class="form-label">Municipalidad</label>
+                                                <input type="text" class="form-control" value="${currentUser?.municipalidad_nombre || currentUser?.Municipalidad?.nombre || 'No asignada'}" disabled readonly>
                                             `}
                                         </div>
                                     </div>
                                 </div>
-                                ${usuarioId ? '' : `
                                 <div class="row">
+                                    ${!esSuperadmin ? `
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="departamento_id" class="form-label">Departamento (solo funcionario)</label>
+                                            <select class="form-select" id="departamento_id">
+                                                <option value="">Ninguno</option>
+                                                ${departamentos.map(d => `<option value="${d.id}" ${usuario?.departamento_id === d.id || usuario?.Departamento?.id === d.id ? 'selected' : ''}>${d.nombre}</option>`).join('')}
+                                            </select>
+                                        </div>
+                                    </div>` : ''}
+
+                                    ${!usuarioId ? `
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="password" class="form-label">Contraseña</label>
                                             <input type="password" class="form-control" id="password" required>
                                             <div id="password_hint" class="form-text">Debe tener 8+, mayúscula, minúscula, número y símbolo (@$!%*?&#.).</div>
                                         </div>
-                                    </div>
-                                </div>`}
+                                    </div>` : ''}
+                                </div>
                                 <div class="d-flex justify-content-center gap-2">
                                     <button type="submit" class="btn btn-primary btn-new-user">
                                         <i class="bi bi-save"></i> Guardar
@@ -1071,7 +1079,16 @@ async function guardarUsuario(e) {
         primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
         email, rut, telefono, direccion: direccionCompuesta, role 
     };
-    if (esSuperadmin && municipalidad_id) payload.municipalidad_id = municipalidad_id;
+    if (esSuperadmin && municipalidad_id) {
+        payload.municipalidad_id = municipalidad_id;
+    } else if (currentUser && (currentUser.rol_nombre === 'administrador' || currentUser.role === 'administrador' || currentUser.role === 'admin')) {
+        // Asignar automáticamente la municipalidad del administrador que está creando el usuario
+        if (currentUser.municipalidad_id) {
+            payload.municipalidad_id = currentUser.municipalidad_id;
+        } else {
+            console.warn('El administrador actual no tiene municipalidad_id asignado en su sesión.');
+        }
+    }
     // No mapear departamento a municipalidad; el backend asigna municipalidad del admin
     if (!usuarioId) payload.password = password;
 
