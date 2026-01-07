@@ -2086,7 +2086,7 @@ function cargarFormularioNuevoTramite(usuario) {
                                     </div>
                                     <div class="mb-3">
                                         <label for="documentos-tramite" class="form-label">Documentos Adjuntos</label>
-                                        <input type="file" class="form-control" id="documentos-tramite" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+                                        <input type="file" class="form-control" id="documentos-tramite" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
                                     </div>
                                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                                         <button type="button" class="btn btn-secondary" id="btn-cancelar-tramite">Cancelar</button>
@@ -3963,6 +3963,7 @@ async function mostrarDocumentosTramiteModal(tramiteId) {
             const isImg = mime.startsWith('image/');
             const isPdf = mime.includes('pdf');
             const isWord = mime.includes('word') || mime.includes('officedocument') || (d.nombre && (d.nombre.endsWith('.doc') || d.nombre.endsWith('.docx')));
+            const isExcel = mime.includes('excel') || mime.includes('spreadsheetml') || (d.nombre && (d.nombre.endsWith('.xls') || d.nombre.endsWith('.xlsx')));
             
             let preview = '';
             if (isImg) {
@@ -3976,6 +3977,17 @@ async function mostrarDocumentosTramiteModal(tramiteId) {
                         <h6 class="mt-2 text-muted">Vista previa no disponible</h6>
                         <small class="text-muted mb-2">Formato Word</small>
                         <a href="${url}" class="btn btn-outline-primary btn-sm" download>
+                            <i class="bi bi-download"></i> Descargar
+                        </a>
+                    </div>
+                `;
+            } else if (isExcel) {
+                preview = `
+                    <div class="d-flex flex-column align-items-center justify-content-center p-4 border rounded bg-light">
+                        <i class="bi bi-file-earmark-excel text-success" style="font-size: 3rem;"></i>
+                        <h6 class="mt-2 text-muted">Vista previa no disponible</h6>
+                        <small class="text-muted mb-2">Formato Excel</small>
+                        <a href="${url}" class="btn btn-outline-success btn-sm" download>
                             <i class="bi bi-download"></i> Descargar
                         </a>
                     </div>

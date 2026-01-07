@@ -19,12 +19,14 @@ function documentosFileFilter(req, file, cb) {
     'image/jpeg', 
     'image/png',
     'application/msword', // .doc
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document' // .docx
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+    'application/vnd.ms-excel', // .xls
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' // .xlsx
   ];
   if (allowed.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Formato de archivo no permitido. Use PDF, Word, JPG o PNG'));
+    cb(new Error('Formato de archivo no permitido. Use PDF, Word, Excel, JPG o PNG'));
   }
 }
 
