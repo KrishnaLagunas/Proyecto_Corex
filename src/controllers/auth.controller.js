@@ -128,19 +128,29 @@ const authController = {
       logger.info(`Inicio de sesión exitoso: ${email}`);
 
       const rolNombre = user.Rol ? user.Rol.nombre : null;
-      const portal = rolNombre === 'ciudadano' ? 'ciudadano'
-        : rolNombre === 'administrador' ? 'admin'
-        : rolNombre === 'superadministrador' ? 'superadmin'
+      const rolNombreNorm = (rolNombre || '').toLowerCase();
+      const esFuncionario = rolNombreNorm.includes('func') || 
+                           rolNombreNorm.includes('secretaria') || 
+                           rolNombreNorm.includes('tesoreria') ||
+                           rolNombreNorm.includes('tesorería');
+      
+      const portal = rolNombreNorm.includes('ciudadano') ? 'ciudadano'
+        : (rolNombreNorm.includes('admin') && !rolNombreNorm.includes('super')) ? 'admin'
+        : (rolNombreNorm.includes('super')) ? 'superadmin'
+        : esFuncionario ? 'funcionario'
         : 'usuario';
       const redirect_path = portal === 'ciudadano' ? '/portal-ciudadano'
         : portal === 'admin' ? '/panel-admin'
         : portal === 'superadmin' ? '/panel-superadmin'
+        : portal === 'funcionario' ? '/dashboard'
         : '/';
 
       const allowed_features = portal === 'superadmin'
         ? ['municipalidades', 'usuarios_admin']
         : portal === 'admin'
         ? ['dashboard_municipal', 'usuarios_funcionarios', 'tramites', 'pagos', 'proyectos']
+        : portal === 'funcionario'
+        ? ['dashboard_municipal', 'tramites', 'pagos']
         : ['portal_ciudadano'];
 
       // Responder con los datos del usuario (sin la contraseña) y el token
@@ -191,19 +201,29 @@ const authController = {
       }
 
       const rolNombre = user.Rol ? user.Rol.nombre : null;
-      const portal = rolNombre === 'ciudadano' ? 'ciudadano'
-        : rolNombre === 'administrador' ? 'admin'
-        : rolNombre === 'superadministrador' ? 'superadmin'
+      const rolNombreNorm = (rolNombre || '').toLowerCase();
+      const esFuncionario = rolNombreNorm.includes('func') || 
+                           rolNombreNorm.includes('secretaria') || 
+                           rolNombreNorm.includes('tesoreria') ||
+                           rolNombreNorm.includes('tesorería');
+
+      const portal = rolNombreNorm.includes('ciudadano') ? 'ciudadano'
+        : (rolNombreNorm.includes('admin') && !rolNombreNorm.includes('super')) ? 'admin'
+        : (rolNombreNorm.includes('super')) ? 'superadmin'
+        : esFuncionario ? 'funcionario'
         : 'usuario';
       const redirect_path = portal === 'ciudadano' ? '/portal-ciudadano'
         : portal === 'admin' ? '/panel-admin'
         : portal === 'superadmin' ? '/panel-superadmin'
+        : portal === 'funcionario' ? '/dashboard'
         : '/';
 
       const allowed_features = portal === 'superadmin'
         ? ['municipalidades', 'usuarios_admin']
         : portal === 'admin'
         ? ['dashboard_municipal', 'usuarios_funcionarios', 'tramites', 'pagos', 'proyectos']
+        : portal === 'funcionario'
+        ? ['dashboard_municipal', 'tramites', 'pagos']
         : ['portal_ciudadano'];
 
       res.json({

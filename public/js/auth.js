@@ -82,8 +82,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
             if (perfil && perfil.id) {
-              const rol = (perfil.rol || perfil.role || perfil.rol_nombre || '').toString().toLowerCase();
-              const roleFinal = rol === 'administrador' ? 'admin' : rol;
+              let rol = (perfil.rol || perfil.role || perfil.rol_nombre || '').toString().toLowerCase();
+              if (rol.includes('admin') && !rol.includes('super')) rol = 'admin';
+              else if (rol.includes('func') || rol.includes('secretaria') || rol.includes('tesoreria') || rol.includes('tesorería')) rol = 'funcionario';
+              else if (rol.includes('super')) rol = 'superadministrador';
+              else if (rol.includes('ciud')) rol = 'ciudadano';
+              
+              const roleFinal = rol;
               const u = {
                 id: perfil.id,
                 nombre: perfil.nombre || '',
@@ -327,7 +332,7 @@ async function manejarLogin(e) {
         const normalizarRol = (r) => {
             const s = (r || '').toString().toLowerCase();
             if (s.includes('admin')) return 'admin';
-            if (s.includes('func')) return 'funcionario';
+            if (s.includes('func') || s.includes('secretaria') || s.includes('tesoreria') || s.includes('tesorería')) return 'funcionario';
             if (s.includes('ciud') || s === 'user' || s === 'usuario') return 'ciudadano';
             return s || 'ciudadano';
         };
@@ -336,10 +341,28 @@ async function manejarLogin(e) {
             ? (rolNombreBackend === 'administrador' ? 'admin' : rolNombreBackend)
             : normalizarRol(user.role);
         const portal = (response.portal || '').toString().toLowerCase();
-        const roleFinal = portal === 'superadmin' ? 'superadministrador'
-            : portal === 'admin' ? 'admin'
-            : portal === 'ciudadano' ? 'ciudadano'
-            : roleFromBackend;
+        
+        let roleFinal = roleFromBackend;
+        
+        // Prioridad: si el backend dice explícitamente el portal, usarlo para determinar contexto,
+        // pero respetar el rol específico (ej: funcionario) si no es genérico.
+        if (portal === 'superadmin') roleFinal = 'superadministrador';
+        else if (portal === 'admin' && roleFinal !== 'funcionario') roleFinal = 'admin';
+        else if (portal === 'funcionario') roleFinal = 'funcionario';
+        else if (portal === 'ciudadano' && roleFinal !== 'funcionario') roleFinal = 'ciudadano';
+        
+        // Corrección forzada: si el rol original era funcionario (o afines), mantenerlo como funcionario
+        // independientemente de lo que diga 'portal' (que a veces devuelve 'ciudadano' por defecto)
+        const esFuncionario = rolNombreBackend.includes('func') || 
+                              rolNombreBackend.includes('secretaria') || 
+                              rolNombreBackend.includes('tesoreria') ||
+                              rolNombreBackend.includes('tesorería') ||
+                              normalizarRol(user.role) === 'funcionario';
+        
+        if (esFuncionario) {
+            roleFinal = 'funcionario';
+        }
+
         const usuarioInfo = {
             id: user.id,
             nombre: user.nombre || user.primer_nombre || '',
@@ -905,7 +928,14 @@ function cargarInterfazFuncionario(usuario) {
     if (mainContent) {
         mainContent.classList.remove('d-none');
         
-        const lastPage = (typeof localStorage !== 'undefined' && localStorage.getItem('currentPage')) || 'dashboard';
+        let lastPage = (typeof localStorage !== 'undefined' && localStorage.getItem('currentPage')) || 'dashboard';
+        
+        // Si la última página es del portal ciudadano, forzar dashboard para funcionarios
+        if (['portalCiudadano', 'misTramites', 'misPagos', 'formularioNuevoTramite', 'portal-ciudadano'].includes(lastPage)) {
+            lastPage = 'dashboard';
+            try { localStorage.setItem('currentPage', 'dashboard'); } catch (_) {}
+        }
+
         if (typeof cargarContenidoPagina === 'function') {
             cargarContenidoPagina(lastPage);
         } else if (typeof cargarDashboard === 'function') {

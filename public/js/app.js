@@ -22,7 +22,11 @@ function cargarContenidoPagina(pagina) {
             let rol, token;
             try {
                 const usuario = JSON.parse(((typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario')));
-                rol = usuario && (usuario.rol || usuario.role);
+                const rRaw = usuario && (usuario.rol || usuario.role || usuario.rol_nombre);
+                rol = (rRaw || '').toString().toLowerCase();
+                if (rol.includes('admin') && !rol.includes('super')) rol = 'admin';
+                else if (rol.includes('func') || rol.includes('secretaria') || rol.includes('tesoreria') || rol.includes('tesorería')) rol = 'funcionario';
+                
                 const userCookieName = (function(id,r){const rr=String(r||'').toLowerCase().replace(/\s+/g,'_');const sid=String(id||'').trim();return sid?`corex_session_user_${sid}_${rr||'usuario'}`:`corex_session_${rr||'usuario'}`})(usuario && usuario.id, rol);
                 const cookieTok = (function(n){try{const a=n+'=';const ca=document.cookie.split(';');for(let i=0;i<ca.length;i++){let c=ca[i];while(c.charAt(0)===' ')c=c.substring(1);if(c.indexOf(a)===0)return decodeURIComponent(c.substring(a.length));}return null;}catch(_){return null}})(userCookieName);
             token = (function(){

@@ -42,6 +42,7 @@ async function fetchAPI(endpoint, options = {}) {
                     const r = String(o && (o.role || o.rol || o.rol_nombre) || '').toLowerCase();
                     if (r.includes('superadmin') || r.includes('superadministrador')) return 'superadmin';
                     if (r.includes('admin') || r.includes('administrador')) return 'admin';
+                    if (r.includes('func') || r.includes('funcionario') || r.includes('secretaria') || r.includes('tesoreria') || r.includes('tesorería')) return 'funcionario';
                     if (r) return 'ciudadano';
                 }
             } catch (_) {}
