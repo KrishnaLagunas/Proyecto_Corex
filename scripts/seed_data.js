@@ -40,11 +40,11 @@ async function seedData() {
         'administrador',
         'funcionario',
         'ciudadano',
-        'secretaria comunitaria',
-        'secretaria partes',
+        'secretaria de educación',
+        'secretaria de salud',
+        'secretaria de seguridad',
         'secretaria de obras',
-        'secretaria de transito',
-        'tesoreria municipal'
+        'secretaria de transito'
       ];
       await Rol.bulkCreate(rolesBasicos.map(nombre => ({ nombre })), { ignoreDuplicates: true });
     } catch (_) {}

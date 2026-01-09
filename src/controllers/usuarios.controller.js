@@ -247,12 +247,12 @@ const usuariosController = {
         }
       }
 
-      // Reglas de negocio: secretaria comunitaria debe tener municipalidad
+      // Reglas de negocio: secretaria de educación debe tener municipalidad
       if (idRolFinal) {
         const rolRegla = await require('../models').Rol.findByPk(idRolFinal);
-        if (rolRegla && rolRegla.nombre === 'secretaria comunitaria' && (municipalidad_id === null || municipalidad_id === undefined)) {
-          logger.warn('[Usuarios] Falta municipalidad para rol secretaria comunitaria');
-          throw new ApiError('La municipalidad es obligatoria para usuarios con rol secretaria comunitaria', 400);
+        if (rolRegla && rolRegla.nombre === 'secretaria de educación' && (municipalidad_id === null || municipalidad_id === undefined)) {
+          logger.warn('[Usuarios] Falta municipalidad para rol secretaria de educación');
+          throw new ApiError('La municipalidad es obligatoria para usuarios con rol secretaria de educación', 400);
         }
       }
 
@@ -268,11 +268,11 @@ const usuariosController = {
         const allowedRolesSuper = [
           'administrador',
           'funcionario',
-          'secretaria comunitaria',
+          'secretaria de educación',
           'secretaria de obras',
           'secretaria de transito',
-          'secretaria partes',
-          'tesoreria municipal'
+          'secretaria de seguridad',
+          'secretaria de salud'
         ];
         if (!allowedRolesSuper.includes(rolDestino.nombre)) {
           throw new ApiError('Rol no permitido para creación por superadministrador', 403);
@@ -291,9 +291,9 @@ const usuariosController = {
         const allowedRoles = [
           'secretaria de obras',
           'secretaria de transito',
-          'tesoreria municipal',
-          'secretaria partes',
-          'secretaria comunitaria'
+          'secretaria de salud',
+          'secretaria de seguridad',
+          'secretaria de educación'
         ];
         if (!allowedRoles.includes(rolDestino.nombre)) {
           throw new ApiError('El administrador solo puede crear funcionarios/secretarías', 403);
@@ -504,8 +504,8 @@ const usuariosController = {
       const nextMunicipalidadId = (municipalidad_id !== undefined) ? municipalidad_id : usuario.municipalidad_id;
       if (nextRolId) {
         const rolActual = await require('../models').Rol.findByPk(nextRolId);
-        if (rolActual && rolActual.nombre === 'secretaria comunitaria' && (nextMunicipalidadId === null || nextMunicipalidadId === undefined)) {
-          throw new ApiError('La municipalidad es obligatoria para usuarios con rol secretaria comunitaria', 400);
+        if (rolActual && rolActual.nombre === 'secretaria de educación' && (nextMunicipalidadId === null || nextMunicipalidadId === undefined)) {
+          throw new ApiError('La municipalidad es obligatoria para usuarios con rol secretaria de educación', 400);
         }
       }
       

@@ -19,7 +19,7 @@ const dashboardController = {
 
       const isSuperAdmin = rol === 'superadministrador';
       const isAdmin = rol === 'administrador';
-      const isFuncionario = rol === 'funcionario' || rol === 'secretaria comunitaria' || rol === 'secretaria de obras' || rol === 'secretaria de transito' || rol === 'secretaria partes' || rol === 'tesoreria municipal';
+      const isFuncionario = rol === 'funcionario' || rol === 'secretaria de educación' || rol === 'secretaria de obras' || rol === 'secretaria de transito' || rol === 'secretaria de seguridad' || rol === 'secretaria de salud';
 
       // Filtros por municipalidad
       const emptyFilter = { municipalidad_id: -1 };
@@ -220,7 +220,7 @@ const dashboardController = {
       const rol = req.user?.rol_nombre;
       const muniId = req.user?.municipalidad_id || null;
       const isAdmin = rol === 'administrador';
-      const isFuncionario = rol === 'funcionario' || rol === 'secretaria comunitaria' || rol === 'secretaria de obras' || rol === 'secretaria de transito' || rol === 'secretaria partes' || rol === 'tesoreria municipal';
+      const isFuncionario = rol === 'funcionario' || rol === 'secretaria de educación' || rol === 'secretaria de obras' || rol === 'secretaria de transito' || rol === 'secretaria de seguridad' || rol === 'secretaria de salud';
       const emptyFilter = { municipalidad_id: -1 };
       const filtra = (isAdmin || isFuncionario);
       const where = filtra ? (muniId ? (isAdmin ? { [require('sequelize').Op.or]: [{ municipalidad_id: muniId }, { municipalidad_id: null }] } : { municipalidad_id: muniId }) : emptyFilter) : {};

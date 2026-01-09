@@ -76,7 +76,7 @@ const pagosController = {
       if (req.user.rol_nombre === 'ciudadano') {
         // Los ciudadanos solo pueden ver sus propios pagos
         where.ciudadano_id = req.user.id;
-      } else if (['funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal'].includes(String(req.user.rol_nombre).toLowerCase())) {
+      } else if (['funcionario','secretaria de educación','secretaria de obras','secretaria de transito','secretaria de salud','secretaria de seguridad'].includes(String(req.user.rol_nombre).toLowerCase())) {
         // Funcionarios: restringir por su municipalidad (a través del trámite) y permitir pagos asignados/no asignados
         const funcionario = await Usuario.findByPk(req.user.id, { attributes: ['id', 'municipalidad_id'], include: [] });
         const muniIdFunc = funcionario?.municipalidad_id || req.user.municipalidad_id || null;
@@ -113,7 +113,7 @@ const pagosController = {
         countOptions.include = [{ model: Tramite, required: true, where: { [Op.or]: [{ municipalidad_id: adminMuniId }, { municipalidad_id: null }] } }];
       }
       // Funcionarios: si tienen municipalidad, aplicar include similar
-      const isFuncionario = ['funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal'].includes(String(req.user.rol_nombre).toLowerCase());
+      const isFuncionario = ['funcionario','secretaria de educación','secretaria de salud','secretaria de seguridad','secretaria de obras','secretaria de transito'].includes(String(req.user.rol_nombre).toLowerCase());
       const funcMuniId = isFuncionario ? (req.user.municipalidad_id || null) : null;
       if (isFuncionario && funcMuniId && !countOptions.include) {
         // Incluir filtro por municipalidad y departamentos asignados del funcionario
@@ -347,7 +347,7 @@ const pagosController = {
           throw new ApiError('No tienes permiso para registrar pagos de otra municipalidad', 403);
         }
       }
-      if (req.user.rol_nombre === 'secretaria comunitaria') {
+      if (req.user.rol_nombre === 'secretaria de educación') {
         const funcionario = await Usuario.findByPk(req.user.id, { include: [{ model: require('../models').Municipalidad }], attributes: ['id', 'municipalidad_id'] });
         const muniIdFunc = funcionario?.municipalidad_id || funcionario?.Municipalidad?.id || null;
         if (!muniIdFunc || muniIdFunc !== tramite.municipalidad_id) {
@@ -404,7 +404,7 @@ const pagosController = {
       
       // Asignar funcionario si es funcionario o admin
       let funcionarioId = null;
-      if (req.user.rol_nombre === 'secretaria comunitaria' || ['administrador','superadministrador'].includes(req.user.rol_nombre)) {
+      if (['secretaria de educación','secretaria de salud','secretaria de seguridad','administrador','superadministrador'].includes(req.user.rol_nombre)) {
         funcionarioId = req.user.id;
       }
       
@@ -472,7 +472,7 @@ const pagosController = {
           throw new ApiError('No tienes permiso para modificar pagos de otra municipalidad', 403);
         }
       }
-      if (req.user.rol_nombre === 'secretaria comunitaria') {
+      if (['secretaria de educación','secretaria de salud','secretaria de seguridad'].includes(req.user.rol_nombre)) {
         const funcionario = await Usuario.findByPk(req.user.id, { include: [{ model: require('../models').Municipalidad }], attributes: ['id', 'municipalidad_id'] });
         const muniIdFunc = funcionario?.municipalidad_id || funcionario?.Municipalidad?.id || null;
         if (!muniIdFunc || muniIdFunc !== tramitePago.municipalidad_id) {
@@ -541,7 +541,7 @@ const pagosController = {
           throw new ApiError('No tienes permiso para procesar pagos de otra municipalidad', 403);
         }
       }
-      if (req.user.rol_nombre === 'secretaria comunitaria') {
+      if (['secretaria de educación','secretaria de salud','secretaria de seguridad'].includes(req.user.rol_nombre)) {
         const funcionario = await Usuario.findByPk(req.user.id, { include: [{ model: require('../models').Municipalidad }], attributes: ['id', 'municipalidad_id'] });
         const muniIdFunc = funcionario?.municipalidad_id || funcionario?.Municipalidad?.id || null;
         if (!muniIdFunc || muniIdFunc !== tramitePago2.municipalidad_id) {
@@ -576,7 +576,7 @@ const pagosController = {
       pago.fecha_confirmacion = fechaPago ? new Date(fechaPago) : new Date();
 
       // Asignar funcionario si aplica
-      if (req.user.rol_nombre === 'secretaria comunitaria' || ['administrador','superadministrador'].includes(req.user.rol_nombre)) {
+      if (['secretaria de educación','secretaria de salud','secretaria de seguridad','administrador','superadministrador'].includes(req.user.rol_nombre)) {
         pago.funcionario_id = req.user.id;
       }
 

@@ -232,6 +232,7 @@ async function cargarDashboard() {
               </div>
             </div>
           </div>
+          ${!esFuncionario ? `
           <div class="col-lg-6 mb-3">
             <div class="card shadow-sm chart-card">
               <div class="card-header d-flex justify-content-between align-items-center">
@@ -245,6 +246,7 @@ async function cargarDashboard() {
               </div>
             </div>
           </div>
+          ` : ''}
         </div>
       </div>
     `;
@@ -399,10 +401,12 @@ async function cargarDashboard() {
       chartInitPagosDonut('chart-pagos-pendiente', 0, '#FF9800');
       chartInitPagosDonut('chart-pagos-rechazado', 0, '#FF8A80');
 
-    } catch (_) { /* opcional */ }
+    } catch (e) {
+      console.error('Error al cargar dashboard:', e);
+      const mc = document.getElementById('main-content');
+      if (mc) mc.innerHTML = `<div class="alert alert-danger m-3">Error al cargar el panel: ${e.message}</div>`;
+    }
 
-    // Inicializar gráfico de Usuarios fuera del try para evitar silencios
-    
     const actualizarMetricas = async () => {
       try {
         let d = {};
@@ -630,11 +634,13 @@ async function cargarDashboard() {
       }
     };
 
-    await actualizarMetricas();
+    // No esperar a que terminen las métricas secundarias para quitar el loading
+    actualizarMetricas();
     window.dashboardIntervalId = setInterval(actualizarMetricas, 15000);
     window.actualizarDashboardMetrics = actualizarMetricas;
   } catch (error) {
     console.error('Error cargando dashboard:', error);
+    if (mainContent) mainContent.classList.remove('d-none');
     const currentUser = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
     const currentRole = currentUser?.role || null;
     const headerTitle = currentRole === 'funcionario' ? 'Panel de Funcionario' : 'Panel Administrativo';

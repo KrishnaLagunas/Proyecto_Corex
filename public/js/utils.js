@@ -36,13 +36,13 @@ async function fetchAPI(endpoint, options = {}) {
         }
         function getActiveRole() {
             try {
-                const u = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario');
+                const u = localStorage.getItem('usuario');
                 if (u) {
                     const o = JSON.parse(u);
                     const r = String(o && (o.role || o.rol || o.rol_nombre) || '').toLowerCase();
                     if (r.includes('superadmin') || r.includes('superadministrador')) return 'superadmin';
                     if (r.includes('admin') || r.includes('administrador')) return 'admin';
-                    if (r.includes('func') || r.includes('funcionario') || r.includes('secretaria') || r.includes('tesoreria') || r.includes('tesorería')) return 'funcionario';
+                    if (r.includes('func') || r.includes('funcionario') || r.includes('secretaria')) return 'funcionario';
                     if (r) return 'ciudadano';
                 }
             } catch (_) {}
@@ -61,12 +61,12 @@ async function fetchAPI(endpoint, options = {}) {
             if (!id) return `corex_session_${r || 'usuario'}`;
             return `corex_session_user_${id}_${r || 'usuario'}`;
         }
-        const uStr = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario');
+        const uStr = localStorage.getItem('usuario');
         let cookieToken = null;
         if (uStr) {
             try { const u = JSON.parse(uStr); cookieToken = getCookie(getUserCookieName(u.id, u.role || u.rol || u.rol_nombre)); } catch (_) {}
         }
-        const token = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('token')) || localStorage.getItem('token') || cookieToken;
+        const token = localStorage.getItem('token') || cookieToken;
         if (token) {
             defaultOptions.headers['x-access-token'] = token;
         }

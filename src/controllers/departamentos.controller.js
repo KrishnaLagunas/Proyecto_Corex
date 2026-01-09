@@ -400,7 +400,7 @@ const departamentosController = {
             400
           );
         }
-        const funcionariosAsociados = await Usuario.count({ where: { municipalidad_id: id }, include: [{ model: Rol, where: { nombre: 'secretaria comunitaria' } }] });
+        const funcionariosAsociados = await Usuario.count({ where: { municipalidad_id: id }, include: [{ model: Rol, where: { nombre: ['secretaria de educación','secretaria de salud','secretaria de seguridad'] } }] });
         if (funcionariosAsociados > 0) {
           throw new ApiError(
             `No se puede eliminar la municipalidad porque tiene ${funcionariosAsociados} funcionario(s) asociado(s)`,
@@ -455,7 +455,7 @@ const departamentosController = {
       // Verificar que todos los funcionarios existen y tienen el rol adecuado
       const funcionarios = await Usuario.findAll({
         where: { id: { [Op.in]: funcionario_ids } },
-        include: [{ model: Rol, where: { nombre: 'secretaria comunitaria' } }]
+        include: [{ model: Rol, where: { nombre: 'secretaria de educación' } }]
       });
       
       if (funcionarios.length !== funcionario_ids.length) {

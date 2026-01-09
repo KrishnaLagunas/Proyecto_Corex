@@ -17,17 +17,32 @@ async function cargarCambioPassword() {
                         <form id="form-cambio-password">
                             <div class="mb-3">
                                 <label for="password-actual" class="form-label">Contraseña Actual</label>
-                                <input type="password" class="form-control" id="password-actual" required>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="password-actual" required>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password-actual')">
+                                        <i class="bi bi-eye" id="password-actual-icon"></i>
+                                    </button>
+                                </div>
                             </div>
                             
                             <div class="mb-3">
                                 <label for="password-nuevo" class="form-label">Nueva Contraseña</label>
-                                <input type="password" class="form-control" id="password-nuevo" required>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="password-nuevo" required>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password-nuevo')">
+                                        <i class="bi bi-eye" id="password-nuevo-icon"></i>
+                                    </button>
+                                </div>
                             </div>
                             
                             <div class="mb-3">
                                 <label for="confirmar-password-nuevo" class="form-label">Confirmar Nueva Contraseña</label>
-                                <input type="password" class="form-control" id="confirmar-password-nuevo" required>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" id="confirmar-password-nuevo" required>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('confirmar-password-nuevo')">
+                                        <i class="bi bi-eye" id="confirmar-password-nuevo-icon"></i>
+                                    </button>
+                                </div>
                             </div>
                             
                             <div class="d-grid gap-2">
@@ -469,22 +484,22 @@ async function mostrarListaUsuarios() {
             </div>
         </div>
 
-        <div class="row g-2 align-items-end mb-2" style="position:relative; z-index:1100;">
-            <div class="col-md-5" id="buscar-usuario-wrap" style="position:relative; z-index:1100;">
-                <input type="text" class="form-control" id="buscar-usuario" placeholder="Buscar por nombre, apellido, email o RUT" autocomplete="off" tabindex="0" aria-label="Buscar usuarios" style="position:relative; z-index:1100;">
+        <div class="row g-2 align-items-end mb-2">
+            <div class="col-md-5" id="buscar-usuario-wrap">
+                <input type="text" class="form-control" id="buscar-usuario" placeholder="Buscar por nombre, apellido, email o RUT" autocomplete="off" tabindex="0" aria-label="Buscar usuarios">
             </div>
             <div class="col-md-3">
                 <select class="form-select" id="filtro-rol-usuario">
                     <option value="">Todos los roles</option>
-                    <option value="superadministrador">superadministrador</option>
-                    <option value="administrador">administrador</option>
-                    <option value="funcionario">funcionario</option>
-                    <option value="secretaria comunitaria">secretaria comunitaria</option>
-                    <option value="secretaria de obras">secretaria de obras</option>
-                    <option value="secretaria de transito">secretaria de transito</option>
-                    <option value="secretaria partes">secretaria partes</option>
-                    <option value="tesoreria municipal">tesoreria municipal</option>
-                    <option value="ciudadano">ciudadano</option>
+                    <option value="superadministrador">Superadministrador</option>
+                    <option value="administrador">Administrador</option>
+                    <option value="funcionario">Funcionario</option>
+                    <option value="secretaria de educación">Secretaria de Educación</option>
+                    <option value="secretaria de obras">Secretaria de Obras</option>
+                    <option value="secretaria de transito">Secretaria de Transito</option>
+                    <option value="secretaria de seguridad">Secretaria de Seguridad</option>
+                    <option value="secretaria de salud">Secretaria de Salud</option>
+                    <option value="ciudadano">Ciudadano</option>
                 </select>
             </div>
             <div class="col-md-3">
@@ -869,22 +884,27 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                                     const rolActual = (currentUser?.rol_nombre || currentUser?.role || '').toLowerCase();
                                                     const esSuperadminLocal = rolActual === 'superadministrador' || rolActual === 'superadmin';
                                                     const esAdminLocal = rolActual === 'administrador' || rolActual === 'admin';
+                                                    const toTitleCase = (str) => {
+                                                        if (!str) return '';
+                                                        return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+                                                    };
+
                                                     if (esSuperadminLocal) {
-                                                        const allowed = ['administrador','funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal'];
+                                                        const allowed = ['administrador','funcionario','secretaria de educación','secretaria de salud','secretaria de seguridad','secretaria de obras','secretaria de transito'];
                                                         return ['']
                                                             .concat(allowed)
-                                                            .map(n => n ? `<option value="${n}" ${actual===n?'selected':''}>${n}</option>` : '<option value="">Selecciona rol</option>')
+                                                            .map(n => n ? `<option value="${n}" ${actual===n?'selected':''}>${toTitleCase(n)}</option>` : '<option value="">Selecciona rol</option>')
                                                             .join('');
                                                     }
                                                     if (esAdminLocal) {
-                                                        const allowed = ['secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal'];
+                                                        const allowed = ['secretaria de educación','secretaria de salud','secretaria de seguridad','secretaria de obras','secretaria de transito'];
                                                         return ['']
                                                             .concat(allowed)
-                                                            .map(n => n ? `<option value="${n}" ${actual===n?'selected':''}>${n}</option>` : '<option value="">Selecciona rol</option>')
+                                                            .map(n => n ? `<option value="${n}" ${actual===n?'selected':''}>${toTitleCase(n)}</option>` : '<option value="">Selecciona rol</option>')
                                                             .join('');
                                                     }
                                                     return ['']
-                                                        .map(n => n ? `<option value="${n}" ${actual===n?'selected':''}>${n}</option>` : '<option value="">Selecciona rol</option>')
+                                                        .map(n => n ? `<option value="${n}" ${actual===n?'selected':''}>${toTitleCase(n)}</option>` : '<option value="">Selecciona rol</option>')
                                                         .join('');
                                                 })()}
                                             </select>
@@ -921,7 +941,12 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="password" class="form-label">Contraseña</label>
-                                            <input type="password" class="form-control" id="password" required>
+                                            <div class="input-group">
+                                                <input type="password" class="form-control" id="password" required>
+                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password')">
+                                                    <i class="bi bi-eye" id="password-icon"></i>
+                                                </button>
+                                            </div>
                                             <div id="password_hint" class="form-text">Debe tener 8+, mayúscula, minúscula, número y símbolo (@$!%*?&#.).</div>
                                         </div>
                                     </div>` : ''}
@@ -974,6 +999,66 @@ async function mostrarFormularioUsuario(usuarioId = null) {
 
         // Cargar regiones y comunas en los selects con preselección cuando edita
         await cargarRegionesYComunasEnFormularioUsuario(usuario || null);
+
+        // Lógica para filtrar departamentos según el rol
+        const roleSelect = formEl?.querySelector('#role');
+        const deptoSelect = formEl?.querySelector('#departamento_id');
+
+        const roleToDeptoKeyword = {
+            'secretaria de educación': 'educación',
+            'secretaria de salud': 'salud',
+            'secretaria de seguridad': 'seguridad',
+            'secretaria de obras': 'obras',
+            'secretaria de transito': 'transito'
+        };
+
+        const filtrarDepartamentos = () => {
+            if (!roleSelect || !deptoSelect) return;
+
+            const selectedRole = roleSelect.value.toLowerCase();
+            const keyword = roleToDeptoKeyword[selectedRole];
+            
+            // Guardar selección actual para intentar mantenerla si sigue siendo válida
+            const currentDeptoId = deptoSelect.value || (usuario?.departamento_id || usuario?.Departamento?.id);
+
+            // Limpiar opciones
+            deptoSelect.innerHTML = '<option value="">Ninguno</option>';
+
+            const normalize = str => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+            departamentos.forEach(d => {
+                const nombreDepto = normalize(d.nombre);
+                let mostrar = false;
+
+                if (keyword) {
+                    // Si el rol tiene una restricción, solo mostrar si coincide
+                    // Normalizamos keyword también por si acaso, aunque las claves ya están sin tildes si así las definí
+                    if (nombreDepto.includes(normalize(keyword))) {
+                        mostrar = true;
+                    }
+                } else {
+                    // Si es funcionario u otro rol sin restricción específica, mostrar todos
+                    mostrar = true;
+                }
+
+                if (mostrar) {
+                    const option = document.createElement('option');
+                    option.value = d.id;
+                    option.textContent = d.nombre;
+                    // Mantener selección si coincide
+                    if (currentDeptoId && String(currentDeptoId) === String(d.id)) {
+                        option.selected = true;
+                    }
+                    deptoSelect.appendChild(option);
+                }
+            });
+        };
+
+        if (roleSelect && deptoSelect) {
+            roleSelect.addEventListener('change', filtrarDepartamentos);
+            // Ejecutar al inicio para aplicar filtro inicial
+            filtrarDepartamentos();
+        }
     } catch (error) {
         console.error('Error al mostrar formulario de usuario:', error);
         mostrarNotificacion('Error al cargar formulario: ' + (error.message || ''), 'danger');
@@ -1233,7 +1318,12 @@ async function mostrarFormularioCrearAdministrador() {
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="password" class="form-label">Contraseña</label>
-                                            <input type="password" class="form-control" id="password" required>
+                                            <div class="input-group">
+                                                <input type="password" class="form-control" id="password" required>
+                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password')">
+                                                    <i class="bi bi-eye" id="password-icon"></i>
+                                                </button>
+                                            </div>
                                             <div id="password_hint" class="form-text">Debe tener 8+, mayúscula, minúscula, número y símbolo (@$!%*?&#.).</div>
                                         </div>
                                     </div>

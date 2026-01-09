@@ -44,23 +44,20 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
     } catch (_) {}
-    try { const t = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('token') : null) || localStorage.getItem('token'); if (!t) { clearCorexCookies(); } } catch (_) { try { clearCorexCookies(); } catch (_) {} }
+    try { 
+        const token = localStorage.getItem('token');
+        if (!token) { 
+            clearCorexCookies(); 
+        } 
+    } catch (_) { 
+        try { clearCorexCookies(); } catch (_) {} 
+    }
     programarMostrarLogin(0);
     
     // Configurar el evento de submit del formulario de login
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
         loginForm.addEventListener('submit', manejarLogin);
-    }
-    const toggleBtn = document.getElementById('toggle-password');
-    const passwordInput = document.getElementById('password');
-    if (toggleBtn && passwordInput) {
-        toggleBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            const show = passwordInput.type === 'password';
-            passwordInput.type = show ? 'text' : 'password';
-            toggleBtn.innerHTML = show ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
-        });
     }
     
     // Configurar el evento de submit del formulario de registro
@@ -70,9 +67,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     (async () => {
         try {
-            const t = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('token') : null) || localStorage.getItem('token');
+            const t = localStorage.getItem('token');
             if (!t) return;
-            const usrStr = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario');
+            
+            const usrStr = localStorage.getItem('usuario');
             if (usrStr) {
                 const u = JSON.parse(usrStr);
                 if (u && u.role) {
@@ -80,11 +78,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
             }
+            
             const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
             if (perfil && perfil.id) {
               let rol = (perfil.rol || perfil.role || perfil.rol_nombre || '').toString().toLowerCase();
               if (rol.includes('admin') && !rol.includes('super')) rol = 'admin';
-              else if (rol.includes('func') || rol.includes('secretaria') || rol.includes('tesoreria') || rol.includes('tesorería')) rol = 'funcionario';
+              else if (rol.includes('func') || rol.includes('secretaria')) rol = 'funcionario';
               else if (rol.includes('super')) rol = 'superadministrador';
               else if (rol.includes('ciud')) rol = 'ciudadano';
               
@@ -99,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 municipalidad_id: perfil.municipalidad_id || (perfil.Municipalidad && perfil.Municipalidad.id) || null,
                 municipalidad_nombre: perfil.municipalidad_nombre || (perfil.Municipalidad && perfil.Municipalidad.nombre) || null
               };
-              if (typeof sessionStorage !== 'undefined') { sessionStorage.setItem('usuario', JSON.stringify(u)); }
+              localStorage.setItem('usuario', JSON.stringify(u));
               redirigirSegunRol(u);
             }
         } catch (_) {}
@@ -216,10 +215,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 function programarMostrarLogin(delay) {
+    try {
+        if (localStorage.getItem('token')) return;
+    } catch (_) {}
     try { if (window._loginRenderTimeoutId) clearTimeout(window._loginRenderTimeoutId); } catch (_) {}
     window._loginRenderTimeoutId = setTimeout(() => {
         try {
-            const t = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('token') : null) || localStorage.getItem('token');
+            const t = localStorage.getItem('token');
             if (!t) mostrarFormularioLogin();
         } catch (_) { mostrarFormularioLogin(); }
         window._loginRenderTimeoutId = null;
@@ -332,7 +334,7 @@ async function manejarLogin(e) {
         const normalizarRol = (r) => {
             const s = (r || '').toString().toLowerCase();
             if (s.includes('admin')) return 'admin';
-            if (s.includes('func') || s.includes('secretaria') || s.includes('tesoreria') || s.includes('tesorería')) return 'funcionario';
+            if (s.includes('func') || s.includes('secretaria')) return 'funcionario';
             if (s.includes('ciud') || s === 'user' || s === 'usuario') return 'ciudadano';
             return s || 'ciudadano';
         };
@@ -355,8 +357,6 @@ async function manejarLogin(e) {
         // independientemente de lo que diga 'portal' (que a veces devuelve 'ciudadano' por defecto)
         const esFuncionario = rolNombreBackend.includes('func') || 
                               rolNombreBackend.includes('secretaria') || 
-                              rolNombreBackend.includes('tesoreria') ||
-                              rolNombreBackend.includes('tesorería') ||
                               normalizarRol(user.role) === 'funcionario';
         
         if (esFuncionario) {
@@ -376,7 +376,8 @@ async function manejarLogin(e) {
 
         try { clearCorexCookies(); } catch (_) {}
         setSessionToken(token, { role: roleFinal, userId: user.id });
-        try { if (typeof sessionStorage !== 'undefined') { sessionStorage.setItem('usuario', JSON.stringify(usuarioInfo)); } else { localStorage.setItem('usuario', JSON.stringify(usuarioInfo)); } } catch (_) {}
+        try { localStorage.setItem('usuario', JSON.stringify(usuarioInfo)); } catch (_) {}
+        try { localStorage.removeItem('currentPage'); } catch (_) {} // Asegurar inicio limpio en dashboard
 
         // Redirigir según el rol del usuario
         redirigirSegunRol(usuarioInfo);
@@ -424,7 +425,7 @@ async function redirigirSegunRol(usuario) {
     const header = document.querySelector('.header');
     const footer = document.querySelector('footer');
     
-    if (header) header.classList.add('d-none');
+    if (header) header.classList.remove('d-none');
     if (footer) footer.classList.remove('d-none');
     
     try {
@@ -445,7 +446,6 @@ async function redirigirSegunRol(usuario) {
             if (perfilFoto && perfilFoto.foto_url) {
                 usuario.foto_url = perfilFoto.foto_url;
                 try { localStorage.setItem('usuario', JSON.stringify(usuario)); } catch (_) {}
-                try { sessionStorage.setItem('usuario', JSON.stringify(usuario)); } catch (_) {}
             }
         } catch (_) {}
     } catch (_) {}
@@ -528,9 +528,9 @@ async function redirigirSegunRol(usuario) {
                                 localStorage.setItem('usuario', JSON.stringify(usuarioLS));
                             } catch (_) {}
                             try {
-                                const usuarioSS = JSON.parse(sessionStorage.getItem('usuario') || '{}');
-                                usuarioSS.foto_url = newUrl;
-                                sessionStorage.setItem('usuario', JSON.stringify(usuarioSS));
+                                const usuarioSS = JSON.parse(localStorage.getItem('usuario') || '{}');
+                                usuarioSS.foto_url = perfilFoto.foto_url;
+                                localStorage.setItem('usuario', JSON.stringify(usuarioSS));
                             } catch (_) {}
                             modal.hide();
                         };
@@ -812,7 +812,7 @@ async function procesarPagoBackendAuth(metodo) {
             fechaPago: new Date().toISOString()
         };
 
-        const usrStr = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario');
+        const usrStr = localStorage.getItem('usuario');
         const usuario = usrStr ? JSON.parse(usrStr) : null;
 
         const resultados = await Promise.allSettled(seleccionados.map(async (chk) => {
@@ -1752,12 +1752,16 @@ function obtenerUsuario() {
  */
 function cerrarSesion() {
     // Eliminar información de sesión
-    try { if (typeof sessionStorage !== 'undefined') { sessionStorage.removeItem('token'); sessionStorage.removeItem('usuario'); } } catch (_) {}
+    try { if (typeof sessionStorage !== 'undefined') { sessionStorage.clear(); } } catch (_) {}
     localStorage.removeItem('token');
     localStorage.removeItem('usuario');
+    localStorage.removeItem('currentPage'); // Limpiar última página visitada
     try { clearCorexCookies(); } catch (_) {}
     
-    // Recargar la página para mostrar el login
+    // Limpiar hash y recargar la página para mostrar el login
+    if (window.location.hash) {
+        history.replaceState(null, null, ' ');
+    }
     window.location.reload();
 }
 
@@ -3569,7 +3573,7 @@ async function procesarPagoBackendAuth(metodo) {
             fechaPago: new Date().toISOString()
         };
 
-        const usuarioStr = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario');
+        const usuarioStr = localStorage.getItem('usuario');
         const usuario = usuarioStr ? JSON.parse(usuarioStr) : null;
         
         if (!usuario) throw new Error('Usuario no identificado');
@@ -4293,7 +4297,7 @@ function getUserCookieName(userId, role) {
 
 function setSessionToken(token, info) {
     try {
-        if (typeof sessionStorage !== 'undefined') { sessionStorage.setItem('token', token); }
+        // sessionStorage removed
     } catch (_) {}
     try {
         const role = info && info.role;

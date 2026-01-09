@@ -91,7 +91,7 @@ const usuarioQuerySchema = Joi.object({
   limit: Joi.number().integer().min(1).max(100).messages(mensajesError),
   id_rol: Joi.number().integer().min(1).messages(mensajesError),
   rol_nombre: Joi.string().valid(
-    'superadministrador','administrador','funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal','ciudadano','admin','superadmin'
+    'superadministrador','administrador','funcionario','secretaria de educación','secretaria de obras','secretaria de transito','secretaria de seguridad','secretaria de salud','ciudadano','admin','superadmin'
   ).messages(mensajesError),
   municipalidad_id: Joi.number().integer().min(1).messages(mensajesError),
   estado: Joi.string().valid('activo', 'inactivo', 'bloqueado').messages(mensajesError),
@@ -119,7 +119,7 @@ const createUsuarioSchema = Joi.object({
   direccion: Joi.string().min(5).max(200).required().messages(mensajesError),
   id_rol: Joi.number().integer().min(1).messages(mensajesError),
   role: Joi.string().valid(
-    'superadministrador','administrador','funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal','ciudadano','admin','superadmin'
+    'superadministrador','administrador','funcionario','secretaria de educación','secretaria de obras','secretaria de transito','secretaria de seguridad','secretaria de salud','ciudadano','admin','superadmin'
   ).messages(mensajesError),
   municipalidad_id: Joi.number().integer().min(1)
     .when('id_rol', { is: Joi.exist(), then: Joi.required(), otherwise: Joi.allow(null) })
@@ -142,7 +142,7 @@ const updateUsuarioSchema = Joi.object({
   direccion: Joi.string().min(5).max(200).messages(mensajesError),
   id_rol: Joi.number().integer().min(1).messages(mensajesError),
   municipalidad_id: Joi.number().integer().min(1).allow(null).messages(mensajesError),
-  role: Joi.string().valid('superadministrador','administrador','funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal','ciudadano','admin','superadmin').messages(mensajesError),
+  role: Joi.string().valid('superadministrador','administrador','funcionario','secretaria de educación','secretaria de obras','secretaria de transito','secretaria de seguridad','secretaria de salud','ciudadano','admin','superadmin').messages(mensajesError),
   estado: Joi.string().valid('activo', 'inactivo', 'bloqueado').messages(mensajesError)
 }).min(1).messages(mensajesError);
 

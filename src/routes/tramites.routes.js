@@ -24,7 +24,7 @@ router.get('/',
 // Rutas específicas deben declararse antes de rutas paramétricas para evitar colisiones
 router.get('/stats/general', 
   isAuthenticated, 
-  hasRole(['administrador', 'superadministrador', 'secretaria comunitaria']),
+  hasRole(['administrador', 'superadministrador', 'secretaria de educación', 'secretaria de salud', 'secretaria de seguridad']),
   tramitesController.getTramitesStats
 );
 

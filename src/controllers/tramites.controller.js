@@ -74,7 +74,7 @@ const tramitesController = {
       if (req.user.rol_nombre === 'ciudadano') {
         // Los ciudadanos solo pueden ver sus propios trámites
         where.ciudadano_id = req.user.id;
-      } else if (['funcionario','secretaria comunitaria','secretaria de obras','secretaria de transito','secretaria partes','tesoreria municipal'].includes(String(req.user.rol_nombre).toLowerCase())) {
+      } else if (['funcionario','secretaria de educación','secretaria de salud','secretaria de seguridad','secretaria de obras','secretaria de transito'].includes(String(req.user.rol_nombre).toLowerCase())) {
         const funcionario = await Usuario.findByPk(req.user.id, {
           include: [{ model: Municipalidad }],
           attributes: ['id', 'municipalidad_id']
@@ -267,7 +267,7 @@ const tramitesController = {
           throw new ApiError('No tienes permiso para crear trámites fuera de tu municipalidad', 403);
         }
       }
-      if (req.user.rol_nombre === 'secretaria comunitaria') {
+      if (req.user.rol_nombre === 'secretaria de educación') {
         const funcionario = await Usuario.findByPk(req.user.id, { include: [{ model: Municipalidad }], attributes: ['id', 'municipalidad_id'] });
         const muniIdFunc = funcionario?.municipalidad_id || funcionario?.Municipalidad?.id || null;
         if (!muniIdFunc || muniIdFunc !== municipalidad_id) {
@@ -480,7 +480,7 @@ const tramitesController = {
           throw new ApiError('No tienes permiso para modificar trámites de otra municipalidad', 403);
         }
       }
-      if (req.user.rol_nombre === 'secretaria comunitaria') {
+      if (['funcionario','secretaria de educación','secretaria de salud','secretaria de seguridad','secretaria de obras','secretaria de transito'].includes(req.user.rol_nombre)) {
         const funcionario = await Usuario.findByPk(req.user.id, { include: [{ model: Municipalidad }], attributes: ['id', 'municipalidad_id'] });
         const muniIdFunc = funcionario?.municipalidad_id || funcionario?.Municipalidad?.id || null;
         if (!muniIdFunc || muniIdFunc !== tramite.municipalidad_id) {
@@ -517,7 +517,7 @@ const tramitesController = {
         if (funcionario_id) {
           const funcionario = await Usuario.findOne({
             where: { id: funcionario_id },
-            include: [{ model: Rol, where: { nombre: 'secretaria comunitaria' } }]
+            include: [{ model: Rol, where: { nombre: 'secretaria de educación' } }]
           });
           if (!funcionario) {
             throw new ApiError('El funcionario seleccionado no existe', 400);
@@ -539,7 +539,7 @@ const tramitesController = {
           if (req.user.rol_nombre === 'administrador' && municipalidad_id !== req.user.municipalidad_id) {
             throw new ApiError('No puedes cambiar el trámite a otra municipalidad', 403);
           }
-          if (req.user.rol_nombre === 'secretaria comunitaria') {
+          if (['secretaria de educación','secretaria de salud','secretaria de seguridad'].includes(req.user.rol_nombre)) {
             throw new ApiError('No tienes permiso para cambiar la municipalidad del trámite', 403);
           }
           tramite.municipalidad_id = municipalidad_id;
@@ -667,7 +667,7 @@ const tramitesController = {
       const rol = String(req.user.rol_nombre || '').toLowerCase();
       const muniId = req.user?.municipalidad_id || null;
       const isAdmin = rol === 'administrador';
-      const isFuncionario = rol === 'funcionario' || rol === 'secretaria comunitaria' || rol === 'secretaria de obras' || rol === 'secretaria de transito' || rol === 'secretaria partes' || rol === 'tesoreria municipal';
+      const isFuncionario = ['funcionario','secretaria de educación','secretaria de salud','secretaria de seguridad','secretaria de obras','secretaria de transito'].includes(rol);
       const filterWhere = (isAdmin || isFuncionario)
         ? (muniId
             ? (isAdmin
@@ -992,7 +992,7 @@ tramitesController.updateTramiteEstado = async (req, res, next) => {
     const { estado, observaciones } = req.body || {};
 
     // Solo funcionarios y administradores pueden cambiar estado
-    if (!['secretaria comunitaria', 'administrador', 'superadministrador'].includes(req.user.rol_nombre)) {
+    if (!['secretaria de educación', 'secretaria de salud', 'secretaria de seguridad', 'administrador', 'superadministrador'].includes(req.user.rol_nombre)) {
       throw new ApiError('No tienes permiso para actualizar el estado del trámite', 403);
     }
 

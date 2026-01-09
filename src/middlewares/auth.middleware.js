@@ -15,21 +15,6 @@ const isAuthenticated = async (req, res, next) => {
     // Obtener el token del header de autorización o x-access-token
     const authHeader = req.headers.authorization;
     const accessToken = req.headers['x-access-token'];
-    const adminAccess = req.headers['x-admin-access'];
-    
-    // Si se solicita acceso de administrador, permitir sin token
-    if (adminAccess === 'true') {
-      // Configurar un usuario administrador por defecto
-      req.user = {
-        id: 1,
-        nombre: 'Administrador',
-        apellido: 'Sistema',
-        email: 'admin@sistema.com',
-        id_rol: null,
-        rol_nombre: 'administrador'
-      };
-      return next();
-    }
     
     let token = null;
     
@@ -43,16 +28,10 @@ const isAuthenticated = async (req, res, next) => {
     }
     
     if (!token) {
-      // Configurar un usuario administrador por defecto en lugar de rechazar
-      req.user = {
-        id: 1,
-        nombre: 'Administrador',
-        apellido: 'Sistema',
-        email: 'admin@sistema.com',
-        id_rol: null,
-        rol_nombre: 'administrador'
-      };
-      return next();
+      return res.status(401).json({
+        success: false,
+        message: 'Acceso no autorizado. Se requiere token de autenticación.'
+      });
     }
     
     // Verificar el token
@@ -75,15 +54,10 @@ const isAuthenticated = async (req, res, next) => {
     next();
   } catch (error) {
     logger.error('Error de autenticación:', error.message);
-    // En caso de error, también permitir acceso como administrador
-    req.user = {
-      id: 1,
-      nombre: 'Administrador',
-      apellido: 'Sistema',
-      email: 'admin@sistema.com',
-      rol_nombre: 'administrador'
-    };
-    return next();
+    return res.status(401).json({
+      success: false,
+      message: 'Token inválido o expirado.'
+    });
   }
 };
 
@@ -109,11 +83,11 @@ const isAuthenticated = async (req, res, next) => {
         if (r === 'superadmin') return ['superadministrador'];
         if (r === 'funcionario') return [
           'funcionario',
-          'secretaria comunitaria',
+          'secretaria de educación',
+          'secretaria de salud',
+          'secretaria de seguridad',
           'secretaria de obras',
-          'secretaria de transito',
-          'secretaria partes',
-          'tesoreria municipal'
+          'secretaria de transito'
         ];
         return [r];
       });
@@ -142,9 +116,9 @@ const ROLES = {
   CIUDADANO: 'ciudadano',
   SECRETARIA_OBRAS: 'secretaria de obras',
   SECRETARIA_TRANSITO: 'secretaria de transito',
-  TESORERIA_MUNICIPAL: 'tesoreria municipal',
-  SECRETARIA_PARTES: 'secretaria partes',
-  SECRETARIA_COMUNITARIA: 'secretaria comunitaria'
+  SECRETARIA_SALUD: 'secretaria de salud',
+  SECRETARIA_SEGURIDAD: 'secretaria de seguridad',
+  SECRETARIA_EDUCACION: 'secretaria de educación'
 };
 
 module.exports = {

@@ -94,7 +94,10 @@
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label for="passwordRegistro" class="form-label">Contraseña *</label>
-                                        <input type="password" class="form-control" id="passwordRegistro" name="password" required>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" id="passwordRegistro" name="password" required>
+                                            <button type="button" class="btn btn-outline-secondary toggle-password-btn" data-input="passwordRegistro"><i class="bi bi-eye"></i></button>
+                                        </div>
                                         <div class="form-text">
                                             <small class="text-muted">
                                                 <i class="bi bi-info-circle"></i> Mínimo 6 caracteres, máximo 50 caracteres
@@ -103,7 +106,10 @@
                                     </div>
                                     <div class="col-md-6 mb-3">
                                         <label for="confirmPassword" class="form-label">Repetir Contraseña *</label>
-                                        <input type="password" class="form-control" id="confirmPassword" name="confirm_password" required>
+                                        <div class="input-group">
+                                            <input type="password" class="form-control" id="confirmPassword" name="confirm_password" required>
+                                            <button type="button" class="btn btn-outline-secondary toggle-password-btn" data-input="confirmPassword"><i class="bi bi-eye"></i></button>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="d-grid gap-2 mt-4">
@@ -189,8 +195,8 @@
 
         <header class="header d-none">
             <div class="container-fluid">
-                <div class="d-flex justify-between align-center">
-                    <div class="d-flex align-center gap-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-3">
                         <button class="btn-menu-toggle d-lg-none" id="menu-toggle" aria-label="Abrir menú">
                             <i class="bi bi-list"></i>
                         </button>

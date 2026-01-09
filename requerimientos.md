@@ -305,7 +305,7 @@ Notas
 ## Diagrama de Flujo: Funcionario (Paso a Paso)
 
 - Inicio de sesión
-  - Paso: Ingresar credenciales como funcionario (`rol` "secretaria comunitaria").
+  - Paso: Ingresar credenciales como funcionario (`rol` "secretaria de educación").
   - Decisión: ¿Usuario activo y rol permitido? Si sí, acceder con token JWT.
   - Resultado: Panel con acceso a trámites y pagos de su municipalidad.
 

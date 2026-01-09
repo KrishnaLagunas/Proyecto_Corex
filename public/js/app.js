@@ -21,22 +21,13 @@ function cargarContenidoPagina(pagina) {
             // Permitir dashboard para 'admin' y 'funcionario' con sesión válida
             let rol, token;
             try {
-                const usuario = JSON.parse(((typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario')));
+                const usuario = JSON.parse(localStorage.getItem('usuario') || '{}');
                 const rRaw = usuario && (usuario.rol || usuario.role || usuario.rol_nombre);
                 rol = (rRaw || '').toString().toLowerCase();
                 if (rol.includes('admin') && !rol.includes('super')) rol = 'admin';
-                else if (rol.includes('func') || rol.includes('secretaria') || rol.includes('tesoreria') || rol.includes('tesorería')) rol = 'funcionario';
+                else if (rol.includes('func') || rol.includes('secretaria')) rol = 'funcionario';
                 
-                const userCookieName = (function(id,r){const rr=String(r||'').toLowerCase().replace(/\s+/g,'_');const sid=String(id||'').trim();return sid?`corex_session_user_${sid}_${rr||'usuario'}`:`corex_session_${rr||'usuario'}`})(usuario && usuario.id, rol);
-                const cookieTok = (function(n){try{const a=n+'=';const ca=document.cookie.split(';');for(let i=0;i<ca.length;i++){let c=ca[i];while(c.charAt(0)===' ')c=c.substring(1);if(c.indexOf(a)===0)return decodeURIComponent(c.substring(a.length));}return null;}catch(_){return null}})(userCookieName);
-            token = (function(){
-                try{
-                    const u = JSON.parse(((typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario')));
-                    const name = (function(id,r){const rr=String(r||'').toLowerCase().replace(/\s+/g,'_');const sid=String(id||'').trim();return sid?`corex_session_user_${sid}_${rr||'usuario'}`:`corex_session_${rr||'usuario'}`})(u && u.id, u && (u.rol || u.role));
-                    const v = (function(n){try{const a=n+'=';const ca=document.cookie.split(';');for(let i=0;i<ca.length;i++){let c=ca[i];while(c.charAt(0)===' ')c=c.substring(1);if(c.indexOf(a)===0)return decodeURIComponent(c.substring(a.length));}return null;}catch(_){return null}})(name);
-                    return v || ((typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('token') : null) || localStorage.getItem('token'));
-                }catch(_){return ((typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('token') : null) || localStorage.getItem('token'));}
-            })();
+                token = localStorage.getItem('token');
             } catch (e) { rol = undefined; token = undefined; }
 
             // Validar sesión
@@ -256,7 +247,7 @@ function cargarContenidoPagina(pagina) {
                         mostrarCargando(true);
                         const canvas = renderCanvas('Trámites por Estado');
                         if (!canvas) return;
-                        try { const u = JSON.parse(((typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario')) || '{}'); console.log('[REPORT][Trámites por Estado] Usuario actual', { id: u.id, role: (u.role||u.rol||u.rol_nombre), municipalidad_id: u.municipalidad_id, municipalidad_nombre: u.municipalidad_nombre }); } catch (_) {}
+                        try { const u = JSON.parse(localStorage.getItem('usuario') || '{}'); console.log('[REPORT][Trámites por Estado] Usuario actual', { id: u.id, role: (u.role||u.rol||u.rol_nombre), municipalidad_id: u.municipalidad_id, municipalidad_nombre: u.municipalidad_nombre }); } catch (_) {}
                         console.log('[REPORT][Trámites por Estado] Fetch inicio');
                         let resp = await fetchAPI('/dashboard/tramites/estado', { method: 'GET', headers: { 'Cache-Control': 'no-cache' } });
                         console.log('[REPORT][Trámites por Estado] Respuesta API', resp);
@@ -591,18 +582,45 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const token = (function(){
                 try{
-                    const u = JSON.parse(((typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('usuario') : null) || localStorage.getItem('usuario')));
+                    const u = JSON.parse(localStorage.getItem('usuario'));
                     const r = u && (u.rol || u.role);
                     const name = (function(rr){const s=String(rr||'').toLowerCase();if(s.includes('superadmin'))return 'corex_session_superadmin';if(s.includes('admin'))return 'corex_session_admin';return 'corex_session_ciudadano'})(r);
                     const v = (function(n){try{const a=n+'=';const ca=document.cookie.split(';');for(let i=0;i<ca.length;i++){let c=ca[i];while(c.charAt(0)===' ')c=c.substring(1);if(c.indexOf(a)===0)return decodeURIComponent(c.substring(a.length));}return null;}catch(_){return null}})(name);
-                    return v || ((typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('token') : null) || localStorage.getItem('token'));
-                }catch(_){return ((typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('token') : null) || localStorage.getItem('token'));}
+                    return v || localStorage.getItem('token');
+                }catch(_){return localStorage.getItem('token');}
             })();
             if (!token) return;
+
+            // Fix F5: Evitar parpadeo del login si ya hay sesión
+            try {
+                if (window._loginRenderTimeoutId) clearTimeout(window._loginRenderTimeoutId);
+                const loginContainer = document.getElementById('login-container');
+                if (loginContainer) loginContainer.classList.add('d-none');
+                const header = document.querySelector('.header');
+                const footer = document.querySelector('footer');
+                if (header) header.classList.remove('d-none'); // Asumimos logged in
+                if (footer) footer.classList.remove('d-none');
+                
+                // Asegurar que auth.js no muestre el login después
+                if (typeof cancelarMostrarLogin === 'function') cancelarMostrarLogin();
+            } catch (_) {}
+
             const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
-            const rol = perfil && (perfil.rol || perfil.role);
-            if (perfil && (rol === 'admin' || rol === 'funcionario')) {
-                if (typeof sessionStorage !== 'undefined') { sessionStorage.setItem('usuario', JSON.stringify({ id: perfil.id, nombre: perfil.nombre || '', apellido: perfil.apellido || '', email: perfil.email, role: rol })); }
+            
+            // Fallback: Si falla el perfil pero hay usuario local, intentar usarlo
+            let uLocal = null;
+            try { uLocal = JSON.parse(localStorage.getItem('usuario')); } catch (_) {}
+            
+            const pFinal = perfil || uLocal;
+            const rol = pFinal && (pFinal.rol || pFinal.role);
+            
+            if (pFinal && (rol === 'admin' || rol === 'funcionario')) {
+                // Actualizar usuario en localStorage si tenemos perfil fresco
+                if (perfil) {
+                    try { localStorage.setItem('usuario', JSON.stringify(perfil)); } catch (_) {}
+                }
+                
+                // sessionStorage removed
                 const lastPage = localStorage.getItem('currentPage') || 'dashboard';
                 if (typeof cargarContenidoPagina === 'function') {
                     cargarContenidoPagina(lastPage);
@@ -704,6 +722,44 @@ window.cargarReportes = cargarReportes;
                 if (map[pagina]) map[pagina]();
             } else if (typeof cargarContenidoPagina === 'function') {
                 cargarContenidoPagina(pagina);
+            }
+        }
+    });
+
+    // Delegación para el ojito de contraseña en caso de re-render (Login)
+    document.addEventListener('click', (e) => {
+        const toggle = e.target && e.target.closest && e.target.closest('#toggle-password');
+        if (toggle) {
+            e.preventDefault();
+            const input = document.getElementById('password');
+            if (!input) return;
+            const toShow = input.type === 'password';
+            input.type = toShow ? 'text' : 'password';
+            const icon = toggle.querySelector('i');
+            if (icon) {
+                icon.classList.toggle('bi-eye', !toShow);
+                icon.classList.toggle('bi-eye-slash', toShow);
+            }
+        }
+    });
+
+    // Delegación para botones de ver/ocultar contraseña (Genérico con clase .toggle-password-btn)
+    document.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest && e.target.closest('.toggle-password-btn');
+        if (btn) {
+            e.preventDefault();
+            const inputId = btn.getAttribute('data-input');
+            if (inputId) {
+                const input = document.getElementById(inputId);
+                if (input) {
+                    const toShow = input.type === 'password';
+                    input.type = toShow ? 'text' : 'password';
+                    const icon = btn.querySelector('i');
+                    if (icon) {
+                        icon.classList.toggle('bi-eye', !toShow);
+                        icon.classList.toggle('bi-eye-slash', toShow);
+                    }
+                }
             }
         }
     });

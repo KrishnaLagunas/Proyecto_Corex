@@ -95,7 +95,7 @@ router.delete('/:id/ciudadano',
  */
 router.get('/stats/general', 
   isAuthenticated, 
-  hasRole(['administrador', 'superadministrador', 'funcionario', 'secretaria comunitaria']),
+  hasRole(['administrador', 'superadministrador', 'funcionario', 'secretaria de educación', 'secretaria de salud', 'secretaria de seguridad']),
   pagosController.getPagosStats
 );
 

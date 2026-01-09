@@ -131,7 +131,7 @@ const authController = {
       const rolNombreNorm = (rolNombre || '').toLowerCase();
       const esFuncionario = rolNombreNorm.includes('func') || 
                            rolNombreNorm.includes('secretaria') || 
-                           rolNombreNorm.includes('tesoreria') ||
+                           rolNombreNorm.includes('secretaria') ||
                            rolNombreNorm.includes('tesorería');
       
       const portal = rolNombreNorm.includes('ciudadano') ? 'ciudadano'
@@ -203,9 +203,7 @@ const authController = {
       const rolNombre = user.Rol ? user.Rol.nombre : null;
       const rolNombreNorm = (rolNombre || '').toLowerCase();
       const esFuncionario = rolNombreNorm.includes('func') || 
-                           rolNombreNorm.includes('secretaria') || 
-                           rolNombreNorm.includes('tesoreria') ||
-                           rolNombreNorm.includes('tesorería');
+                           rolNombreNorm.includes('secretaria');
 
       const portal = rolNombreNorm.includes('ciudadano') ? 'ciudadano'
         : (rolNombreNorm.includes('admin') && !rolNombreNorm.includes('super')) ? 'admin'

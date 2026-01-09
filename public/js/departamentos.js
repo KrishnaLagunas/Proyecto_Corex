@@ -43,9 +43,9 @@ async function cargarDepartamentos() {
                     </div>
                 </div>
 
-                <div class="row g-2 align-items-end mb-2" style="position:relative; z-index:1100;">
-                    <div class="col-md-6" id="buscar-departamento-wrap" style="position:relative; z-index:1100;">
-                        <input type="text" class="form-control" id="buscar-departamento" placeholder="Buscar departamento..." autocomplete="off" tabindex="0" aria-label="Buscar departamento" style="position:relative; z-index:1100;">
+                <div class="row g-2 align-items-end mb-2">
+                    <div class="col-md-6" id="buscar-departamento-wrap">
+                        <input type="text" class="form-control" id="buscar-departamento" placeholder="Buscar departamento..." autocomplete="off" tabindex="0" aria-label="Buscar departamento">
                     </div>
                 </div>
 
@@ -446,9 +446,9 @@ async function cargarMunicipalidades() {
                         <h2 class="section-title">Gestión de Municipalidades</h2>
                     </div>
                 </div>
-                <div class="row g-2 align-items-end mb-2" style="position:relative; z-index:1100;">
-                    <div class="col-md-6" id="buscar-departamento-wrap" style="position:relative; z-index:1100;">
-                        <input type="text" class="form-control" id="buscar-departamento" placeholder="Buscar municipalidad..." autocomplete="off" tabindex="0" aria-label="Buscar municipalidad" style="position:relative; z-index:1100;">
+                <div class="row g-2 align-items-end mb-2">
+                    <div class="col-md-6" id="buscar-departamento-wrap">
+                        <input type="text" class="form-control" id="buscar-departamento" placeholder="Buscar municipalidad..." autocomplete="off" tabindex="0" aria-label="Buscar municipalidad">
                     </div>
                 </div>
                 <div class="row mb-2">
