@@ -44,6 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
     } catch (_) {}
+    // Fix: No limpiar cookies aquí para permitir que app.js restaure sesión desde cookies si localStorage está vacío
+    /*
     try { 
         const token = localStorage.getItem('token');
         if (!token) { 
@@ -52,7 +54,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (_) { 
         try { clearCorexCookies(); } catch (_) {} 
     }
-    programarMostrarLogin(0);
+    */
+    // Fix: Verificar token antes de programar el login para evitar redirección innecesaria al refrescar
+    if (!localStorage.getItem('token')) {
+        programarMostrarLogin(0);
+    }
     
     // Configurar el evento de submit del formulario de login
     const loginForm = document.getElementById('login-form');
@@ -968,7 +974,10 @@ async function cargarPortalCiudadano(usuario) {
     // Mostrar el menú principal con estilo Corex y generar menú de ciudadano
     const navbar = document.getElementById('main-navbar');
     if (navbar) navbar.classList.remove('d-none');
-    try { localStorage.setItem('currentPage', 'portalCiudadano'); } catch (_) {}
+    // Fix: No sobrescribir currentPage si ya existe, para permitir refrescar en otras secciones
+    if (!localStorage.getItem('currentPage')) {
+        try { localStorage.setItem('currentPage', 'portalCiudadano'); } catch (_) {}
+    }
     try { generarMenu('ciudadano'); } catch (_) {}
     
     // Obtener trámites del usuario desde la API
@@ -4288,6 +4297,9 @@ function getUserCookieName(userId, role) {
 }
 
 function setSessionToken(token, info) {
+    try {
+        localStorage.setItem('token', token);
+    } catch (_) {}
     try {
         // sessionStorage removed
     } catch (_) {}
