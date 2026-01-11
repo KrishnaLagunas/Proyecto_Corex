@@ -418,67 +418,7 @@ body:not(.auth-mode):has(#register-container:not(.d-none)) footer {
 .muni-badge i { color: #2E7D32; }
 .muni-badge span { letter-spacing: 0.2px; }
 
-/* Header institucional con azul oscuro */
-.header {
-    background: var(--primary-color); /* Azul oscuro institucional */
-    color: white;
-    padding: var(--spacing-3) var(--spacing-6);
-    text-align: center;
-    box-shadow: 0 4px 20px var(--shadow-color);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    border-bottom: 3px solid var(--secondary-color); /* Verde institucional */
-    backdrop-filter: blur(15px);
-    overflow: hidden;
-}
-
-.header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--accent-color) 0%, var(--primary-light) 50%, var(--accent-color) 100%);
-    opacity: 1;
-    box-shadow: 0 0 20px var(--accent-color);
-}
-
-.header::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%);
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-}
-
-.header h1 {
-    font-family: var(--font-family-heading);
-    font-size: var(--font-size-4xl);
-    font-weight: var(--font-weight-extrabold);
-    margin: 0 0 var(--spacing-3) 0;
-    letter-spacing: -0.03em;
-    text-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(59, 130, 246, 0.3);
-    position: relative;
-    z-index: 2;
-}
-
-.header .subtitle {
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-semibold);
-    opacity: 0.95;
-    margin-top: var(--spacing-1);
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-    position: relative;
-    z-index: 2;
-}
+/* Header institucional eliminado */
 
 /* Navegación empresarial moderna */
 .nav {

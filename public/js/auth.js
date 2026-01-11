@@ -422,10 +422,8 @@ async function redirigirSegunRol(usuario) {
     }
     
     // Mostrar elementos comunes de la interfaz
-    const header = document.querySelector('.header');
     const footer = document.querySelector('footer');
     
-    if (header) header.classList.remove('d-none');
     if (footer) footer.classList.remove('d-none');
     
     try {
@@ -450,8 +448,6 @@ async function redirigirSegunRol(usuario) {
         } catch (_) {}
     } catch (_) {}
 
-    const userInfo = document.getElementById('user-info');
-    if (userInfo) { userInfo.innerHTML = ''; }
     const navActions = document.querySelector('#main-navbar .nav-actions');
     if (navActions) {
         const existing = document.getElementById('user-profile-block');
@@ -1187,11 +1183,9 @@ function mostrarFormularioLogin() {
     }
     
     // Ocultar elementos de la interfaz
-    const header = document.querySelector('.header');
     const navbar = document.getElementById('main-navbar');
     const mainContent = document.getElementById('main-content');
     
-    if (header) header.classList.add('d-none');
     if (navbar) navbar.classList.add('d-none');
     if (mainContent) mainContent.classList.add('d-none');
     try {
@@ -1437,10 +1431,8 @@ function mostrarFormularioRecuperarPassword() {
 function mostrarFormularioResetConToken(token) {
     const loginContainer = document.getElementById('login-container');
     if (loginContainer) {
-        const header = document.querySelector('.header');
         const navbar = document.getElementById('main-navbar');
         const mainContent = document.getElementById('main-content');
-        if (header) header.classList.add('d-none');
         if (navbar) navbar.classList.add('d-none');
         if (mainContent) mainContent.classList.add('d-none');
 

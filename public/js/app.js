@@ -596,9 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (window._loginRenderTimeoutId) clearTimeout(window._loginRenderTimeoutId);
                 const loginContainer = document.getElementById('login-container');
                 if (loginContainer) loginContainer.classList.add('d-none');
-                const header = document.querySelector('.header');
                 const footer = document.querySelector('footer');
-                if (header) header.classList.remove('d-none'); // Asumimos logged in
                 if (footer) footer.classList.remove('d-none');
                 
                 // Asegurar que auth.js no muestre el login después
