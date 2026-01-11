@@ -68,6 +68,27 @@ const dashboardController = {
         });
       } catch (_) { tramitesPorEstado = []; }
 
+      // Estadísticas de pagos por estado
+      let pagosPorEstado = [];
+      try {
+        const pagosEstadoOptions = {
+          attributes: [
+            'estado',
+            [require('sequelize').fn('COUNT', require('sequelize').col('Pago.id')), 'cantidad']
+          ],
+          group: ['estado']
+        };
+        
+        if (filtraPorMuni && muniId) {
+           pagosEstadoOptions.include = [{ model: Tramite, required: true, where: { municipalidad_id: muniId } }];
+        }
+        
+        pagosPorEstado = await Pago.findAll(pagosEstadoOptions);
+      } catch (e) { 
+          logger.error('Error fetching pagosPorEstado:', e);
+          pagosPorEstado = []; 
+      }
+
       // Obtener estadísticas de pagos por mes (últimos 6 meses)
       const fechaInicio = new Date();
       fechaInicio.setMonth(fechaInicio.getMonth() - 6);
@@ -133,6 +154,10 @@ const dashboardController = {
           estado: item.estado,
           cantidad: parseInt(item.dataValues.cantidad)
         })),
+        pagosPorEstado: pagosPorEstado.map(item => ({
+          estado: item.estado,
+          cantidad: parseInt(item.dataValues.cantidad)
+        })),
         pagosPorMes: pagosPorMes.map(item => ({
           mes: item.dataValues.mes,
           total: parseFloat(item.dataValues.total)
@@ -150,6 +175,7 @@ const dashboardController = {
         totalDepartamentos: 0,
         pagosRecientes: 0,
         tramitesPorEstado: [],
+        pagosPorEstado: [],
         pagosPorMes: []
       };
       res.json({ success: true, data: resumen });
@@ -219,11 +245,69 @@ const dashboardController = {
     try {
       const rol = req.user?.rol_nombre;
       const muniId = req.user?.municipalidad_id || null;
+      const userId = req.user?.id;
       const isAdmin = rol === 'administrador';
-      const isFuncionario = rol === 'funcionario' || rol === 'secretaria de educación' || rol === 'secretaria de obras' || rol === 'secretaria de transito' || rol === 'secretaria de seguridad' || rol === 'secretaria de salud';
+      const isFuncionario = rol === 'funcionario' || (rol && rol.toLowerCase().includes('secretaria')) || (rol && rol.toLowerCase().includes('dirección'));
+      
       const emptyFilter = { municipalidad_id: -1 };
       const filtra = (isAdmin || isFuncionario);
-      const where = filtra ? (muniId ? (isAdmin ? { [require('sequelize').Op.or]: [{ municipalidad_id: muniId }, { municipalidad_id: null }] } : { municipalidad_id: muniId }) : emptyFilter) : {};
+      let where = {};
+
+      if (filtra) {
+        if (!muniId) {
+          where = emptyFilter;
+        } else {
+          let departamentoFilter = {};
+          
+          if (isFuncionario) {
+            let departamentosAsignados = [];
+            // 1. Buscar asignación explícita
+            try {
+              const asignaciones = await DepartamentoUsuario.findAll({
+                where: { usuario_id: userId },
+                attributes: ['departamento_id']
+              });
+              if (asignaciones.length > 0) {
+                departamentosAsignados = asignaciones.map(a => a.departamento_id);
+              }
+            } catch (e) {}
+
+            // 2. Inferir por rol
+            if (departamentosAsignados.length === 0) {
+              try {
+                const rolNombre = String(rol || '').toLowerCase();
+                if (rolNombre.includes('secretaria de') || rolNombre.includes('dirección de') || rolNombre.includes('departamento de')) {
+                  let termino = rolNombre
+                    .replace('secretaria de', '')
+                    .replace('dirección de', '')
+                    .replace('departamento de', '')
+                    .trim();
+                  
+                  if (termino.length > 2) {
+                    const depto = await Departamento.findOne({
+                      where: {
+                        nombre: { [Op.like]: `%${termino}%` },
+                        municipalidad_id: muniId
+                      }
+                    });
+                    if (depto) {
+                      departamentosAsignados.push(depto.id);
+                    }
+                  }
+                }
+              } catch (e) {}
+            }
+
+            if (departamentosAsignados.length > 0) {
+              departamentoFilter = { departamento_id: { [Op.in]: departamentosAsignados } };
+            }
+          }
+
+          where = isAdmin 
+            ? { [Op.or]: [{ municipalidad_id: muniId }, { municipalidad_id: null }] } 
+            : { municipalidad_id: muniId, ...departamentoFilter };
+        }
+      }
       try { logger.info(`[Dashboard] /tramites/estado filtro`, { rol, muniId, where }); } catch (_) {}
       let rows = [];
       try {

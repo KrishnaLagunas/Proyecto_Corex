@@ -103,6 +103,38 @@ async function cargarTiposTramites() {
     }
 }
 
+/**
+ * Función para descargar un documento
+ * @param {number} tramiteId - ID del trámite
+ * @param {number} documentoId - ID del documento
+ * @param {string} nombreArchivo - Nombre del archivo para guardar
+ */
+async function descargarDocumento(tramiteId, documentoId, nombreArchivo) {
+    try {
+        mostrarCargando(true);
+        
+        const blob = await fetchAPI(`/tramites/${tramiteId}/documentos/${documentoId}/descargar`, {
+            responseType: 'blob'
+        });
+        
+        // Crear URL para el blob
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', nombreArchivo || `documento_${documentoId}`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+    } catch (error) {
+        console.error('Error al descargar documento:', error);
+        mostrarNotificacion('Error al descargar documento: ' + error.message, 'danger');
+    } finally {
+        mostrarCargando(false);
+    }
+}
+
 function activarSeccionTipoDetalle(seccion) {
     const tabs = document.querySelectorAll('#tipo-tramite-tabs .tab-link');
     tabs.forEach(btn => {
@@ -1070,6 +1102,10 @@ async function verDetalleTramite(tramiteId) {
                                 <div class="fw-semibold">${obtenerNombreTipoTramite(tramite.tipo) || 'N/A'}</div>
                             </div>
                             <div class="list-group-item py-3 mb-2">
+                                <div class="small text-muted">Departamento</div>
+                                <div class="fw-semibold">${tramite.Departamento?.nombre || 'N/A'}</div>
+                            </div>
+                            <div class="list-group-item py-3 mb-2">
                                 <div class="small text-muted">Ciudadano</div>
                                 <div class="fw-semibold">${tramite.ciudadano?.nombre} ${tramite.ciudadano?.apellido}</div>
                             </div>
@@ -1119,13 +1155,10 @@ async function verDetalleTramite(tramiteId) {
                                     <div class="list-group-item d-flex justify-content-between align-items-center py-3 mb-2">
                                         <div>
                                             <div class="fw-semibold">${documento.nombre}</div>
-                                            <div class="small text-muted">${documento.tipo} • ${formatearFecha(documento.fecha_subida)}</div>
+                                            <div class="small text-muted">${documento.tipo} • ${formatearFecha(documento.createdAt)}</div>
                                         </div>
                                         <div class="btn-group btn-group-sm">
-                                            <button class="btn btn-info" onclick="verDocumento(${documento.id})">
-                                                <i class="bi bi-eye"></i>
-                                            </button>
-                                            <button class="btn btn-secondary" onclick="descargarDocumento(${documento.id})">
+                                            <button class="btn btn-secondary" onclick="descargarDocumento(${tramite.id}, ${documento.id}, '${documento.nombre.replace(/'/g, "\\'")}')">
                                                 <i class="bi bi-download"></i>
                                             </button>
                                         </div>

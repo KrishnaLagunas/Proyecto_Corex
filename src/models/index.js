@@ -49,6 +49,17 @@ Municipalidad.belongsToMany(Usuario, {
 Municipalidad.hasMany(Tramite, { foreignKey: 'municipalidad_id' });
 // Municipalidad.hasMany(Proyecto, { foreignKey: 'municipalidad_id' });
 // Relaciones de Departamento deshabilitadas (departamentos globales)
+Departamento.belongsToMany(Usuario, {
+  through: DepartamentoUsuario,
+  foreignKey: 'departamento_id',
+  otherKey: 'usuario_id'
+});
+
+Usuario.belongsToMany(Departamento, {
+  through: DepartamentoUsuario,
+  foreignKey: 'usuario_id',
+  otherKey: 'departamento_id'
+});
 
 // Relaciones de Trámite
 Tramite.belongsTo(Usuario, { as: 'ciudadano', foreignKey: 'ciudadano_id' });

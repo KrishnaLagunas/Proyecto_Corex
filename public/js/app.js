@@ -25,7 +25,7 @@ function cargarContenidoPagina(pagina) {
                 const rRaw = usuario && (usuario.rol || usuario.role || usuario.rol_nombre);
                 rol = (rRaw || '').toString().toLowerCase();
                 if (rol.includes('admin') && !rol.includes('super')) rol = 'admin';
-                else if (rol.includes('func') || rol.includes('secretaria')) rol = 'funcionario';
+                else if (rol.includes('func') || rol.includes('secretaria') || rol.includes('direcc') || rol.includes('jefe') || rol.includes('encargado') || rol.includes('tesorer')) rol = 'funcionario';
                 
                 token = localStorage.getItem('token');
             } catch (e) { rol = undefined; token = undefined; }
@@ -610,29 +610,40 @@ document.addEventListener('DOMContentLoaded', () => {
             try { uLocal = JSON.parse(localStorage.getItem('usuario')); } catch (_) {}
             
             const pFinal = perfil || uLocal;
-            const rol = pFinal && (pFinal.rol || pFinal.role);
-            
+            let rol = pFinal && (pFinal.rol || pFinal.role || pFinal.rol_nombre);
+            rol = (rol || '').toString().toLowerCase();
+            if (rol.includes('admin') && !rol.includes('super')) rol = 'admin';
+            else if (rol.includes('func') || rol.includes('secretaria') || rol.includes('direcc') || rol.includes('jefe') || rol.includes('encargado') || rol.includes('tesorer')) rol = 'funcionario';
+
             if (pFinal && (rol === 'admin' || rol === 'funcionario')) {
-                // Actualizar usuario en localStorage si tenemos perfil fresco
-                if (perfil) {
-                    try { localStorage.setItem('usuario', JSON.stringify(perfil)); } catch (_) {}
-                }
-                
-                // sessionStorage removed
-                const lastPage = localStorage.getItem('currentPage') || 'dashboard';
-                if (typeof cargarContenidoPagina === 'function') {
-                    cargarContenidoPagina(lastPage);
-                    try {
-                        const menu = document.getElementById('menu-items');
-                        if (menu) {
-                            const links = menu.querySelectorAll('.nav-link');
-                            links.forEach(l => l.classList.remove('active'));
-                            const active = menu.querySelector(`.nav-link[data-page="${lastPage}"]`);
-                            if (active) active.classList.add('active');
+                        // Actualizar usuario en localStorage si tenemos perfil fresco
+                        if (perfil) {
+                            try { localStorage.setItem('usuario', JSON.stringify(perfil)); } catch (_) {}
                         }
-                    } catch (_) {}
-  }
-}
+                        
+                        // sessionStorage removed
+                        let lastPage = localStorage.getItem('currentPage') || 'dashboard';
+                        
+                        // Fix: Evitar que funcionarios queden atrapados en páginas de ciudadano
+                        const citizenPages = ['portalCiudadano', 'misTramites', 'misPagos', 'formularioNuevoTramite', 'portal-ciudadano'];
+                        if (citizenPages.includes(lastPage)) {
+                            lastPage = 'dashboard';
+                            try { localStorage.setItem('currentPage', 'dashboard'); } catch (_) {}
+                        }
+
+                        if (typeof cargarContenidoPagina === 'function') {
+                            cargarContenidoPagina(lastPage);
+                            try {
+                                const menu = document.getElementById('menu-items');
+                                if (menu) {
+                                    const links = menu.querySelectorAll('.nav-link');
+                                    links.forEach(l => l.classList.remove('active'));
+                                    const active = menu.querySelector(`.nav-link[data-page="${lastPage}"]`);
+                                    if (active) active.classList.add('active');
+                                }
+                            } catch (_) {}
+                        }
+                    }
 
 async function cargarReportes() {
   try {

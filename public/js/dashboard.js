@@ -450,8 +450,7 @@ async function cargarDashboard() {
 
         // Cargar estadísticas adicionales
         let pagosMesDetalleRes = null;
-        const [pagosStats, departamentosStats, pagosMesDetalleTmp] = await Promise.all([
-          fetchAPI('/pagos/stats/general', { suppressErrorLog: true }).catch(err => { console.warn('[Dashboard] pagos stats error', err?.message || err); return null; }),
+        const [departamentosStats, pagosMesDetalleTmp] = await Promise.all([
           fetchAPI('/departamentos/stats/general', { suppressErrorLog: true }).catch(err => { console.warn('[Dashboard] departamentos stats error', err?.message || err); return null; }),
           (async () => {
             const now = new Date();
@@ -587,7 +586,7 @@ async function cargarDashboard() {
           } catch (_) { cPagoFecha.textContent = '—'; }
         };
         // Pagos activos vs inactivos (donut)
-        let pagosEstadoArr = Array.isArray(pagosStats?.estadoStats) ? pagosStats.estadoStats : [];
+        let pagosEstadoArr = Array.isArray(d.pagosPorEstado) ? d.pagosPorEstado : [];
         if (!pagosEstadoArr.length) {
           try {
             const respPagosListado = await fetchAPI('/pagos?limit=100&order=DESC', { suppressErrorLog: true });
@@ -599,7 +598,7 @@ async function cargarDashboard() {
               const cur = mapa.get(est) || 0;
               mapa.set(est, cur + 1);
             });
-            pagosEstadoArr = Array.from(mapa.entries()).map(([estado, total]) => ({ estado, total }));
+            pagosEstadoArr = Array.from(mapa.entries()).map(([estado, total]) => ({ estado, total: total })); // fix: total was undefined in fallback
             console.log('[Dashboard] fallback estado pagos desde listado', pagosEstadoArr);
           } catch (e) {
             console.warn('[Dashboard] No se pudo obtener listado de pagos para fallback', e?.message || e);
@@ -607,9 +606,9 @@ async function cargarDashboard() {
         }
         const getPagoC = (name) => {
           const item = pagosEstadoArr.find(s => (s.estado || s.dataValues?.estado) === name);
-          return parseInt((item && (item.total ?? item.dataValues?.total)) || 0) || 0;
+          return parseInt((item && (item.cantidad ?? item.total ?? item.dataValues?.cantidad)) || 0) || 0;
         };
-        const totalPag = pagosEstadoArr.reduce((sum, s) => sum + (parseInt((s.total ?? s.dataValues?.total) || 0) || 0), 0) || parseInt(d.totalPagosCount || 0) || 0;
+        const totalPag = pagosEstadoArr.reduce((sum, s) => sum + (parseInt((s.cantidad ?? s.total ?? s.dataValues?.cantidad) || 0) || 0), 0) || parseInt(d.totalPagosCount || 0) || 0;
         const updPagDonut = (id, val, color, countElId) => {
           const el = document.getElementById(id);
           const cnt = document.getElementById(countElId);

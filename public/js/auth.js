@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (perfil && perfil.id) {
               let rol = (perfil.rol || perfil.role || perfil.rol_nombre || '').toString().toLowerCase();
               if (rol.includes('admin') && !rol.includes('super')) rol = 'admin';
-              else if (rol.includes('func') || rol.includes('secretaria')) rol = 'funcionario';
+              else if (rol.includes('func') || rol.includes('secretaria') || rol.includes('direcc') || rol.includes('jefe') || rol.includes('encargado') || rol.includes('tesorer')) rol = 'funcionario';
               else if (rol.includes('super')) rol = 'superadministrador';
               else if (rol.includes('ciud')) rol = 'ciudadano';
               
@@ -363,6 +363,10 @@ async function manejarLogin(e) {
         // independientemente de lo que diga 'portal' (que a veces devuelve 'ciudadano' por defecto)
         const esFuncionario = rolNombreBackend.includes('func') || 
                               rolNombreBackend.includes('secretaria') || 
+                              rolNombreBackend.includes('direcc') ||
+                              rolNombreBackend.includes('jefe') ||
+                              rolNombreBackend.includes('encargado') ||
+                              rolNombreBackend.includes('tesorer') ||
                               normalizarRol(user.role) === 'funcionario';
         
         if (esFuncionario) {
@@ -1604,7 +1608,7 @@ function generarMenu(rol) {
         menuHTML = `
             <li class="nav-item">
                 <a href="#" class="nav-link ${currentPage==='dashboard'?'active':''}" data-page="dashboard">
-                    <i class="bi bi-speedometer2"></i> Panel
+                    <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
             </li>
             <li class="nav-item">
@@ -1657,7 +1661,7 @@ function generarMenu(rol) {
         menuHTML = `
             <li class="nav-item">
                 <a href="#" class="nav-link ${pageKey==='panel-superadmin'?'active':''}" data-page="panel-superadmin">
-                    <i class="bi bi-speedometer2"></i> Panel
+                    <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
             </li>
             <li class="nav-item">
