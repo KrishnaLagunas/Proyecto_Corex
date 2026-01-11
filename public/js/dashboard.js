@@ -64,7 +64,8 @@ async function cargarDashboard() {
     // Título y mensaje según rol
     const headerTitle = esFuncionario ? 'Panel de Funcionario' : 'Panel Administrativo';
     const muniName = currentUser?.municipalidad_nombre || '';
-    const headerInfo = (!esFuncionario && muniName) ? `${muniName}` : '';
+    // Mostrar siempre la municipalidad si está disponible, sin importar el rol
+    const headerInfo = muniName;
 
     // Tarjetas según rol
     const cardsHTML = esFuncionario

@@ -31,6 +31,19 @@ require('dotenv').config();
 // Inicialización de la aplicación Express
 const app = express();
 
+// RUTA DE VERIFICACIÓN
+app.get('/version', (req, res) => {
+  res.send('<h1>VERSION DEL SERVIDOR: 2.0 (ACTUALIZADO)</h1>');
+});
+
+// Middleware para deshabilitar caché (Desarrollo)
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
+
 // Middlewares
 app.use(cors());
 app.use(express.json());

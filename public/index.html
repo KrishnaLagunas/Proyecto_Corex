@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css?v=2">
 </head>
 <body>
     <div id="login-bg"></div>
@@ -131,23 +131,25 @@
 
         <!-- Contenedor de login -->
         <div id="login-container" class="container mt-5 corex-login-bg">
-            <div class="login-grid">
-                <div class="login-left">
-                    <div class="card corex-welcome-card shadow">
-                        <div class="card-body">
-                            <h3 class="mb-2">Bienvenidos al Sistema Corex</h3>
-                            <p class="mb-3">Accede al portal oficial de atención ciudadana, donde podrás realizar trámites municipales en línea de forma rápida, segura y sin filas.</p>
+            <!-- Grid con gap reducido y alineación centrada para que el panel derecho quede centrado respecto al izquierdo -->
+            <div class="login-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem !important; align-items: center; max-width: 1100px; margin: 0 auto;">
+                <div class="login-left" style="width: 100%; display: flex; justify-content: flex-end;">
+                    <!-- Tarjeta de bienvenida MÁS ANCHA (500px) para que el texto ocupe menos líneas y reduzca la altura vertical -->
+                    <div class="corex-welcome-card" style="width: 100%; max-width: 500px; padding: 2rem; border-radius: 20px; background: rgba(255, 255, 255, 0.45) !important; border: 1px solid rgba(255, 255, 255, 0.4) !important; backdrop-filter: blur(12px) !important; box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1); color: #000;">
+                        <div class="card-body" style="background: transparent !important; padding: 0;">
+                            <h3 class="mb-3" style="color: #000; font-weight: 700;">Bienvenidos al Sistema Corex</h3>
+                            <p class="mb-3" style="color: #333;">Accede al portal oficial de atención ciudadana, donde podrás realizar trámites municipales en línea de forma rápida, segura y sin filas.</p>
                             <div class="mb-3">
-                                <div class="fw-semibold mb-2">Desde este sistema podrás:</div>
-                                <ul class="list-unstyled">
+                                <div class="fw-semibold mb-2" style="color: #000;">Desde este sistema podrás:</div>
+                                <ul class="list-unstyled" style="color: #333;">
                                     <li class="mb-2">• Solicitar y revisar el estado de tus trámites.</li>
                                     <li class="mb-2">• Pagar servicios municipales.</li>
                                     <li class="mb-2">• Descargar certificados y documentos.</li>
                                     <li class="mb-2">• Mantener tu información actualizada.</li>
                                 </ul>
                             </div>
-                            <p class="mb-3">🔒 Tus datos están protegidos y el acceso es completamente seguro.</p>
-                            <ul class="list-unstyled mb-0">
+                            <p class="mb-3" style="color: #000;">🔒 Tus datos están protegidos y el acceso es completamente seguro.</p>
+                            <ul class="list-unstyled mb-0" style="color: #333;">
                                 <li class="mb-2">👉 Ingresa con tu correo y contraseña para comenzar.</li>
                                 <li class="mb-2">👉 ¿No tienes cuenta? Regístrate en el Portal Ciudadano.</li>
                                 <li class="mb-2">👉 ¿Olvidaste tu contraseña? Recupérala fácilmente desde aquí.</li>
@@ -155,7 +157,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="login-right">
+                <div class="login-right" style="width: 100%; display: flex; justify-content: flex-start;">
                     <div class="card shadow corex-login-card">
                         <div class="card-body">
                             <h4 class="text-center mb-4">Iniciar Sesión</h4>

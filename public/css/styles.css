@@ -122,39 +122,54 @@ body {
 body:has(#login-container:not(.d-none)) {
     background: #f8f9fa;
     position: relative;
-    overflow: auto;
+    overflow: hidden; /* Forzar ocultar scroll en login */
+    height: 100vh; /* Asegurar altura exacta de viewport */
 }
 
 /* Diseño Corex para el login (sólo visual) */
 #login-container.corex-login-bg {
     position: relative;
-    padding-top: 80px;
-    padding-bottom: 80px;
+    padding-top: 0;
+    padding-bottom: 0;
     background: transparent; /* Fondo se aplica al body para ocupar todo el viewport */
-    overflow-x: auto;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
 }
 
 /* Login Grid Layout - Restored Side-by-Side */
 .login-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 4rem;
+    gap: 2rem;
     align-items: center;
     max-width: 1200px;
     margin: 0 auto;
     min-height: 60vh;
 }
 
-.login-left, .login-right {
+.login-left {
     width: 100%;
     display: flex;
-    justify-content: center;
+    justify-content: flex-end;
+}
+
+.login-right {
+    width: 100%;
+    display: flex;
+    justify-content: flex-start;
 }
 
 @media (max-width: 992px) {
     .login-grid {
         grid-template-columns: 1fr;
         gap: 2rem;
+    }
+
+    .login-left, .login-right {
+        justify-content: center;
     }
 }
 
@@ -213,16 +228,17 @@ body:not(.auth-mode):has(#register-container:not(.d-none)) footer {
     border: 1px solid rgba(19,97,227,0.12);
 }
 
-.corex-welcome-card {
+/* .corex-welcome-card {
     position: relative;
     border-radius: 20px;
     box-shadow: 0 18px 36px rgba(0,0,0,0.25);
-    background: linear-gradient(180deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.16) 100%);
-    border: 1px solid rgba(255,255,255,0.75);
-    backdrop-filter: blur(20px) saturate(130%);
-    -webkit-backdrop-filter: blur(20px) saturate(130%);
+    background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%) !important;
+    background-color: transparent !important;
+    border: 1px solid rgba(255,255,255,0.3) !important;
+    backdrop-filter: blur(15px) saturate(130%);
+    -webkit-backdrop-filter: blur(15px) saturate(130%);
     color: #1f2937;
-}
+} */
 
 .password-group .input-group-text {
     cursor: default;
