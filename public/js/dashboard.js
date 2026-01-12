@@ -55,21 +55,33 @@ async function cargarDashboard() {
 
     // Detectar rol actual
     const currentUser = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
-    const currentRole = currentUser?.role || null;
-    const esFuncionario = currentRole === 'funcionario';
+    const rRaw = currentUser && (currentUser.rol || currentUser.role || currentUser.rol_nombre);
+    const roleStr = (rRaw || '').toString().toLowerCase();
+    
+    let esFuncionario = false;
+    if (roleStr.includes('func') || roleStr.includes('secretaria') || roleStr.includes('direcc') || roleStr.includes('jefe') || roleStr.includes('encargado') || roleStr.includes('tesorer')) {
+        esFuncionario = true;
+    }
+    // Asegurar que admin/superadmin NO sean considerados funcionarios para la vista
+    let esAdmin = false;
+    if (roleStr.includes('admin') || roleStr.includes('super')) {
+        esFuncionario = false;
+        esAdmin = true;
+    }
 
     // Construir UI con IDs para actualización en tiempo real
     mainContent.classList.remove('d-none');
 
     // Título y mensaje según rol
-    const headerTitle = esFuncionario ? 'Panel de Funcionario' : 'Panel Administrativo';
+    const headerTitle = esFuncionario ? 'Panel de Funcionario' : (esAdmin ? 'Panel Administrativo' : 'Panel de Control');
     const muniName = currentUser?.municipalidad_nombre || '';
     // Mostrar siempre la municipalidad si está disponible, sin importar el rol
     const headerInfo = muniName;
 
     // Tarjetas según rol
-    const cardsHTML = esFuncionario
-      ? `
+    let cardsHTML = '';
+    if (esFuncionario) {
+        cardsHTML = `
           <div class="col-md-6 col-lg-4 mb-4">
             <a href="#" class="kpi-card" data-page="tramites">
               <div class="kpi-icon"><i class="bi bi-file-earmark-text"></i></div>
@@ -90,8 +102,9 @@ async function cargarDashboard() {
               </div>
             </a>
           </div>
-        `
-      : `
+        `;
+    } else if (esAdmin) {
+        cardsHTML = `
           <div class="col-sm-6 col-lg-3 mb-4">
             <a href="#" class="kpi-card" data-page="usuarios">
               <div class="kpi-icon"><i class="bi bi-people"></i></div>
@@ -140,6 +153,7 @@ async function cargarDashboard() {
             </div>
           </div>
         `;
+    }
 
     mainContent.innerHTML = `
       <div class="container-fluid py-3">
@@ -233,7 +247,7 @@ async function cargarDashboard() {
               </div>
             </div>
           </div>
-          ${!esFuncionario ? `
+          ${esAdmin ? `
           <div class="col-lg-6 mb-3">
             <div class="card shadow-sm chart-card">
               <div class="card-header d-flex justify-content-between align-items-center">

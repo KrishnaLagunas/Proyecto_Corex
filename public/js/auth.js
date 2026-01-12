@@ -548,11 +548,13 @@ async function redirigirSegunRol(usuario) {
     }
     
     // Redirigir según el rol
-    switch (usuario.role) {
+    const rolNormalizado = String(usuario.role || '').toLowerCase();
+    switch (rolNormalizado) {
         case 'superadministrador':
             cargarInterfazSuperadmin(usuario);
             break;
         case 'admin':
+        case 'administrador':
             cargarInterfazAdmin(usuario);
             break;
         case 'funcionario':
@@ -562,8 +564,9 @@ async function redirigirSegunRol(usuario) {
             cargarPortalCiudadano(usuario);
             break;
         default:
-            console.error('Rol no reconocido:', usuario.role, '— mostrando interfaz de administrador por defecto');
-            cargarInterfazAdmin(usuario);
+            console.error('Rol no reconocido:', usuario.role);
+            mostrarNotificacion('Error: No se pudo determinar el rol del usuario.', 'danger');
+            setTimeout(() => cerrarSesion(), 2000);
     }
 }
 

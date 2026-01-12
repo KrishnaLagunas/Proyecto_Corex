@@ -3,6 +3,34 @@ function cargarContenidoPagina(pagina) {
     const mainContent = document.getElementById('main-content');
     mostrarCargando(true);
     
+    // --- Verificación de Permisos (Seguridad) ---
+    const uAuth = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : JSON.parse(localStorage.getItem('usuario') || '{}');
+    const rAuth = String(uAuth && (uAuth.rol || uAuth.role || uAuth.rol_nombre) || '').toLowerCase();
+    
+    const isSuper = rAuth.includes('super');
+    const isAdmin = rAuth.includes('admin') && !isSuper;
+    const isFuncionario = rAuth.includes('func') || rAuth.includes('secretaria') || rAuth.includes('direcc') || rAuth.includes('jefe') || rAuth.includes('encargado') || rAuth.includes('tesorer');
+    
+    // Módulos restringidos a Administradores
+    const adminPages = ['usuarios', 'departamentos', 'presupuestos', 'proveedores', 'proyectos', 'reportes'];
+    
+    if (adminPages.includes(pagina)) {
+        if (!isSuper && !isAdmin) {
+            console.warn(`Acceso denegado a módulo administrativo '${pagina}' para rol '${rAuth}'. Redirigiendo...`);
+            mostrarNotificacion('No tienes permisos para acceder a esta sección.', 'danger');
+            
+            // Redirigir según rol
+            if (isFuncionario) {
+                pagina = 'dashboard';
+                try { localStorage.setItem('currentPage', 'dashboard'); } catch (_) {}
+            } else {
+                pagina = 'portal-inicio';
+                try { localStorage.setItem('currentPage', 'portal-inicio'); } catch (_) {}
+            }
+        }
+    }
+    // ---------------------------------------------
+    
     switch (pagina) {
         case 'panel-superadmin': {
             const mainContent = document.getElementById('main-content');
