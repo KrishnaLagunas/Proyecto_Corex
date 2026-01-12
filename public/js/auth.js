@@ -1310,15 +1310,19 @@ function mostrarFormularioRecuperarPassword() {
         }
 
         loginContainer.innerHTML = `
-            <div class="row justify-content-center">
+            <div class="row justify-content-center w-100">
                 <div class="col-md-6 col-lg-5">
-                    <div class="card shadow">
+                    <div class="card shadow corex-login-card">
                         <div class="card-header bg-primary text-white text-center py-3">
                             <h3 class="mb-0"><i class="bi bi-building me-2"></i>Sistema ERP Municipal</h3>
                             <p class="mb-0">Gestión Municipal Inteligente</p>
                         </div>
                         <div class="card-body p-4">
                             <h4 class="text-center mb-4">Recuperar Contraseña</h4>
+                            <div class="alert alert-info mb-4" role="alert" style="font-size: 0.9rem;">
+                                <i class="bi bi-info-circle-fill me-2"></i>
+                                Ingresa tu correo electrónico registrado y recibirás un enlace de verificación para restablecer tu contraseña. El enlace tiene una validez de 15 minutos.
+                            </div>
                             <form id="smtp-reset-form">
                                 <div class="mb-3">
                                     <label for="smtp-recovery-email" class="form-label">Introduzca el correo electrónico</label>
@@ -1512,7 +1516,7 @@ function mostrarFormularioResetConToken(token) {
         loginContainer.innerHTML = `
             <div class="row justify-content-center">
                 <div class="col-md-6 col-lg-5">
-                    <div class="card shadow">
+                    <div class="card shadow corex-login-card">
                         <div class="card-header bg-primary text-white text-center py-3">
                             <h3 class="mb-0"><i class="bi bi-building me-2"></i>Sistema ERP Municipal</h3>
                             <p class="mb-0">Gestión Municipal Inteligente</p>

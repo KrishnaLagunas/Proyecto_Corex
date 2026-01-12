@@ -389,6 +389,22 @@ body:not(.auth-mode):has(#register-container:not(.d-none)) footer {
 #login-container .card { height: auto; }
 #login-container .corex-login-card .card-body > form { margin-bottom: 0; }
 
+/* Header con fondo azul específico para login */
+#login-container .card-header.bg-primary {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Arreglo input group radius */
+#login-container .input-group .form-control {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+#login-container .input-group .input-group-text {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
 /* Layout principal */
 #app {
     display: flex;
