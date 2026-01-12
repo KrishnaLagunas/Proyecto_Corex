@@ -1514,7 +1514,7 @@ function mostrarFormularioResetConToken(token) {
             loginContainer.dataset.originalHtml = loginContainer.innerHTML;
         }
         loginContainer.innerHTML = `
-            <div class="row justify-content-center">
+            <div class="row justify-content-center w-100">
                 <div class="col-md-6 col-lg-5">
                     <div class="card shadow corex-login-card">
                         <div class="card-header bg-primary text-white text-center py-3">
@@ -1529,6 +1529,9 @@ function mostrarFormularioResetConToken(token) {
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="bi bi-key"></i></span>
                                         <input type="password" class="form-control" id="token-new-password" required>
+                                        <button class="btn btn-outline-secondary" type="button" id="toggle-new-password" style="border-top-right-radius: 0.375rem; border-bottom-right-radius: 0.375rem;">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
                                     </div>
                                 </div>
                                 <div class="mb-3">
@@ -1536,6 +1539,9 @@ function mostrarFormularioResetConToken(token) {
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="bi bi-shield-lock"></i></span>
                                         <input type="password" class="form-control" id="token-confirm-password" required>
+                                        <button class="btn btn-outline-secondary" type="button" id="toggle-confirm-password" style="border-top-right-radius: 0.375rem; border-bottom-right-radius: 0.375rem;">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
                                     </div>
                                 </div>
                         <div class="d-grid gap-2 mt-2">
@@ -1559,7 +1565,31 @@ function mostrarFormularioResetConToken(token) {
         const tokenForm = document.getElementById('token-reset-form');
         const tokenMessage = document.getElementById('token-message');
         const backLink = document.getElementById('back-to-login-from-token');
-        if (backLink) backLink.addEventListener('click', (e) => { e.preventDefault(); mostrarFormularioLogin(); });
+
+        // Configurar visibilidad de contraseña
+        const togglePassword = (inputId, btnId) => {
+            const input = document.getElementById(inputId);
+            const btn = document.getElementById(btnId);
+            if (input && btn) {
+                btn.addEventListener('click', () => {
+                    const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+                    input.setAttribute('type', type);
+                    const icon = btn.querySelector('i');
+                    if (icon) {
+                        icon.classList.toggle('bi-eye');
+                        icon.classList.toggle('bi-eye-slash');
+                    }
+                });
+            }
+        };
+        togglePassword('token-new-password', 'toggle-new-password');
+        togglePassword('token-confirm-password', 'toggle-confirm-password');
+
+        if (backLink) backLink.addEventListener('click', (e) => { 
+            e.preventDefault(); 
+            // Redirigir a la raíz para limpiar el token de la URL y mostrar el login limpio
+            window.location.href = '/';
+        });
         if (tokenForm) {
             tokenForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
