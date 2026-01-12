@@ -1033,12 +1033,14 @@ async function cargarPortalCiudadano(usuario) {
                                         </span>
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-secondary me-2" onclick="descargarConstanciaTramite(${tramite.id})">
-                                            <i class="bi bi-download"></i> Descargar boleta
-                                        </button>
-                                        <button class="btn btn-sm btn-primary ver-detalle-tramite" data-id="${tramite.id}">
-                                            <i class="bi bi-eye"></i> Ver
-                                        </button>
+                                        <div class="d-flex gap-1">
+                                            <button class="btn btn-sm btn-secondary" onclick="descargarConstanciaTramite(${tramite.id})" title="Descargar boleta" data-bs-toggle="tooltip">
+                                                <i class="bi bi-download"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-success ver-detalle-tramite" data-id="${tramite.id}">
+                                                <i class="bi bi-eye"></i> Ver
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -1115,6 +1117,16 @@ async function cargarPortalCiudadano(usuario) {
             </div>
         `;
         
+        // Inicializar tooltips de Bootstrap
+        try {
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        } catch (e) {
+            console.warn('No se pudieron inicializar los tooltips', e);
+        }
+
         // Agregar eventos a los botones
         const btnMisTramites = document.getElementById('btn-mis-tramites');
         const btnNuevoTramite = document.getElementById('btn-nuevo-tramite');
@@ -2017,12 +2029,23 @@ async function cargarMisTramites(usuario) {
                         <td><span class="badge ${obtenerColorEstadoTramite(pagosCompletadosPorTramite.has(tramite.id) || tramite.pago_completado ? 'pagado' : tramite.estado)}" data-estado="${pagosCompletadosPorTramite.has(tramite.id) || tramite.pago_completado ? 'pagado' : tramite.estado}">${obtenerNombreEstadoTramite(pagosCompletadosPorTramite.has(tramite.id) || tramite.pago_completado ? 'pagado' : tramite.estado)}</span></td>
                         <td>
                             <div class="d-flex gap-2">
-                                <button class="btn btn-sm btn-primary ver-detalle-tramite" data-id="${tramite.id}"><i class="bi bi-eye"></i> Ver</button>
+                                <button class="btn btn-sm btn-secondary" onclick="descargarConstanciaTramite(${tramite.id})" title="Descargar boleta" data-bs-toggle="tooltip">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                                <button class="btn btn-sm btn-success ver-detalle-tramite" data-id="${tramite.id}"><i class="bi bi-eye"></i> Ver</button>
                                 ${String(tramite.estado).toLowerCase() === 'pendiente' && !pagosCompletadosPorTramite.has(tramite.id) ? `<button class="btn btn-sm btn-outline-danger quitar-tramite" data-id="${tramite.id}" data-titulo="${tramite.titulo}" data-tipo="${obtenerNombreTipoTramite(tramite.tipo)}"><i class="bi bi-x-circle"></i> Quitar</button>` : ''}
                             </div>
                         </td>
                     </tr>
                 `).join('');
+                
+                // Inicializar tooltips
+                try {
+                    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                    tooltipTriggerList.map(function (tooltipTriggerEl) {
+                        return new bootstrap.Tooltip(tooltipTriggerEl);
+                    });
+                } catch (e) {}
             }
             if (paginaActualEl) paginaActualEl.textContent = `${paginaActual} / ${totalPaginas}`;
             if (infoPaginacion) infoPaginacion.textContent = `Mostrando ${start + 1}–${end} de ${listaFiltrada.length}`;
