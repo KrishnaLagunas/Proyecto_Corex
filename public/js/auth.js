@@ -487,8 +487,22 @@ async function redirigirSegunRol(usuario) {
                     const emailEl = document.getElementById('perfil-modal-email');
                     const avatarModal = document.getElementById('perfil-modal-avatar');
                     const ultimoEl = document.getElementById('perfil-modal-ultimo');
+                    const muniContainer = document.getElementById('perfil-modal-muni-container');
+                    const muniValue = document.getElementById('perfil-modal-muni');
+
                     if (nombreEl) nombreEl.textContent = `${perfil.nombre || ''} ${perfil.apellido || ''}`.trim();
                     if (rolEl) rolEl.textContent = obtenerNombreRol(perfil.role || usuario.role);
+                    
+                    if (muniContainer && muniValue) {
+                        const userRole = (perfil.role || usuario.role || '').toLowerCase();
+                        if (userRole !== 'ciudadano' && perfil.municipalidad_nombre) {
+                            muniValue.textContent = perfil.municipalidad_nombre;
+                            muniContainer.style.display = 'block';
+                        } else {
+                            muniContainer.style.display = 'none';
+                        }
+                    }
+
                     if (emailEl) emailEl.textContent = perfil.email || usuario.email;
                     if (avatarModal) {
                         avatarModal.innerHTML = perfil.foto_url ? `<img src="${perfil.foto_url}" style="width:100%;height:100%;object-fit:cover;">` : '<i class="bi bi-person-circle" style="font-size:2rem;"></i>';
