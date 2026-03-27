@@ -144,14 +144,19 @@ async function cargarPerfil() {
                                 </div>
                                 <div class="row mb-3">
                                     <div class="col-md-4 fw-bold">Rol:</div>
-                                    <div class="col-md-8">${usuario.role}</div>
+                                    <div class="col-md-8">${usuario.role || 'Sin asignar'}</div>
                                 </div>
-                                ${usuario.departamento ? `
+                                ${(usuario.departamentos && usuario.departamentos.length > 0) ? `
+                                    <div class="row mb-3">
+                                        <div class="col-md-4 fw-bold">Departamento:</div>
+                                        <div class="col-md-8">${usuario.departamentos[0].nombre}</div>
+                                    </div>
+                                ` : (usuario.departamento ? `
                                     <div class="row mb-3">
                                         <div class="col-md-4 fw-bold">Departamento:</div>
                                         <div class="col-md-8">${usuario.departamento.nombre}</div>
                                     </div>
-                                ` : ''}
+                                ` : '')}
                             </div>
                             
                             <div id="form-perfil" class="d-none">
@@ -519,22 +524,23 @@ async function mostrarListaUsuarios() {
             </div>
         </div>
 
-        <table class="table table-striped table-hover align-middle table-fullwidth">
-                <thead>
-                    <tr>
-                        <th class="text-center">ID</th>
-                        <th>Nombre</th>
-                        <th>Email</th>
-                        <th class="text-nowrap">RUT</th>
-                        <th class="text-center">Rol</th>
-                        <th>Departamento</th>
-                        <th class="text-center">Estado</th>
-                        <th class="text-center">Creado</th>
-                        <th class="text-center col-actions">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody id="tabla-usuarios"></tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle table-fullwidth">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Email</th>
+                            <th class="text-nowrap">RUT</th>
+                            <th class="text-center">Rol</th>
+                            <th>Departamento</th>
+                            <th class="text-center">Estado</th>
+                            <th class="text-center">Creado</th>
+                            <th class="text-center col-actions">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabla-usuarios"></tbody>
+            </table>
+        </div>
         <div class="d-flex justify-content-center mt-3" id="paginacion-usuarios"></div>
     `;
 
@@ -590,18 +596,21 @@ async function actualizarTablaUsuarios(page = 1) {
         if (usuarios.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="9" class="text-center">No hay usuarios que coincidan</td>
+                    <td colspan="8" class="text-center">No hay usuarios que coincidan</td>
                 </tr>
             `;
         } else {
             tbody.innerHTML = usuarios.map(u => `
-                <tr>
-                    <td class="text-center">${u.id}</td>
+                <tr data-id="${u.id}">
                     <td class="cell-wrap">${(u.nombre || '')} ${(u.apellido || '')}</td>
                     <td class="cell-wrap cell-email">${u.email || ''}</td>
                     <td class="cell-nowrap">${u.rut || ''}</td>
                     <td class="text-center">${u.Rol?.nombre || u.rol_nombre || ''}</td>
-                    <td class="cell-wrap">${u.Municipalidad?.nombre || 'N/A'}</td>
+                    <td class="cell-wrap">${(() => {
+                        const deptos = u.Departamentos || u.departamentos;
+                        if (deptos && deptos.length > 0) return deptos[0].nombre;
+                        return u.departamento?.nombre || 'N/A';
+                    })()}</td>
                     <td class="text-center"><span class="estado-${u.estado}">${u.estado}</span></td>
                     <td class="text-center">${typeof formatearFecha === 'function' ? formatearFecha(u.createdAt) : ''}</td>
                     <td class="text-center col-actions">
@@ -614,9 +623,6 @@ async function actualizarTablaUsuarios(page = 1) {
                             </button>
                             <button class="btn ${u.estado === 'activo' ? 'btn-toggle' : 'btn-toggle btn-activate'}" onclick="cambiarEstadoUsuario(${u.id}, '${u.estado === 'activo' ? 'inactivo' : 'activo'}')" title="${u.estado === 'activo' ? 'Desactivar' : 'Activar'}">
                                 <i class="bi ${u.estado === 'activo' ? 'bi-person-x' : 'bi-person-check'}"></i>
-                            </button>
-                            <button class="btn btn-outline-danger" onclick="eliminarUsuario(${u.id})" title="Eliminar">
-                                <i class="bi bi-trash"></i>
                             </button>
                         </div>
                     </td>
@@ -932,7 +938,12 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                             <label for="departamento_id" class="form-label">Departamento (solo funcionario)</label>
                                             <select class="form-select" id="departamento_id">
                                                 <option value="">Ninguno</option>
-                                                ${departamentos.map(d => `<option value="${d.id}" ${usuario?.departamento_id === d.id || usuario?.Departamento?.id === d.id ? 'selected' : ''}>${d.nombre}</option>`).join('')}
+                                                ${(() => {
+                                                    const currentDeptoId = (usuario?.Departamentos && usuario.Departamentos.length > 0) 
+                                                        ? usuario.Departamentos[0].id 
+                                                        : (usuario?.departamento_id || usuario?.Departamento?.id);
+                                                    return departamentos.map(d => `<option value="${d.id}" ${String(currentDeptoId) === String(d.id) ? 'selected' : ''}>${d.nombre}</option>`).join('');
+                                                })()}
                                             </select>
                                         </div>
                                     </div>` : ''}
@@ -1019,7 +1030,8 @@ async function mostrarFormularioUsuario(usuarioId = null) {
             const keyword = roleToDeptoKeyword[selectedRole];
             
             // Guardar selección actual para intentar mantenerla si sigue siendo válida
-            const currentDeptoId = deptoSelect.value || (usuario?.departamento_id || usuario?.Departamento?.id);
+            // Priorizamos: valor actual del select > primer departamento del usuario > departamento_id antiguo
+            const currentDeptoId = deptoSelect.value || (usuario?.Departamentos?.[0]?.id || usuario?.departamento_id || usuario?.Departamento?.id);
 
             // Limpiar opciones
             deptoSelect.innerHTML = '<option value="">Ninguno</option>';
@@ -1032,7 +1044,6 @@ async function mostrarFormularioUsuario(usuarioId = null) {
 
                 if (keyword) {
                     // Si el rol tiene una restricción, solo mostrar si coincide
-                    // Normalizamos keyword también por si acaso, aunque las claves ya están sin tildes si así las definí
                     if (nombreDepto.includes(normalize(keyword))) {
                         mostrar = true;
                     }
@@ -1162,7 +1173,8 @@ async function guardarUsuario(e) {
     const direccionCompuesta = [direccion, comunaNombre, regionNombre].filter(Boolean).join(', ');
     const payload = { 
         primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
-        email, rut, telefono, direccion: direccionCompuesta, role 
+        email, rut, telefono, direccion: direccionCompuesta, role,
+        departamento_id // Incluir departamento_id para que el backend lo maneje
     };
     if (esSuperadmin && municipalidad_id) {
         payload.municipalidad_id = municipalidad_id;
@@ -1191,13 +1203,7 @@ async function guardarUsuario(e) {
           } else {
               creado = await fetchAPI('/usuarios', { method: 'POST', body: payload });
           }
-          // Asignar departamento si fue seleccionado y el creador es administrador
-          try {
-              const nuevoId = creado?.usuario?.id || creado?.id;
-              if (nuevoId && departamento_id) {
-                  await fetchAPI(`/departamentos/${departamento_id}/funcionarios`, { method: 'POST', body: { usuarios: [nuevoId] } });
-              }
-          } catch (e) { console.warn('Asignación de departamento fallida (no bloquea creación):', e); }
+          // El departamento ya se maneja directamente en el payload de creación/actualización del usuario
           mostrarNotificacion('Usuario creado correctamente', 'success');
         }
         cargarUsuarios();
@@ -1617,7 +1623,7 @@ async function verDetalleUsuario(usuarioId) {
                             </div>
                             <div class="row mb-3">
                                 <div class="col-md-4 fw-bold">Nombre:</div>
-                                <div class="col-md-8">${usuario.nombre} ${usuario.apellido}</div>
+                                <div class="col-md-8">${usuario.primer_nombre || usuario.nombre || ''} ${usuario.segundo_nombre || ''} ${usuario.primer_apellido || usuario.apellido || ''} ${usuario.segundo_apellido || ''}</div>
                             </div>
                             <div class="row mb-3">
                                 <div class="col-md-4 fw-bold">Email:</div>
@@ -1625,11 +1631,15 @@ async function verDetalleUsuario(usuarioId) {
                             </div>
                             <div class="row mb-3">
                                 <div class="col-md-4 fw-bold">Rol:</div>
-                                <div class="col-md-8">${usuario.role}</div>
+                                <div class="col-md-8">${usuario.Rol?.nombre || usuario.role || 'Sin asignar'}</div>
                             </div>
                             <div class="row mb-3">
                                 <div class="col-md-4 fw-bold">Departamento:</div>
-                                <div class="col-md-8">${usuario.departamento?.nombre || 'N/A'}</div>
+                                <div class="col-md-8">${(() => {
+                                    const deptos = usuario.Departamentos || usuario.departamentos;
+                                    if (deptos && deptos.length > 0) return deptos[0].nombre;
+                                    return usuario.departamento?.nombre || 'N/A';
+                                })()}</div>
                             </div>
                             <div class="row mb-3">
                                 <div class="col-md-4 fw-bold">Estado:</div>
@@ -1886,14 +1896,19 @@ async function cargarPerfil() {
                                 </div>
                                 <div class="row mb-3">
                                     <div class="col-md-4 fw-bold">Rol:</div>
-                                    <div class="col-md-8">${usuario.role}</div>
+                                    <div class="col-md-8">${usuario.role || 'Sin asignar'}</div>
                                 </div>
-                                ${usuario.departamento ? `
+                                ${(usuario.departamentos && usuario.departamentos.length > 0) ? `
+                                    <div class="row mb-3">
+                                        <div class="col-md-4 fw-bold">Departamento:</div>
+                                        <div class="col-md-8">${usuario.departamentos[0].nombre}</div>
+                                    </div>
+                                ` : (usuario.departamento ? `
                                     <div class="row mb-3">
                                         <div class="col-md-4 fw-bold">Departamento:</div>
                                         <div class="col-md-8">${usuario.departamento.nombre}</div>
                                     </div>
-                                ` : ''}
+                                ` : '')}
                             </div>
                             
                             <div id="form-perfil" class="d-none">

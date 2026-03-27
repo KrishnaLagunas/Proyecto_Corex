@@ -664,17 +664,31 @@ const tramitesController = {
       if (req.user.rol_nombre === 'ciudadano') {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
+      const { fechaInicio, fechaFin, anio } = req.query;
       const rol = String(req.user.rol_nombre || '').toLowerCase();
       const muniId = req.user?.municipalidad_id || null;
       const isAdmin = rol === 'administrador';
       const isFuncionario = ['funcionario','secretaria de educación','secretaria de salud','secretaria de seguridad','secretaria de obras','secretaria de transito'].includes(rol);
-      const filterWhere = (isAdmin || isFuncionario)
+      
+      let filterWhere = (isAdmin || isFuncionario)
         ? (muniId
             ? (isAdmin
                 ? { [Op.or]: [{ municipalidad_id: muniId }, { municipalidad_id: null }] }
                 : { municipalidad_id: muniId })
             : { municipalidad_id: -1 })
         : {};
+
+      // Aplicar filtros de fecha si existen
+      if (fechaInicio && fechaFin) {
+        filterWhere.fecha_solicitud = { [Op.between]: [new Date(fechaInicio), new Date(fechaFin)] };
+      } else if (anio) {
+        filterWhere = {
+          ...filterWhere,
+          [Op.and]: [
+            sequelize.where(sequelize.fn('YEAR', sequelize.col('fecha_solicitud')), anio)
+          ]
+        };
+      }
       
       // Estadísticas por estado
       const estadoStats = await Tramite.findAll({
@@ -720,18 +734,20 @@ const tramitesController = {
         group: ['Departamento.nombre_departamento']
       });
       
-      // Trámites creados por mes (últimos 12 meses)
+      // Trámites creados por mes (últimos 12 meses o según filtro)
+      const mesWhere = { ...filterWhere };
+      if (!fechaInicio && !fechaFin && !anio) {
+        mesWhere.fecha_solicitud = {
+          [Op.gte]: sequelize.literal('DATE_SUB(NOW(), INTERVAL 12 MONTH)')
+        };
+      }
+
       const tramitesPorMes = await Tramite.findAll({
         attributes: [
           [sequelize.fn('DATE_FORMAT', sequelize.col('fecha_solicitud'), '%Y-%m'), 'mes'],
           [sequelize.fn('COUNT', sequelize.col('Tramite.id')), 'total']
         ],
-        where: {
-          ...(filterWhere || {}),
-          fecha_solicitud: {
-            [Op.gte]: sequelize.literal('DATE_SUB(NOW(), INTERVAL 12 MONTH)')
-          }
-        },
+        where: mesWhere,
         group: [sequelize.fn('DATE_FORMAT', sequelize.col('fecha_solicitud'), '%Y-%m')],
         order: [[sequelize.fn('DATE_FORMAT', sequelize.col('fecha_solicitud'), '%Y-%m'), 'ASC']]
       });
@@ -750,21 +766,26 @@ const tramitesController = {
 };
 
 /**
- * Obtiene todos los tipos de trámites
+ * Obtiene todos los tipos de trámites desde ConfiguracionPago
  * @param {Object} req - Objeto de solicitud
  * @param {Object} res - Objeto de respuesta
  * @param {Function} next - Función next
  */
 tramitesController.getTiposTramites = async (req, res, next) => {
   try {
-    // Simulamos una lista de tipos de trámites
-    const tiposTramites = [
-      { id: 1, nombre: 'Licencia de Construcción', descripcion: 'Permiso para realizar obras de construcción', costo: 500, tiempoEstimado: '15 días', estado: 'activo' },
-      { id: 2, nombre: 'Permiso Comercial', descripcion: 'Autorización para operar un negocio', costo: 300, tiempoEstimado: '10 días', estado: 'activo' },
-      { id: 3, nombre: 'Certificado de Residencia', descripcion: 'Documento que certifica la residencia en el municipio', costo: 100, tiempoEstimado: '3 días', estado: 'activo' },
-      { id: 4, nombre: 'Registro de Propiedad', descripcion: 'Inscripción de bienes inmuebles', costo: 800, tiempoEstimado: '20 días', estado: 'activo' },
-      { id: 5, nombre: 'Solicitud de Información Pública', descripcion: 'Acceso a información pública municipal', costo: 0, tiempoEstimado: '5 días', estado: 'activo' }
-    ];
+    const configuraciones = await ConfiguracionPago.findAll({
+      where: { estado: 'activo' },
+      order: [['tramite_nombre', 'ASC']]
+    });
+
+    const tiposTramites = configuraciones.map(config => ({
+      id: config.id,
+      nombre: config.tramite_nombre,
+      descripcion: config.categoria || 'Sin descripción',
+      costo: config.modalidad === 'fijo' ? config.monto_fijo : `${config.porcentaje}%`,
+      tiempoEstimado: 'A convenir', // Este dato no está en ConfiguracionPago
+      estado: config.estado
+    }));
     
     return res.status(200).json(tiposTramites);
   } catch (error) {
@@ -773,22 +794,42 @@ tramitesController.getTiposTramites = async (req, res, next) => {
 };
 
 /**
- * Crea un nuevo tipo de trámite
+ * Crea un nuevo tipo de trámite en ConfiguracionPago
  * @param {Object} req - Objeto de solicitud
  * @param {Object} res - Objeto de respuesta
  * @param {Function} next - Función next
  */
 tramitesController.createTipoTramite = async (req, res, next) => {
   try {
-    // En una implementación real, aquí se guardaría en la base de datos
-    // Por ahora, simplemente devolvemos el objeto con un ID simulado
-    const nuevoTipoTramite = {
-      id: Date.now(), // Simulamos un ID único
-      ...req.body,
-      estado: 'activo'
-    };
+    const { 
+      nombre, 
+      categoria, 
+      anio, 
+      modalidad, 
+      monto_fijo, 
+      porcentaje, 
+      departamento_id,
+      estado 
+    } = req.body;
+
+    const nuevaConfig = await ConfiguracionPago.create({
+      tramite_nombre: nombre,
+      categoria,
+      anio: anio || new Date().getFullYear(),
+      modalidad: modalidad || 'fijo',
+      monto_fijo: modalidad === 'fijo' ? monto_fijo : null,
+      porcentaje: modalidad === 'porcentaje' ? porcentaje : null,
+      departamento_id,
+      estado: estado || 'activo'
+    });
     
-    return res.status(201).json(nuevoTipoTramite);
+    return res.status(201).json({
+      id: nuevaConfig.id,
+      nombre: nuevaConfig.tramite_nombre,
+      categoria: nuevaConfig.categoria,
+      estado: nuevaConfig.estado,
+      message: 'Tipo de trámite creado exitosamente'
+    });
   } catch (error) {
     next(error);
   }

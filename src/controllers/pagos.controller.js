@@ -765,8 +765,18 @@ const pagosController = {
       if (req.user.rol_nombre === 'ciudadano') {
         throw new ApiError('No tienes permiso para ver estadísticas', 403);
       }
+      const { fechaInicio, fechaFin, anio } = req.query;
       const muniId = req.user?.municipalidad_id || null;
       
+      const filterWhere = {};
+      if (fechaInicio && fechaFin) {
+        filterWhere.fecha_pago = { [Op.between]: [new Date(fechaInicio), new Date(fechaFin)] };
+      } else if (anio) {
+        filterWhere[Op.and] = [
+          sequelize.where(sequelize.fn('YEAR', sequelize.col('Pago.fecha_pago')), anio)
+        ];
+      }
+
       // Estadísticas por estado
       const estadoStatsOptions = {
         attributes: [
@@ -774,6 +784,7 @@ const pagosController = {
           [sequelize.fn('COUNT', sequelize.col('Pago.id')), 'total'],
           [sequelize.fn('SUM', sequelize.col('Pago.monto')), 'monto_total']
         ],
+        where: { ...filterWhere },
         group: ['estado']
       };
       if (req.user.rol_nombre === 'administrador' && muniId) {
@@ -788,6 +799,7 @@ const pagosController = {
           [sequelize.fn('COUNT', sequelize.col('Pago.id')), 'total'],
           [sequelize.fn('SUM', sequelize.col('Pago.monto')), 'monto_total']
         ],
+        where: { ...filterWhere },
         group: ['metodo_pago']
       };
       if (req.user.rol_nombre === 'administrador' && muniId) {
@@ -795,19 +807,21 @@ const pagosController = {
       }
       const metodoPagoStats = await Pago.findAll(metodoPagoOptions);
       
-      // Pagos por mes (últimos 12 meses)
+      // Pagos por mes (últimos 12 meses o según filtro)
+      const mesWhere = { ...filterWhere, estado: 'completado' };
+      if (!fechaInicio && !fechaFin && !anio) {
+        mesWhere.fecha_pago = {
+          [Op.gte]: sequelize.literal('DATE_SUB(NOW(), INTERVAL 12 MONTH)')
+        };
+      }
+
       const pagosPorMesOptions = {
         attributes: [
           [sequelize.fn('DATE_FORMAT', sequelize.col('Pago.fecha_pago'), '%Y-%m'), 'mes'],
           [sequelize.fn('COUNT', sequelize.col('Pago.id')), 'total'],
           [sequelize.fn('SUM', sequelize.col('Pago.monto')), 'monto_total']
         ],
-        where: {
-          fecha_pago: {
-            [Op.gte]: sequelize.literal('DATE_SUB(NOW(), INTERVAL 12 MONTH)')
-          },
-          estado: 'completado'
-        },
+        where: mesWhere,
         group: [sequelize.fn('DATE_FORMAT', sequelize.col('Pago.fecha_pago'), '%Y-%m')],
         order: [[sequelize.fn('DATE_FORMAT', sequelize.col('Pago.fecha_pago'), '%Y-%m'), 'ASC']]
       };

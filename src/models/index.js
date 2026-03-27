@@ -29,6 +29,12 @@ Usuario.hasMany(Documento, { foreignKey: 'usuario_id' });
 // Usuario.hasMany(Proyecto, { foreignKey: 'responsable_id' });
 Usuario.belongsTo(Municipalidad, { foreignKey: 'municipalidad_id' });
 Usuario.belongsTo(Rol, { foreignKey: 'id_rol' });
+Usuario.belongsToMany(Departamento, { 
+  as: 'Departamentos', 
+  through: DepartamentoUsuario, 
+  foreignKey: 'usuario_id', 
+  otherKey: 'departamento_id' 
+});
 Usuario.belongsToMany(Municipalidad, { 
   as: 'MunicipalidadesAsignadas', 
   through: MunicipalidadUsuario, 
@@ -58,6 +64,15 @@ Tramite.belongsTo(Departamento, { foreignKey: 'departamento_id' });
 Departamento.hasMany(Tramite, { foreignKey: 'departamento_id' });
 Tramite.hasMany(Documento, { foreignKey: 'tramite_id' });
 Tramite.hasMany(Pago, { foreignKey: 'tramite_id' });
+
+ConfiguracionPago.belongsTo(Departamento, { foreignKey: 'departamento_id' });
+Departamento.hasMany(ConfiguracionPago, { foreignKey: 'departamento_id' });
+Departamento.belongsToMany(Usuario, { 
+  as: 'Funcionarios', 
+  through: DepartamentoUsuario, 
+  foreignKey: 'departamento_id', 
+  otherKey: 'usuario_id' 
+});
 
 // Relaciones de Documento
 Documento.belongsTo(Usuario, { foreignKey: 'usuario_id' });

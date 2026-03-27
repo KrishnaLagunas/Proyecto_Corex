@@ -255,8 +255,10 @@ function mostrarCargando(mostrar = true) {
     if (loading) {
         if (mostrar) {
             loading.classList.remove('d-none');
+            loading.classList.add('d-flex');
         } else {
             loading.classList.add('d-none');
+            loading.classList.remove('d-flex');
         }
     }
 }

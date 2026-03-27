@@ -109,6 +109,11 @@ const usuariosController = {
           {
             model: require('../models').Rol,
             attributes: ['id', 'nombre']
+          },
+          {
+            model: require('../models').Departamento,
+            as: 'Departamentos',
+            through: { attributes: [] }
           }
         ],
         order: [[sortField, sortOrder]],
@@ -158,6 +163,11 @@ const usuariosController = {
           {
             model: require('../models').Rol,
             attributes: ['id', 'nombre']
+          },
+          {
+            model: require('../models').Departamento,
+            as: 'Departamentos',
+            through: { attributes: [] }
           }
         ]
       });
@@ -351,6 +361,30 @@ const usuariosController = {
       
       logger.info(`Nuevo usuario creado: ${email} (id_rol=${idRolFinal || 'N/A'})`);
       
+      // Asignar departamento si se proporciona
+      if (req.body.departamento_id) {
+        try {
+          const { Departamento, DepartamentoUsuario } = require('../models');
+          const deptIdRaw = req.body.departamento_id;
+          const deptId = (deptIdRaw && deptIdRaw !== 'Ninguno') ? parseInt(deptIdRaw) : null;
+          
+          if (deptId && !isNaN(deptId)) {
+            const depto = await Departamento.findByPk(deptId);
+            if (depto) {
+              await DepartamentoUsuario.create({
+                usuario_id: parseInt(nuevoUsuario.id),
+                departamento_id: deptId
+              });
+              logger.info(`[Usuarios] Departamento ${deptId} (${depto.nombre}) asignado exitosamente al nuevo usuario ${nuevoUsuario.id}`);
+            } else {
+              logger.warn(`[Usuarios] El departamento ${deptId} no existe para asignar al nuevo usuario`);
+            }
+          }
+        } catch (e) {
+          logger.error(`[Usuarios] Error crítico al asignar departamento inicial: ${e.message}`);
+        }
+      }
+      
       // Obtener el usuario creado (sin la contraseña)
       const usuarioCreado = await Usuario.findByPk(nuevoUsuario.id, {
         attributes: { exclude: ['password'] },
@@ -358,6 +392,15 @@ const usuariosController = {
           { 
             model: Municipalidad,
             attributes: ['id', 'nombre'] 
+          },
+          {
+            model: require('../models').Rol,
+            attributes: ['id', 'nombre']
+          },
+          {
+            model: require('../models').Departamento,
+            as: 'Departamentos',
+            through: { attributes: [] }
           }
         ]
       });
@@ -484,7 +527,6 @@ const usuariosController = {
       if (esAdmin) {
         if (id_rol) usuario.id_rol = id_rol;
         if (municipalidad_id) usuario.municipalidad_id = municipalidad_id;
-        if (!municipalidad_id && req.body.departamento_id) usuario.municipalidad_id = req.body.departamento_id;
         if (role) {
           const input = String(role).toLowerCase();
           const map = {
@@ -497,6 +539,38 @@ const usuariosController = {
           if (rolFound) usuario.id_rol = rolFound.id;
         }
         if (estado) usuario.estado = estado;
+        
+        // Manejar asignación de departamento
+        if (req.body.departamento_id !== undefined) {
+          try {
+            const deptId = (req.body.departamento_id && req.body.departamento_id !== 'Ninguno') ? parseInt(req.body.departamento_id) : null;
+            const { Departamento, DepartamentoUsuario } = require('../models');
+            const targetUserId = parseInt(id);
+            
+            logger.info(`[Usuarios] Actualizando departamentos para usuario ${targetUserId}. Nuevo deptId: ${deptId}`);
+            
+            // Eliminar asignaciones previas de forma segura
+            await DepartamentoUsuario.destroy({ 
+              where: { usuario_id: targetUserId } 
+            });
+            
+            // Crear nueva asignación si corresponde
+            if (deptId && !isNaN(deptId)) {
+              const depto = await Departamento.findByPk(deptId);
+              if (depto) {
+                await DepartamentoUsuario.create({
+                  usuario_id: targetUserId,
+                  departamento_id: deptId
+                });
+                logger.info(`[Usuarios] Departamento ${deptId} (${depto.nombre}) asignado exitosamente al usuario ${targetUserId}`);
+              } else {
+                logger.warn(`[Usuarios] El departamento ${deptId} no existe en la base de datos`);
+              }
+            }
+          } catch (errorDept) {
+            logger.error(`[Usuarios] Error crítico al actualizar departamento para usuario ${id}: ${errorDept.message}`);
+          }
+        }
       }
 
       // Regla de negocio: si es (o será) funcionario, debe tener municipalidad
@@ -521,6 +595,15 @@ const usuariosController = {
           { 
             model: Municipalidad,
             attributes: ['id', 'nombre'] 
+          },
+          {
+            model: require('../models').Rol,
+            attributes: ['id', 'nombre']
+          },
+          {
+            model: require('../models').Departamento,
+            as: 'Departamentos',
+            through: { attributes: [] }
           }
         ]
       });
@@ -849,9 +932,15 @@ const usuariosController = {
   ,
   getPerfilUsuario: async (req, res, next) => {
     try {
-      const { Usuario, PerfilUsuario, Municipalidad, Rol } = require('../models')
+      const { Usuario, PerfilUsuario, Municipalidad, Rol, Departamento } = require('../models')
       const userId = req.user.id
-      const user = await Usuario.findByPk(userId, { include: [{ model: Municipalidad, attributes: ['id','nombre'] }, { model: Rol }] })
+      const user = await Usuario.findByPk(userId, { 
+        include: [
+          { model: Municipalidad, attributes: ['id','nombre'] }, 
+          { model: Rol },
+          { model: Departamento, as: 'Departamentos', attributes: ['id', 'nombre'], through: { attributes: [] } }
+        ] 
+      })
       if (!user) return res.status(404).json({ message: 'Usuario no encontrado' })
       const perfil = await PerfilUsuario.findOne({ where: { usuario_id: userId } })
       res.json({
@@ -862,6 +951,7 @@ const usuariosController = {
         role: (user.Rol && user.Rol.nombre) || req.user.rol_nombre,
         municipalidad_id: user.municipalidad_id || null,
         municipalidad_nombre: user.Municipalidad ? user.Municipalidad.nombre : null,
+        departamentos: user.Departamentos || [],
         ultimo_login: user.ultimo_login || null,
         foto_url: perfil ? perfil.foto_url : null
       })

@@ -217,13 +217,27 @@ const dashboardController = {
   ,
   getTramitesPorEstado: async (req, res, next) => {
     try {
+      const { fechaInicio, fechaFin, anio } = req.query;
       const rol = req.user?.rol_nombre;
       const muniId = req.user?.municipalidad_id || null;
       const isAdmin = rol === 'administrador';
       const isFuncionario = rol === 'funcionario' || rol === 'secretaria de educación' || rol === 'secretaria de obras' || rol === 'secretaria de transito' || rol === 'secretaria de seguridad' || rol === 'secretaria de salud';
       const emptyFilter = { municipalidad_id: -1 };
       const filtra = (isAdmin || isFuncionario);
-      const where = filtra ? (muniId ? (isAdmin ? { [require('sequelize').Op.or]: [{ municipalidad_id: muniId }, { municipalidad_id: null }] } : { municipalidad_id: muniId }) : emptyFilter) : {};
+      let where = filtra ? (muniId ? (isAdmin ? { [require('sequelize').Op.or]: [{ municipalidad_id: muniId }, { municipalidad_id: null }] } : { municipalidad_id: muniId }) : emptyFilter) : {};
+      
+      // Aplicar filtros de fecha si existen
+      if (fechaInicio && fechaFin) {
+        where.fecha_solicitud = { [Op.between]: [new Date(fechaInicio), new Date(fechaFin)] };
+      } else if (anio) {
+        where = {
+          ...where,
+          [Op.and]: [
+            require('sequelize').where(require('sequelize').fn('YEAR', require('sequelize').col('fecha_solicitud')), anio)
+          ]
+        };
+      }
+
       try { logger.info(`[Dashboard] /tramites/estado filtro`, { rol, muniId, where }); } catch (_) {}
       let rows = [];
       try {

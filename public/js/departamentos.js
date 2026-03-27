@@ -57,17 +57,18 @@ async function cargarDepartamentos() {
                     </div>
                 </div>
 
-                <table class="table table-striped table-hover align-middle table-fullwidth">
-                    <thead>
-                        <tr>
-                            <th class="text-center">ID</th>
-                            <th>Nombre</th>
-                            <th>Estado</th>
-                            <th class="text-center col-actions">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabla-departamentos"></tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle table-fullwidth">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Estado</th>
+                                <th class="text-center col-actions">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-departamentos"></tbody>
+                    </table>
+                </div>
             `;
             try {
                 if (window.mobileNav && typeof window.mobileNav.close === 'function') {
@@ -84,28 +85,26 @@ async function cargarDepartamentos() {
         if (departamentos.length === 0) {
             tablaDepartamentos.innerHTML = `
                 <tr>
-                    <td colspan="6" class="text-center">No hay departamentos registrados</td>
+                    <td colspan="3" class="text-center">No hay departamentos registrados</td>
                 </tr>
             `;
             return;
         }
         
         tablaDepartamentos.innerHTML = departamentos.map(departamento => `
-            <tr>
-                <td class="text-center">${departamento.id}</td>
+            <tr data-id="${departamento.id}">
                 <td class="cell-wrap">${departamento.nombre}</td>
                 <td class="cell-wrap"><span class="status-dot ${(departamento.estado || 'activo')}"></span> ${((departamento.estado || 'activo') === 'activo') ? 'Activo' : 'Inactivo'}</td>
                 
                 <td class="text-center col-actions">
                     <div class="btn-group btn-group-sm table-actions" role="group" aria-label="Acciones">
-                        <button class="btn btn-view" onclick="verDetalleDepartamento(${departamento.id})" title="Ver detalles">
-                            <i class="bi bi-eye"></i>
-                        </button>
                         <button class="btn btn-edit" onclick="editarDepartamento(${departamento.id})" title="Editar departamento">
                             <i class="bi bi-pencil"></i>
                         </button>
-                        <button class="btn btn-danger" onclick="eliminarDepartamento(${departamento.id})" title="Eliminar departamento">
-                            <i class="bi bi-trash"></i>
+                        <button class="btn ${departamento.estado === 'activo' ? 'btn-toggle' : 'btn-toggle btn-activate'}" 
+                                onclick="cambiarEstadoDepartamento(${departamento.id}, '${departamento.estado === 'activo' ? 'inactivo' : 'activo'}')" 
+                                title="${departamento.estado === 'activo' ? 'Desactivar' : 'Activar'}">
+                            <i class="bi ${departamento.estado === 'activo' ? 'bi-person-x' : 'bi-person-check'}"></i>
                         </button>
                     </div>
                 </td>
@@ -138,20 +137,18 @@ async function cargarDepartamentos() {
                         const tabla = document.getElementById('tabla-departamentos');
                         if (tabla) {
                             tabla.innerHTML = nuevos.map(departamento => `
-                                <tr>
-                                    <td class="text-center">${departamento.id}</td>
+                                <tr data-id="${departamento.id}">
                                     <td class="cell-wrap">${departamento.nombre}</td>
                                     <td class="cell-wrap"><span class="status-dot ${(departamento.estado || 'activo')}"></span> ${((departamento.estado || 'activo') === 'activo') ? 'Activo' : 'Inactivo'}</td>
                                     <td class="text-center col-actions">
                                         <div class="btn-group btn-group-sm table-actions" role="group" aria-label="Acciones">
-                                            <button class="btn btn-view" onclick="verDetalleDepartamento(${departamento.id})" title="Ver detalles">
-                                                <i class="bi bi-eye"></i>
-                                            </button>
                                             <button class="btn btn-edit" onclick="editarDepartamento(${departamento.id})" title="Editar departamento">
                                                 <i class="bi bi-pencil"></i>
                                             </button>
-                                            <button class="btn btn-danger" onclick="eliminarDepartamento(${departamento.id})" title="Eliminar departamento">
-                                                <i class="bi bi-trash"></i>
+                                            <button class="btn ${departamento.estado === 'activo' ? 'btn-toggle' : 'btn-toggle btn-activate'}" 
+                                                    onclick="cambiarEstadoDepartamento(${departamento.id}, '${departamento.estado === 'activo' ? 'inactivo' : 'activo'}')" 
+                                                    title="${departamento.estado === 'activo' ? 'Desactivar' : 'Activar'}">
+                                                <i class="bi ${departamento.estado === 'activo' ? 'bi-person-x' : 'bi-person-check'}"></i>
                                             </button>
                                         </div>
                                     </td>
@@ -458,23 +455,24 @@ async function cargarMunicipalidades() {
                         </button>
                     </div>
                 </div>
-                <table class="table table-striped table-hover align-middle table-fullwidth">
-                    <thead>
-                        <tr>
-                            <th class="text-center">ID</th>
-                            <th>Nombre</th>
-                            <th>RUT</th>
-                            <th>Email</th>
-                            <th>Teléfono</th>
-                            <th>Dirección</th>
-                            <th>Región</th>
-                            <th>Comuna</th>
-                            <th>Estado</th>
-                            <th class="text-center col-actions">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tabla-departamentos"></tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle table-fullwidth">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>RUT</th>
+                                <th>Email</th>
+                                <th>Teléfono</th>
+                                <th>Dirección</th>
+                                <th>Región</th>
+                                <th>Comuna</th>
+                                <th>Estado</th>
+                                <th class="text-center col-actions">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-departamentos"></tbody>
+                    </table>
+                </div>
             `;
         }
         const tabla = document.getElementById('tabla-departamentos');
@@ -486,8 +484,7 @@ async function cargarMunicipalidades() {
                 </tr>`;
             }
             return list.map(d => `
-            <tr>
-                <td class="text-center">${d.id}</td>
+            <tr data-id="${d.id}">
                 <td class="cell-wrap">${d.nombre}</td>
                 <td class="cell-wrap">${d.rutFmt || ''}</td>
                 <td class="cell-wrap">${d.email || d.email_contacto || ''}</td>
@@ -1002,16 +999,10 @@ function cargarGestionDepartamentos() {
  * @param {string} nuevoEstado - Nuevo estado ('activo' o 'inactivo')
  */
 async function cambiarEstadoDepartamento(id, nuevoEstado) {
-    const accion = nuevoEstado === 'activo' ? 'activar' : 'desactivar';
-    
-    if (!confirm(`¿Está seguro de que desea ${accion} este departamento?`)) {
-        return;
-    }
-
     try {
         mostrarCargando(true);
         
-        const response = await fetchAPI(`/departamentos/${id}`, {
+        await fetchAPI(`/departamentos/${id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
@@ -1019,12 +1010,12 @@ async function cambiarEstadoDepartamento(id, nuevoEstado) {
             body: JSON.stringify({ estado: nuevoEstado })
         });
 
-        mostrarNotificacion(`Departamento ${accion === 'activar' ? 'activado' : 'desactivado'} exitosamente`, 'success');
+        mostrarNotificacion(`Departamento ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'} exitosamente`, 'success');
         await cargarDepartamentos();
         
     } catch (error) {
-        console.error(`Error al ${accion} departamento:`, error);
-        mostrarNotificacion(`Error al ${accion} departamento: ` + error.message, 'danger');
+        console.error('Error al cambiar estado del departamento:', error);
+        mostrarNotificacion('Error al cambiar estado: ' + error.message, 'danger');
     } finally {
         mostrarCargando(false);
     }
@@ -1072,7 +1063,7 @@ function filtrarDepartamentos() {
     const busqueda = document.getElementById('buscar-departamento').value.toLowerCase();
     const filas = document.querySelectorAll('#tabla-departamentos tr');
     filas.forEach(fila => {
-        const nombre = fila.cells[1].textContent.toLowerCase();
+        const nombre = fila.cells[0].textContent.toLowerCase();
         fila.style.display = nombre.includes(busqueda) ? '' : 'none';
     });
 }

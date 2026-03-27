@@ -13,7 +13,11 @@ const Departamento = sequelize.define('Departamento', {
     allowNull: false,
     field: 'nombre_departamento'
   },
-  // columnas globales: sin estado ni municipalidad_id
+  estado: {
+    type: DataTypes.ENUM('activo', 'inactivo'),
+    defaultValue: 'activo',
+    allowNull: false
+  }
 }, {
   tableName: 'departamentos',
   timestamps: false,

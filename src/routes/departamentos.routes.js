@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const departamentosController = require('../controllers/departamentos.controller');
 const { isAuthenticated, hasRole } = require('../middlewares/auth.middleware');
-const { validateSchema, validateParams } = require('../middlewares/validator.middleware');
+const { validateSchema, validateParams, validateQuery } = require('../middlewares/validator.middleware');
 const { 
   idSchema,
   departamentoQuerySchema,
@@ -19,7 +19,7 @@ const {
 router.get(
   '/',
   isAuthenticated,
-  validateSchema(departamentoQuerySchema, 'query'),
+  validateQuery(departamentoQuerySchema),
   departamentosController.getAllDepartamentos
 );
 

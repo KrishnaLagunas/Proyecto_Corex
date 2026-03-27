@@ -22,20 +22,15 @@ async function cargarTiposTramites() {
             </div>
 
             <div class="row g-2 align-items-end mb-2">
-                <div class="col-md-6">
-                    <input type="text" class="form-control" id="buscar-tipo-tramite" placeholder="Buscar tipo de trámite...">
+                <div class="col-md-9">
+                    <input type="text" class="form-control" id="buscar-tipo-tramite" placeholder="Buscar tipo de trámite..." autocomplete="off" oninput="filtrarTiposTramites()">
                 </div>
                 <div class="col-md-3">
-                    <select class="form-select" id="filtro-estado">
+                    <select class="form-select" id="filtro-estado" onchange="filtrarTiposTramites()">
                         <option value="">Todos los estados</option>
                         <option value="activo">Activo</option>
                         <option value="inactivo">Inactivo</option>
                     </select>
-                </div>
-                <div class="col-md-3 d-flex justify-content-end">
-                    <button class="btn btn-report" onclick="generarReporteTiposTramites()">
-                        <i class="bi bi-file-earmark-text"></i> Reporte
-                    </button>
                 </div>
             </div>
 
@@ -47,53 +42,42 @@ async function cargarTiposTramites() {
                 </div>
             </div>
 
-            <table class="table table-striped table-hover align-middle table-fullwidth">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Nombre</th>
-                        <th>Descripción</th>
-                        <th>Costo</th>
-                        <th>Tiempo Estimado</th>
-                        <th>Estado</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody id="tabla-tipos-tramites">
-                    ${tiposTramites.map(tipo => `
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle table-fullwidth">
+                    <thead>
                         <tr>
-                            <td>${tipo.id}</td>
-                            <td class="text-uppercase">${tipo.nombre}</td>
-                            <td>${tipo.descripcion.substring(0, 50)}${tipo.descripcion.length > 50 ? '...' : ''}</td>
-                            <td>${formatearMoneda(tipo.costo)}</td>
-                            <td>${(tipo.tiempo_estimado ?? tipo.tiempoEstimado) || '-'} días</td>
-                            <td><span class="estado-${tipo.estado}">${tipo.estado}</span></td>
-                            <td>
-                                <button class="btn btn-sm btn-info" onclick="verDetalleTipoTramite(${tipo.id})">
-                                    <i class="bi bi-eye"></i>
-                                </button>
-                                <button class="btn btn-sm btn-edit" onclick="editarTipoTramite(${tipo.id})">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-sm btn-${tipo.estado === 'activo' ? 'warning' : 'success'}" 
-                                        onclick="cambiarEstadoTipoTramite(${tipo.id}, '${tipo.estado === 'activo' ? 'inactivo' : 'activo'}')">
-                                    <i class="bi bi-${tipo.estado === 'activo' ? 'x-circle' : 'check-circle'}"></i>
-                                </button>
-                            </td>
+                            <th>Nombre</th>
+                            <th>Descripción</th>
+                            <th>Costo</th>
+                            <th>Tiempo Estimado</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
                         </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody id="tabla-tipos-tramites">
+                        ${tiposTramites.map(tipo => `
+                            <tr>
+                                <td class="text-uppercase">${tipo.nombre}</td>
+                                <td>${tipo.descripcion}</td>
+                                <td>${typeof tipo.costo === 'number' || !isNaN(parseFloat(tipo.costo)) && !String(tipo.costo).includes('%') ? formatearMoneda(parseFloat(tipo.costo)) : tipo.costo}</td>
+                                <td>${tipo.tiempoEstimado}</td>
+                                <td><span class="estado-${tipo.estado}">${tipo.estado}</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-info" onclick="verDetalleTipoTramite(${tipo.id})">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-edit" onclick="editarTipoTramite(${tipo.id})">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
         `;
         
-        // Agregar eventos para filtros
-        const buscarTipoTramite = document.getElementById('buscar-tipo-tramite');
-        const filtroEstado = document.getElementById('filtro-estado');
-        
-        if (buscarTipoTramite && filtroEstado) {
-            buscarTipoTramite.addEventListener('input', filtrarTiposTramites);
-            filtroEstado.addEventListener('change', filtrarTiposTramites);
-        }
+        // Los eventos ya están configurados en el HTML mediante oninput y onchange
         
     } catch (error) {
         console.error('Error al cargar tipos de trámites:', error);
@@ -131,25 +115,38 @@ function activarSeccionTipoDetalle(seccion) {
  * Función para filtrar tipos de trámites según criterios de búsqueda
  */
 function filtrarTiposTramites() {
-    const busqueda = document.getElementById('buscar-tipo-tramite').value.toLowerCase();
-    const estado = document.getElementById('filtro-estado').value;
-    
-    const filas = document.querySelectorAll('#tabla-tipos-tramites tr');
-    
-    filas.forEach(fila => {
-        const nombre = fila.cells[1].textContent.toLowerCase();
-        const descripcion = fila.cells[2].textContent.toLowerCase();
-        const estadoTipoTramite = fila.cells[5].textContent.toLowerCase();
+    try {
+        const inputBusqueda = document.getElementById('buscar-tipo-tramite');
+        const inputEstado = document.getElementById('filtro-estado');
         
-        const coincideBusqueda = nombre.includes(busqueda) || descripcion.includes(busqueda);
-        const coincideEstado = estado === '' || estadoTipoTramite === estado;
+        if (!inputBusqueda || !inputEstado) return;
         
-        if (coincideBusqueda && coincideEstado) {
-            fila.style.display = '';
-        } else {
-            fila.style.display = 'none';
+        const busqueda = inputBusqueda.value.toLowerCase();
+        const estado = inputEstado.value.toLowerCase();
+        
+        const tbody = document.getElementById('tabla-tipos-tramites');
+        if (!tbody) return;
+        
+        const filas = tbody.getElementsByTagName('tr');
+        
+        for (let i = 0; i < filas.length; i++) {
+            const fila = filas[i];
+            const celdas = fila.cells;
+            
+            if (celdas.length < 5) continue;
+            
+            const nombre = (celdas[0].textContent || '').toLowerCase();
+            const descripcion = (celdas[1].textContent || '').toLowerCase();
+            const estadoTexto = (celdas[4].textContent || '').toLowerCase().trim();
+            
+            const coincideBusqueda = nombre.includes(busqueda) || descripcion.includes(busqueda);
+            const coincideEstado = estado === '' || estadoTexto === estado;
+            
+            fila.style.display = (coincideBusqueda && coincideEstado) ? '' : 'none';
         }
-    });
+    } catch (error) {
+        console.error('Error al filtrar:', error);
+    }
 }
 
 /**
@@ -162,30 +159,36 @@ async function mostrarFormularioTipoTramite(tipoTramiteId = null) {
         
         let tipoTramite = {
             nombre: '',
-            descripcion: '',
-            costo: 0,
-            tiempo_estimado: 1,
-            requisitos: '',
-            documentos_requeridos: '',
+            categoria: '',
+            anio: new Date().getFullYear(),
+            modalidad: 'fijo',
+            monto_fijo: 0,
+            porcentaje: 0,
+            departamento_id: '',
             estado: 'activo'
         };
         
         let titulo = 'Nuevo Tipo de Trámite';
         let accion = 'crear';
         
+        // Obtener departamentos para el select (aumentamos el límite para obtener todos)
+        const respDeptos = await fetchAPI('/departamentos?limit=100');
+        const departamentos = respDeptos.departamentos || [];
+        
         if (tipoTramiteId) {
-            const tipos = await fetchAPI('/tramites/tipos');
-            const encontrado = Array.isArray(tipos) ? tipos.find(t => String(t.id) === String(tipoTramiteId)) : null;
+            const resp = await fetchAPI('/tramites/configuracion-pago?limit=100');
+            const tipos = resp.configuraciones || [];
+            const encontrado = tipos.find(t => String(t.id) === String(tipoTramiteId));
             if (encontrado) {
-                // Adaptar nombres de propiedades al formulario
                 tipoTramite = {
                     id: encontrado.id,
-                    nombre: encontrado.nombre || '',
-                    descripcion: encontrado.descripcion || '',
-                    costo: encontrado.costo ?? 0,
-                    tiempo_estimado: parseInt(encontrado.tiempo_estimado ?? encontrado.tiempoEstimado ?? 1),
-                    requisitos: encontrado.requisitos || '',
-                    documentos_requeridos: encontrado.documentos_requeridos || '',
+                    nombre: encontrado.tramite_nombre || '',
+                    categoria: encontrado.categoria || '',
+                    anio: encontrado.anio || new Date().getFullYear(),
+                    modalidad: encontrado.modalidad || 'fijo',
+                    monto_fijo: encontrado.monto_fijo || 0,
+                    porcentaje: encontrado.porcentaje || 0,
+                    departamento_id: encontrado.departamento_id || '',
                     estado: encontrado.estado || 'activo'
                 };
             }
@@ -217,7 +220,7 @@ async function mostrarFormularioTipoTramite(tipoTramiteId = null) {
                                 
                                 <div class="row mb-3">
                                     <div class="col-md-8">
-                                        <label for="nombre" class="form-label">Nombre</label>
+                                        <label for="nombre" class="form-label">Nombre del Trámite</label>
                                         <input type="text" class="form-control" id="nombre" value="${tipoTramite.nombre}" required>
                                     </div>
                                     <div class="col-md-4">
@@ -229,43 +232,48 @@ async function mostrarFormularioTipoTramite(tipoTramiteId = null) {
                                     </div>
                                 </div>
                                 
-                                <div class="mb-3">
-                                    <label for="descripcion" class="form-label">Descripción</label>
-                                    <textarea class="form-control" id="descripcion" rows="3" required>${tipoTramite.descripcion}</textarea>
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <label for="categoria" class="form-label">Categoría / Descripción</label>
+                                        <input type="text" class="form-control" id="categoria" value="${tipoTramite.categoria}" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="departamento_id" class="form-label">Departamento Responsable</label>
+                                        <select class="form-select" id="departamento_id" required>
+                                            <option value="">Seleccione un departamento</option>
+                                            ${departamentos.map(d => `
+                                                <option value="${d.id}" ${String(tipoTramite.departamento_id) === String(d.id) ? 'selected' : ''}>${d.nombre_departamento || d.nombre}</option>
+                                            `).join('')}
+                                        </select>
+                                    </div>
                                 </div>
                                 
                                 <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <label for="costo" class="form-label">Costo</label>
-                                        <div class="input-group">
-                                            <span class="input-group-text">$</span>
-                                            <input type="number" class="form-control" id="costo" min="0" step="0.01" value="${tipoTramite.costo}" required>
-                                        </div>
+                                    <div class="col-md-4">
+                                        <label for="anio" class="form-label">Año de Vigencia</label>
+                                        <input type="number" class="form-control" id="anio" value="${tipoTramite.anio}" min="2020" max="2100" required>
                                     </div>
-                                    <div class="col-md-6">
-                                        <label for="tiempo-estimado" class="form-label">Tiempo Estimado (días)</label>
-                                        <input type="number" class="form-control" id="tiempo-estimado" min="1" value="${tipoTramite.tiempo_estimado}" required>
+                                    <div class="col-md-4">
+                                        <label for="modalidad" class="form-label">Modalidad de Pago</label>
+                                        <select class="form-select" id="modalidad" onchange="toggleCamposCosto()" required>
+                                            <option value="fijo" ${tipoTramite.modalidad === 'fijo' ? 'selected' : ''}>Monto Fijo</option>
+                                            <option value="porcentaje" ${tipoTramite.modalidad === 'porcentaje' ? 'selected' : ''}>Porcentaje</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4" id="div-monto-fijo">
+                                        <label for="monto_fijo" class="form-label">Monto ($)</label>
+                                        <input type="number" class="form-control" id="monto_fijo" value="${tipoTramite.monto_fijo}" min="0">
+                                    </div>
+                                    <div class="col-md-4 d-none" id="div-porcentaje">
+                                        <label for="porcentaje" class="form-label">Porcentaje (%)</label>
+                                        <input type="number" class="form-control" id="porcentaje" value="${tipoTramite.porcentaje}" min="0" step="0.01">
                                     </div>
                                 </div>
                                 
-                                <div class="mb-3">
-                                    <label for="requisitos" class="form-label">Requisitos</label>
-                                    <textarea class="form-control" id="requisitos" rows="4">${tipoTramite.requisitos || ''}</textarea>
-                                    <div class="form-text">Ingrese cada requisito en una línea separada</div>
-                                </div>
-                                
-                                <div class="mb-3">
-                                    <label for="documentos-requeridos" class="form-label">Documentos Requeridos</label>
-                                    <textarea class="form-control" id="documentos-requeridos" rows="4">${tipoTramite.documentos_requeridos || ''}</textarea>
-                                    <div class="form-text">Ingrese cada documento en una línea separada</div>
-                                </div>
-                                
-                                <div class="d-grid gap-2">
+                                <div class="text-end mt-4">
+                                    <button type="button" class="btn btn-outline-secondary me-2" onclick="cargarTiposTramites()">Cancelar</button>
                                     <button type="submit" class="btn btn-primary">
-                                        <i class="bi bi-save"></i> Guardar
-                                    </button>
-                                    <button type="button" class="btn btn-outline-secondary" onclick="cargarTiposTramites()">
-                                        Cancelar
+                                        <i class="bi bi-save"></i> ${accion === 'crear' ? 'Guardar' : 'Actualizar'}
                                     </button>
                                 </div>
                             </form>
@@ -275,13 +283,29 @@ async function mostrarFormularioTipoTramite(tipoTramiteId = null) {
             </div>
         `;
         
-        // Agregar evento para el formulario
-        const formTipoTramite = document.getElementById('form-tipo-tramite');
-        formTipoTramite.addEventListener('submit', guardarTipoTramite);
+        // Función interna para manejar visibilidad de campos de costo
+        window.toggleCamposCosto = () => {
+            const modalidad = document.getElementById('modalidad').value;
+            const divFijo = document.getElementById('div-monto-fijo');
+            const divPorc = document.getElementById('div-porcentaje');
+            
+            if (modalidad === 'fijo') {
+                divFijo.classList.remove('d-none');
+                divPorc.classList.add('d-none');
+            } else {
+                divFijo.classList.add('d-none');
+                divPorc.classList.remove('d-none');
+            }
+        };
+        
+        // Ejecutar inicialmente para mostrar campos correctos
+        toggleCamposCosto();
+        
+        document.getElementById('form-tipo-tramite').addEventListener('submit', guardarTipoTramite);
         
     } catch (error) {
-        console.error('Error al cargar formulario de tipo de trámite:', error);
-        mostrarNotificacion('Error al cargar formulario: ' + error.message, 'danger');
+        console.error('Error al mostrar formulario:', error);
+        mostrarNotificacion('Error al cargar el formulario', 'danger');
     } finally {
         mostrarCargando(false);
     }
@@ -289,48 +313,45 @@ async function mostrarFormularioTipoTramite(tipoTramiteId = null) {
 
 /**
  * Función para guardar un tipo de trámite (crear o actualizar)
- * @param {Event} e - Evento del formulario
  */
-async function guardarTipoTramite(e) {
-    e.preventDefault();
+async function guardarTipoTramite(event) {
+    event.preventDefault();
     
     try {
-        mostrarCargando(true);
-        
-        const tipoTramiteId = document.getElementById('tipo-tramite-id').value;
+        const id = document.getElementById('tipo-tramite-id').value;
         const accion = document.getElementById('accion').value;
         
-        const tipoTramite = {
+        const datos = {
             nombre: document.getElementById('nombre').value,
-            descripcion: document.getElementById('descripcion').value,
-            costo: parseFloat(document.getElementById('costo').value),
-            tiempo_estimado: parseInt(document.getElementById('tiempo-estimado').value),
-            requisitos: document.getElementById('requisitos').value,
-            documentos_requeridos: document.getElementById('documentos-requeridos').value,
+            categoria: document.getElementById('categoria').value,
+            departamento_id: document.getElementById('departamento_id').value,
+            anio: parseInt(document.getElementById('anio').value),
+            modalidad: document.getElementById('modalidad').value,
+            monto_fijo: parseFloat(document.getElementById('monto_fijo').value || 0),
+            porcentaje: parseFloat(document.getElementById('porcentaje').value || 0),
             estado: document.getElementById('estado').value
         };
         
-        let respuesta;
+        mostrarCargando(true);
         
+        let response;
         if (accion === 'crear') {
-            respuesta = await fetchAPI('/tramites/tipos', {
+            response = await fetchAPI('/tramites/tipos', {
                 method: 'POST',
-                body: JSON.stringify(tipoTramite)
+                body: datos
             });
-            mostrarNotificacion('Tipo de trámite creado correctamente', 'success');
         } else {
-            respuesta = await fetchAPI(`/tipos-tramites/${tipoTramiteId}`, {
-                method: 'PUT',
-                body: JSON.stringify(tipoTramite)
-            });
-            mostrarNotificacion('Tipo de trámite actualizado correctamente', 'success');
+            // No implementado aún para actualizar específicamente en ConfiguracionPago via tipos
+            mostrarNotificacion('La actualización real aún no está configurada', 'warning');
+            return cargarTiposTramites();
         }
         
+        mostrarNotificacion(response.message || 'Tipo de trámite guardado exitosamente', 'success');
         cargarTiposTramites();
         
     } catch (error) {
         console.error('Error al guardar tipo de trámite:', error);
-        mostrarNotificacion('Error al guardar tipo de trámite: ' + error.message, 'danger');
+        mostrarNotificacion('Error al guardar: ' + error.message, 'danger');
     } finally {
         mostrarCargando(false);
     }
@@ -420,9 +441,6 @@ async function verDetalleTipoTramite(tipoTramiteId) {
                                     <button class="btn btn-${tipoTramite.estado === 'activo' ? 'warning' : 'success'}" onclick="cambiarEstadoTipoTramite(${tipoTramite.id}, '${tipoTramite.estado === 'activo' ? 'inactivo' : 'activo'}')">
                                         <i class="bi bi-${tipoTramite.estado === 'activo' ? 'x-circle' : 'check-circle'}"></i> ${tipoTramite.estado === 'activo' ? 'Desactivar' : 'Activar'}
                                     </button>
-                                    <button class="btn btn-info" onclick="generarReporteTipoTramite(${tipoTramite.id})">
-                                        <i class="bi bi-file-earmark-text"></i> Generar Reporte
-                                    </button>
                                 </div>
                             </div>
                             <div class="card-body">
@@ -472,32 +490,32 @@ async function verDetalleTipoTramite(tipoTramiteId) {
                                     <p>No hay trámites asociados a este tipo.</p>
                                 ` : `
                                     <div class="table-responsive">
-                                        <table class="table table-striped table-hover">
-                                            <thead>
-                                                <tr>
-                                                    <th>ID</th>
-                                                    <th>Ciudadano</th>
-                                                    <th>Fecha Solicitud</th>
-                                                    <th>Estado</th>
-                                                    <th>Acciones</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                ${tramites.map(tramite => `
+                                        <div class="table-responsive">
+                                            <table class="table table-striped table-hover align-middle">
+                                                <thead>
                                                     <tr>
-                                                        <td>${tramite.id}</td>
-                                                        <td>${tramite.ciudadano?.nombre} ${tramite.ciudadano?.apellido}</td>
-                                                        <td>${formatearFecha(tramite.fecha_solicitud)}</td>
-                                                        <td><span class="estado-${tramite.estado}" data-estado="${tramite.estado}">${obtenerNombreEstadoTramite(tramite.estado)}</span></td>
-                                                        <td>
-                                                            <button class="btn btn-sm btn-info" onclick="verDetalleTramite(${tramite.id})">
-                                                                <i class="bi bi-eye"></i>
-                                                            </button>
-                                                        </td>
+                                                        <th>Ciudadano</th>
+                                                        <th>Fecha Solicitud</th>
+                                                        <th>Estado</th>
+                                                        <th>Acciones</th>
                                                     </tr>
-                                                `).join('')}
-                                            </tbody>
-                                        </table>
+                                                </thead>
+                                                <tbody>
+                                                    ${tramites.map(tramite => `
+                                                        <tr data-id="${tramite.id}">
+                                                            <td class="cell-wrap">${tramite.ciudadano?.nombre} ${tramite.ciudadano?.apellido}</td>
+                                                            <td class="cell-nowrap">${formatearFecha(tramite.fecha_solicitud)}</td>
+                                                            <td><span class="estado-${tramite.estado}" data-estado="${tramite.estado}">${obtenerNombreEstadoTramite(tramite.estado)}</span></td>
+                                                            <td>
+                                                                <button class="btn btn-sm btn-info" onclick="verDetalleTramite(${tramite.id})">
+                                                                    <i class="bi bi-eye"></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    `).join('')}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 `}
                             </div>
@@ -590,6 +608,7 @@ async function generarReporteTiposTramites() {
  * Función para cargar la lista de trámites
  */
 async function cargarTramites() {
+    console.log('[RENDER] Cargando trámites...');
     try {
         mostrarCargando(true);
         
@@ -654,14 +673,9 @@ async function cargarTramites() {
                                 <option value="rechazado">Rechazado</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-md-3">
                             <input type="date" class="form-control" id="filtro-fecha" placeholder="Fecha">
                         </div>
-                <div class="col-md-2">
-                    <button class="btn btn-report w-100" onclick="generarReporteTramites()">
-                        <i class="bi bi-file-earmark-text"></i> Reporte
-                    </button>
-                </div>
                     </div>
                 </div>
                 <div class="card-body">
@@ -672,39 +686,41 @@ async function cargarTramites() {
                         </div>
                     </div>
                     <div class="table-responsive">
-                        <table class="table table-striped table-hover">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Tipo</th>
-                                    <th>Ciudadano</th>
-                                    <th>Fecha Solicitud</th>
-                                    <th>Fecha Actualización</th>
-                                    <th>Estado</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tabla-tramites">
-                                ${tramites.map(tramite => `
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover align-middle">
+                                <thead>
                                     <tr>
-                                        <td>${tramite.id}</td>
-                                        <td class="text-uppercase">${tramite.tipo || 'N/A'}</td>
-                                        <td>${tramite.ciudadano?.nombre} ${tramite.ciudadano?.apellido}</td>
-                                        <td>${formatearFecha(tramite.fecha_solicitud)}</td>
-                                        <td>${formatearFecha(tramite.fecha_actualizacion)}</td>
-                                        <td><span class="estado-${tramite.estado}" data-estado="${tramite.estado}">${obtenerNombreEstadoTramite(tramite.estado)}</span></td>
-                                        <td>
-                                            <button class="btn btn-sm btn-info" onclick="verDetalleTramite(${tramite.id})">
-                                                <i class="bi bi-eye"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-primary" onclick="actualizarEstadoTramite(${tramite.id})">
-                                                <i class="bi bi-pencil"></i>
-                                            </button>
-                                        </td>
+                                        <th>Tipo</th>
+                                        <th>Ciudadano</th>
+                                        <th>Fecha Solicitud</th>
+                                        <th>Fecha Actualización</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
                                     </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody id="tabla-tramites">
+                                    ${tramites.map(tramite => `
+                                        <tr data-id="${tramite.id}">
+                                            <td class="text-uppercase">${tramite.tipo || 'N/A'}</td>
+                                            <td class="cell-wrap">${tramite.ciudadano?.nombre} ${tramite.ciudadano?.apellido}</td>
+                                            <td class="cell-nowrap">${formatearFecha(tramite.fecha_solicitud)}</td>
+                                            <td class="cell-nowrap">${formatearFecha(tramite.fecha_actualizacion)}</td>
+                                            <td><span class="estado-${tramite.estado}" data-estado="${tramite.estado}">${obtenerNombreEstadoTramite(tramite.estado)}</span></td>
+                                            <td class="col-actions">
+                                                <div class="btn-group btn-group-sm">
+                                                    <button class="btn btn-sm btn-info" onclick="verDetalleTramite(${tramite.id})">
+                                                        <i class="bi bi-eye"></i>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-primary" onclick="actualizarEstadoTramite(${tramite.id})">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -743,15 +759,14 @@ function filtrarTramites() {
     const filas = document.querySelectorAll('#tabla-tramites tr');
     
     filas.forEach(fila => {
-        const id = fila.cells[0].textContent.toLowerCase();
-        const tipo = fila.cells[1].textContent.toLowerCase();
-        const ciudadano = fila.cells[2].textContent.toLowerCase();
-        const fechaSolicitud = fila.cells[3].textContent;
-        const estadoSpan = fila.cells[5].querySelector('span');
-        const estadoTramiteCodigo = estadoSpan && estadoSpan.dataset ? estadoSpan.dataset.estado : fila.cells[5].textContent.toLowerCase();
+        const tipo = fila.cells[0].textContent.toLowerCase();
+        const ciudadano = fila.cells[1].textContent.toLowerCase();
+        const fechaSolicitud = fila.cells[2].textContent;
+        const estadoSpan = fila.cells[4].querySelector('span');
+        const estadoTramiteCodigo = estadoSpan && estadoSpan.dataset ? estadoSpan.dataset.estado : fila.cells[4].textContent.toLowerCase();
         
-        const coincideBusqueda = id.includes(busqueda) || tipo.includes(busqueda) || ciudadano.includes(busqueda);
-        const coincideTipo = tipoTramite === '' || fila.cells[1].textContent.includes(tipoTramite);
+        const coincideBusqueda = tipo.includes(busqueda) || ciudadano.includes(busqueda);
+        const coincideTipo = tipoTramite === '' || fila.cells[0].textContent.includes(tipoTramite);
         const coincideEstado = estado === '' || estadoTramiteCodigo === estado;
         const coincideFecha = fecha === '' || fechaSolicitud.includes(fecha);
         

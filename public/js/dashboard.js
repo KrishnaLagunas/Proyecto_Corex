@@ -5,6 +5,7 @@
 window.pagosMesDetalleRes = null;
 
 async function cargarDashboard() {
+  console.log('[RENDER] Cargando dashboard...');
   const mainContent = document.getElementById('main-content');
   if (!mainContent) return;
 
@@ -69,7 +70,7 @@ async function cargarDashboard() {
     // Tarjetas según rol
     const cardsHTML = esFuncionario
       ? `
-          <div class="col-md-6 col-lg-4 mb-4">
+          <div class="col-12 col-md-6 col-lg-4 mb-4">
             <a href="#" class="kpi-card" data-page="tramites">
               <div class="kpi-icon"><i class="bi bi-file-earmark-text"></i></div>
               <div class="kpi-info">
@@ -79,7 +80,7 @@ async function cargarDashboard() {
               </div>
             </a>
           </div>
-          <div class="col-md-6 col-lg-4 mb-4">
+          <div class="col-12 col-md-6 col-lg-4 mb-4">
             <a href="#" class="kpi-card" data-page="pagos">
               <div class="kpi-icon"><i class="bi bi-cash-coin"></i></div>
               <div class="kpi-info">
@@ -91,7 +92,7 @@ async function cargarDashboard() {
           </div>
         `
       : `
-          <div class="col-sm-6 col-lg-3 mb-4">
+          <div class="col-6 col-md-4 col-lg-2 mb-4">
             <a href="#" class="kpi-card" data-page="usuarios">
               <div class="kpi-icon"><i class="bi bi-people"></i></div>
               <div class="kpi-info">
@@ -100,16 +101,16 @@ async function cargarDashboard() {
               </div>
             </a>
           </div>
-          <div class="col-sm-6 col-lg-3 mb-4">
+          <div class="col-6 col-md-4 col-lg-2 mb-4">
             <a href="#" class="kpi-card" data-page="departamentos">
               <div class="kpi-icon"><i class="bi bi-building"></i></div>
               <div class="kpi-info">
-                <div class="kpi-title">Departamentos</div>
+                <div class="kpi-title">Deptos</div>
                 <div class="kpi-value"><span id="dashboard-total-departamentos">${totalDepartamentos}</span></div>
               </div>
             </a>
           </div>
-          <div class="col-sm-6 col-lg-3 mb-4">
+          <div class="col-6 col-md-4 col-lg-2 mb-4">
             <a href="#" class="kpi-card" data-page="tramites">
               <div class="kpi-icon"><i class="bi bi-file-earmark-text"></i></div>
               <div class="kpi-info">
@@ -119,7 +120,7 @@ async function cargarDashboard() {
               </div>
             </a>
           </div>
-          <div class="col-sm-6 col-lg-3 mb-4">
+          <div class="col-6 col-md-4 col-lg-2 mb-4">
             <a href="#" class="kpi-card" data-page="pagos">
               <div class="kpi-icon"><i class="bi bi-cash-coin"></i></div>
               <div class="kpi-info">
@@ -129,12 +130,21 @@ async function cargarDashboard() {
               </div>
             </a>
           </div>
-          <div class="col-sm-6 col-lg-3 mb-4">
+          <div class="col-6 col-md-4 col-lg-2 mb-4">
             <div class="kpi-card">
               <div class="kpi-icon"><i class="bi bi-bar-chart"></i></div>
               <div class="kpi-info">
-                <div class="kpi-title">Proyectos activos</div>
+                <div class="kpi-title">Proyectos</div>
                 <div class="kpi-value">${proyectosActivos}</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 col-md-4 col-lg-2 mb-4">
+            <div class="kpi-card">
+              <div class="kpi-icon"><i class="bi bi-clock-history"></i></div>
+              <div class="kpi-info">
+                <div class="kpi-title">Pendientes</div>
+                <div class="kpi-value"><span id="dashboard-tramites-pendientes-alt">${pendientes}</span></div>
               </div>
             </div>
           </div>
@@ -157,6 +167,9 @@ async function cargarDashboard() {
               <span id="dashboard-time"></span>
             </div>
           </div>
+        </div>
+        <div class="row mt-2" id="dashboard-cards">
+          ${cardsHTML}
         </div>
         <div class="row mt-2">
           <div class="col-lg-6 mb-3">

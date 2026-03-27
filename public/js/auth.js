@@ -34,6 +34,52 @@ const usuariosPrueba = [
     }
 ];
 
+/**
+ * Obtiene el token de sesión actual revisando múltiples orígenes
+ * @returns {string|null} Token de sesión o null si no existe
+ */
+function obtenerTokenActual() {
+    try {
+        // Prioridad 1: LocalStorage (más confiable en F5)
+        const tokenLS = localStorage.getItem('token');
+        if (tokenLS) return tokenLS;
+
+        // Prioridad 2: Cookies (respaldo)
+        const uStr = localStorage.getItem('usuario');
+        if (uStr) {
+            const u = JSON.parse(uStr);
+            const r = u && (u.rol || u.role);
+            const userId = u && u.id;
+
+            // Intentar con el nombre de cookie específico del usuario
+            if (typeof getUserCookieName === 'function') {
+                const specificName = getUserCookieName(userId, r);
+                const specificValue = getCookie(specificName);
+                if (specificValue) return specificValue;
+            }
+
+            // Intentar con nombres genéricos
+            const genericName = (function(rr) {
+                const s = String(rr || '').toLowerCase();
+                if (s.includes('superadmin')) return 'corex_session_superadmin';
+                if (s.includes('admin')) return 'corex_session_admin';
+                return 'corex_session_ciudadano';
+            })(r);
+
+            const genericValue = getCookie(genericName);
+            if (genericValue) return genericValue;
+        }
+
+        return null;
+    } catch (_) {
+        try {
+            return localStorage.getItem('token');
+        } catch (_) {
+            return null;
+        }
+    }
+}
+
 // Inicializar el módulo de autenticación
 document.addEventListener('DOMContentLoaded', () => {
     try {
@@ -44,66 +90,125 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
     } catch (_) {}
-    try { 
-        const token = localStorage.getItem('token');
-        if (!token) { 
-            clearCorexCookies(); 
-        } 
-    } catch (_) { 
-        try { clearCorexCookies(); } catch (_) {} 
+
+    const token = obtenerTokenActual();
+
+    console.log('[AUTH] DOMContentLoaded');
+    console.log('[AUTH] token localStorage:', (() => {
+        try { return localStorage.getItem('token'); } catch (_) { return null; }
+    })());
+    console.log('[AUTH] usuario localStorage:', (() => {
+        try { return localStorage.getItem('usuario'); } catch (_) { return null; }
+    })());
+    console.log('[AUTH] token actual unificado:', token);
+
+    if (!token) {
+        try { clearCorexCookies(); } catch (_) {}
     }
-    programarMostrarLogin(0);
-    
+
     // Configurar el evento de submit del formulario de login
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
         loginForm.addEventListener('submit', manejarLogin);
     }
-    
+
     // Configurar el evento de submit del formulario de registro
     const registerForm = document.getElementById('register-form');
     if (registerForm) {
         registerForm.addEventListener('submit', manejarRegistro);
     }
-    (async () => {
+});
+
+/**
+ * Intenta restaurar la sesión del usuario al cargar la página o F5.
+ * Se llama desde app.js para asegurar que todas las funciones de renderizado estén listas.
+ */
+async function intentarRestaurarSesion() {
+    try {
+        const t = obtenerTokenActual();
+
+        console.log('[AUTH] intentarRestaurarSesion');
+        console.log('[AUTH] token actual:', t);
+
+        if (!t) {
+            console.log('[AUTH] No hay token, mostrando login');
+            mostrarFormularioLogin();
+            mostrarCargando(false);
+            return;
+        }
+
+        cancelarMostrarLogin();
+
+        let u = null;
         try {
-            const t = localStorage.getItem('token');
-            if (!t) return;
-            
             const usrStr = localStorage.getItem('usuario');
-            if (usrStr) {
-                const u = JSON.parse(usrStr);
-                if (u && u.role) {
-                    redirigirSegunRol(u);
-                    return;
-                }
-            }
-            
-            const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
-            if (perfil && perfil.id) {
-              let rol = (perfil.rol || perfil.role || perfil.rol_nombre || '').toString().toLowerCase();
-              if (rol.includes('admin') && !rol.includes('super')) rol = 'admin';
-              else if (rol.includes('func') || rol.includes('secretaria')) rol = 'funcionario';
-              else if (rol.includes('super')) rol = 'superadministrador';
-              else if (rol.includes('ciud')) rol = 'ciudadano';
-              
-              const roleFinal = rol;
-              const u = {
+            if (usrStr) u = JSON.parse(usrStr);
+        } catch (_) {}
+
+        console.log('[AUTH] Intentando validar sesión con /usuarios/perfil');
+
+        const perfil = await fetchAPI('/usuarios/perfil', { suppressErrorLog: true });
+
+        if (perfil && perfil.id) {
+            let rol = (perfil.rol || perfil.role || perfil.rol_nombre || '').toString().toLowerCase();
+
+            if (rol.includes('admin') && !rol.includes('super')) rol = 'admin';
+            else if (rol.includes('func') || rol.includes('secretaria')) rol = 'funcionario';
+            else if (rol.includes('super')) rol = 'superadministrador';
+            else if (rol.includes('ciud')) rol = 'ciudadano';
+
+            const freshU = {
                 id: perfil.id,
                 nombre: perfil.nombre || '',
                 apellido: perfil.apellido || '',
                 email: perfil.email,
-                role: roleFinal,
+                role: rol,
                 ultimo_login: perfil.ultimo_login || null,
                 municipalidad_id: perfil.municipalidad_id || (perfil.Municipalidad && perfil.Municipalidad.id) || null,
                 municipalidad_nombre: perfil.municipalidad_nombre || (perfil.Municipalidad && perfil.Municipalidad.nombre) || null
-              };
-              localStorage.setItem('usuario', JSON.stringify(u));
-              redirigirSegunRol(u);
+            };
+
+            localStorage.setItem('usuario', JSON.stringify(freshU));
+            console.log('[AUTH] Sesión restaurada desde perfil');
+            
+            await redirigirSegunRol(freshU);
+            
+            // CRUCIAL: Ejecutar el render de la vista guardada tras restaurar sesión (Fix F5)
+            if (typeof window.cargarVistaInicial === 'function') {
+                console.log('[AUTH] Ejecutando cargarVistaInicial tras restauración exitosa');
+                window.cargarVistaInicial();
             }
-        } catch (_) {}
-    })();
-});
+        } else if (u && u.role) {
+            console.log('[AUTH] Perfil no válido, usando fallback local');
+            await redirigirSegunRol(u);
+            
+            if (typeof window.cargarVistaInicial === 'function') {
+                window.cargarVistaInicial();
+            }
+        } else {
+            console.log('[AUTH] Sin sesión válida, al login');
+            mostrarFormularioLogin();
+        }
+    } catch (error) {
+        console.warn('[AUTH] Error en restauración:', error);
+        try {
+            const usrStr = localStorage.getItem('usuario');
+            const u = usrStr ? JSON.parse(usrStr) : null;
+            if (u && u.role) {
+                redirigirSegunRol(u);
+            } else {
+                mostrarFormularioLogin();
+            }
+        } catch (_) {
+            mostrarFormularioLogin();
+        }
+    } finally {
+        mostrarCargando(false);
+    }
+}
+
+// Hacer la función disponible globalmente
+window.intentarRestaurarSesion = intentarRestaurarSesion;
 
     // Asegurar evento del botón Cerrar sesión en la barra blanca
     const btnLogoutNavStatic = document.getElementById('btn-logout-nav');
@@ -216,14 +321,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function programarMostrarLogin(delay) {
     try {
-        if (localStorage.getItem('token')) return;
+        if (obtenerTokenActual()) return;
     } catch (_) {}
-    try { if (window._loginRenderTimeoutId) clearTimeout(window._loginRenderTimeoutId); } catch (_) {}
+
+    try {
+        if (window._loginRenderTimeoutId) {
+            clearTimeout(window._loginRenderTimeoutId);
+        }
+    } catch (_) {}
+
     window._loginRenderTimeoutId = setTimeout(() => {
         try {
-            const t = localStorage.getItem('token');
-            if (!t) mostrarFormularioLogin();
-        } catch (_) { mostrarFormularioLogin(); }
+            if (!obtenerTokenActual()) {
+                console.log('[AUTH] programarMostrarLogin -> mostrando login');
+                mostrarFormularioLogin();
+            }
+        } catch (_) {
+            mostrarFormularioLogin();
+        }
         window._loginRenderTimeoutId = null;
     }, typeof delay === 'number' ? delay : 600);
 }
@@ -375,8 +490,19 @@ async function manejarLogin(e) {
         };
 
         try { clearCorexCookies(); } catch (_) {}
+        
+        // Guardar token y usuario en localStorage (Crucial para persistencia F5)
+        localStorage.setItem('token', token);
+        localStorage.setItem('usuario', JSON.stringify(usuarioInfo));
+        
+        console.log('[AUTH] Login correcto');
+        console.log('[AUTH] token guardado en localStorage:', localStorage.getItem('token'));
+        console.log('[AUTH] usuario guardado en localStorage:', localStorage.getItem('usuario'));
+        console.log('[AUTH] token leído por obtenerTokenActual():', obtenerTokenActual());
+        
+        // También guardar en cookies como respaldo
         setSessionToken(token, { role: roleFinal, userId: user.id });
-        try { localStorage.setItem('usuario', JSON.stringify(usuarioInfo)); } catch (_) {}
+        
         try { localStorage.removeItem('currentPage'); } catch (_) {} // Asegurar inicio limpio en dashboard
 
         // Redirigir según el rol del usuario
@@ -427,6 +553,18 @@ async function redirigirSegunRol(usuario) {
     
     if (header) header.classList.remove('d-none');
     if (footer) footer.classList.remove('d-none');
+
+    // Asegurar que el navbar sea visible y tenga el menú correcto antes de cargar la página
+    const navbar = document.getElementById('main-navbar');
+    if (navbar) navbar.classList.remove('d-none');
+
+    const rolParaMenu = (usuario.role || '').toString().toLowerCase();
+    if (typeof generarMenu === 'function') {
+        if (rolParaMenu.includes('superadmin')) generarMenu('superadmin');
+        else if (rolParaMenu.includes('admin')) generarMenu('admin');
+        else if (rolParaMenu.includes('funcionario')) generarMenu('funcionario');
+        else generarMenu('ciudadano');
+    }
     
     try {
         const esAdmin = String(usuario?.role || '').toLowerCase() === 'admin';
@@ -541,7 +679,13 @@ async function redirigirSegunRol(usuario) {
         }
     }
     
-    // Redirigir según el rol
+    // Redirigir según el rol o restaurar página previa
+    const lastPage = localStorage.getItem('currentPage');
+    if (lastPage && typeof cargarContenidoPagina === 'function') {
+        cargarContenidoPagina(lastPage);
+        return;
+    }
+
     switch (usuario.role) {
         case 'superadministrador':
             cargarInterfazSuperadmin(usuario);
@@ -1173,40 +1317,59 @@ async function cargarPortalCiudadano(usuario) {
  * Muestra el formulario de login
  */
 function mostrarFormularioLogin() {
-    try { clearCorexCookies(); } catch (_) {}
-    // Mostrar el contenedor de login
     const loginContainer = document.getElementById('login-container');
     const registerContainer = document.getElementById('register-container');
-    
+
     if (loginContainer) {
         loginContainer.classList.remove('d-none');
     }
-    
+
     if (registerContainer) {
         registerContainer.classList.add('d-none');
     }
-    
-    // Ocultar elementos de la interfaz
+
     const header = document.querySelector('.header');
     const navbar = document.getElementById('main-navbar');
     const mainContent = document.getElementById('main-content');
-    
+
     if (header) header.classList.add('d-none');
     if (navbar) navbar.classList.add('d-none');
     if (mainContent) mainContent.classList.add('d-none');
+
     try {
         const c1 = document.getElementById('login-chart-tramites');
         const c2 = document.getElementById('login-chart-pagos');
         const c3 = document.getElementById('login-chart-usuarios');
         const c4 = document.getElementById('login-chart-departamentos');
+
         if (window.Chart && (c1 || c2 || c3 || c4)) {
             const mkDonut = (el, vals, colors) => {
                 const ctx = el.getContext('2d');
-                return new Chart(ctx, { type: 'doughnut', data: { labels: vals.map((_, i) => 'v' + i), datasets: [{ data: vals, backgroundColor: colors }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false } } } });
+                return new Chart(ctx, { 
+                    type: 'doughnut', 
+                    data: { 
+                        labels: vals.map((_, i) => 'v' + i), 
+                        datasets: [{ data: vals, backgroundColor: colors }] 
+                    }, 
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        cutout: '70%', 
+                        plugins: { legend: { display: false } } 
+                    } 
+                });
             };
             const mkBar = (el, labels, vals, color) => {
                 const ctx = el.getContext('2d');
-                return new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ data: vals, backgroundColor: color }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } } });
+                return new Chart(ctx, { 
+                    type: 'bar', 
+                    data: { labels, datasets: [{ data: vals, backgroundColor: color }] }, 
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        scales: { y: { beginAtZero: true } } 
+                    } 
+                });
             };
             if (c1) mkDonut(c1, [3, 5, 2], ['#1E3A8A', '#FF9800', '#2E7D32']);
             if (c2) mkDonut(c2, [4, 3, 1], ['#2E7D32', '#FF9800', '#e74c3c']);
@@ -3761,7 +3924,7 @@ async function manejarRegistro(event) {
         
     } catch (error) {
         console.error('Error en registro:', error);
-        mostrarError('Error al procesar el registro. Intenta nuevamente.');
+        mostrarError(error.message || 'Error al procesar el registro. Intenta nuevamente.');
         
         // Restaurar botón en caso de error
         const submitBtn = form.querySelector('button[type="submit"]');

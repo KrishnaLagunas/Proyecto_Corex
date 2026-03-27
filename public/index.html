@@ -16,8 +16,11 @@
     <div id="login-bg2"></div>
     <div id="app">
         <!-- Contenedor principal de la aplicación -->
-        <div id="loading" class="d-none">
-            <div class="spinner"></div>
+        <div id="loading" class="d-flex align-items-center justify-content-center" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 9999;">
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+                <div class="mt-3 fw-bold text-primary">Cargando Sistema...</div>
+            </div>
         </div>
 
         <!-- Contenedor de registro de ciudadanos -->
@@ -130,7 +133,7 @@
         </div>
 
         <!-- Contenedor de login -->
-        <div id="login-container" class="container mt-5 corex-login-bg">
+        <div id="login-container" class="container mt-5 corex-login-bg d-none">
             <div class="login-grid">
                 <div class="login-left">
                     <div class="card corex-welcome-card shadow">
@@ -208,6 +211,10 @@
                     <div id="user-info" class="user-info">
                         <!-- Información del usuario -->
                     </div>
+                    <!-- Botón para menú móvil -->
+                    <button class="btn-menu-toggle d-lg-none" id="menu-toggle" aria-label="Abrir menú">
+                        <i class="bi bi-list"></i>
+                    </button>
                 </div>
             </div>
         </header>

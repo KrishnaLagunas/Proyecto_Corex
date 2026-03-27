@@ -36,6 +36,14 @@ const ConfiguracionPago = sequelize.define('ConfiguracionPago', {
     type: DataTypes.ENUM('activo', 'inactivo'),
     allowNull: false,
     defaultValue: 'activo'
+  },
+  departamento_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'departamentos',
+      key: 'id'
+    }
   }
 }, {
   tableName: 'configuraciones_pago',

@@ -8,6 +8,7 @@
  * @param {Object} filtros - Filtros para la búsqueda
  */
 async function cargarPagos(filtros = {}) {
+    console.log('[RENDER] Cargando pagos...');
     try {
         mostrarCargando(true);
         // Detectar rol actual para controlar visibilidad de acciones
@@ -86,19 +87,15 @@ async function cargarPagos(filtros = {}) {
             <div class="card no-hover">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5>Listado de Pagos</h5>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="exportarPagos()">
-                        <i class="bi bi-download"></i> Exportar
-                    </button>
                 </div>
                 <div class="card-body">
                     ${pagos.length === 0 ? `
                         <div class="alert alert-info">No se encontraron pagos con los filtros seleccionados.</div>
                     ` : `
                         <div class="table-responsive">
-                            <table class="table table-striped table-hover">
+                            <table class="table table-striped table-hover align-middle">
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
                                         <th>Código</th>
                                         <th>Monto</th>
                                         <th>Fecha</th>
@@ -109,30 +106,31 @@ async function cargarPagos(filtros = {}) {
                                 </thead>
                                 <tbody>
                                     ${pagos.map(pago => `
-                                        <tr>
-                                            <td>${pago.id}</td>
-                                            <td>${pago.codigo || ''}</td>
-                                            <td>${formatearMoneda(pago.monto)}</td>
-                                            <td>${formatearFecha(pago.fecha_pago)}</td>
-                                            <td>${pago.ciudadano?.nombre} ${pago.ciudadano?.apellido}</td>
+                                        <tr data-id="${pago.id}">
+                                            <td class="cell-nowrap">${pago.codigo || ''}</td>
+                                            <td class="cell-nowrap">${formatearMoneda(pago.monto)}</td>
+                                            <td class="cell-nowrap">${formatearFecha(pago.fecha_pago)}</td>
+                                            <td class="cell-wrap">${pago.ciudadano?.nombre} ${pago.ciudadano?.apellido}</td>
                                             <td><span class="estado-${pago.estado}">${pago.estado}</span></td>
-                                            <td>
-                                                <button class="btn btn-sm btn-info" onclick="verDetallePago(${pago.id})">
-                                                    <i class="bi bi-eye"></i>
-                                                </button>
-                                                ${pago.estado === 'pendiente' ? `
-                                                    <button class="btn btn-sm btn-success" onclick="procesarPago(${pago.id})">
-                                                        <i class="bi bi-check-circle"></i>
+                                            <td class="col-actions">
+                                                <div class="btn-group btn-group-sm">
+                                                    <button class="btn btn-sm btn-info" onclick="verDetallePago(${pago.id})">
+                                                        <i class="bi bi-eye"></i>
                                                     </button>
-                                                    <button class="btn btn-sm btn-danger" onclick="anularPago(${pago.id})">
-                                                        <i class="bi bi-x-circle"></i>
-                                                    </button>
-                                                ` : ''}
-                                                ${pago.estado === 'completado' ? `
-                                                    <button class="btn btn-sm btn-secondary" onclick="descargarComprobantePago(${pago.id})">
-                                                        <i class="bi bi-download"></i>
-                                                    </button>
-                                                ` : ''}
+                                                    ${pago.estado === 'pendiente' ? `
+                                                        <button class="btn btn-sm btn-success" onclick="procesarPago(${pago.id})">
+                                                            <i class="bi bi-check-circle"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-danger" onclick="anularPago(${pago.id})">
+                                                            <i class="bi bi-x-circle"></i>
+                                                        </button>
+                                                    ` : ''}
+                                                    ${pago.estado === 'completado' ? `
+                                                        <button class="btn btn-sm btn-secondary" onclick="descargarComprobantePago(${pago.id})">
+                                                            <i class="bi bi-download"></i>
+                                                        </button>
+                                                    ` : ''}
+                                                </div>
                                             </td>
                                         </tr>
                                     `).join('')}
