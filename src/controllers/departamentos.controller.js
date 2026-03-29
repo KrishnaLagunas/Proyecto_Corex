@@ -25,6 +25,7 @@ const departamentosController = {
         page = 1, 
         limit = 10, 
         search,
+        estado,
         sort = 'nombre',
         order = 'ASC'
       } = req.query;
@@ -37,6 +38,15 @@ const departamentosController = {
           { nombre: { [Op.like]: `%${search}%` } }
         ];
       }
+
+      if (estado) {
+        where.estado = estado;
+      }
+      
+      // LOG TEMPORAL PARA DEPURACIÓN
+      console.log('--- DEPARTAMENTOS QUERY ---');
+      console.log('Query params:', req.query);
+      console.log('Where condition:', JSON.stringify(where, null, 2));
       
       // Calcular offset para paginación
       const offset = (page - 1) * limit;

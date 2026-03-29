@@ -20,20 +20,23 @@ function initMobileNav() {
     
     // Agregar event listeners
     if (menuToggle) {
-        menuToggle.addEventListener('click', openMobileMenu);
+        menuToggle.onclick = openMobileMenu;
     }
     
     if (navOverlay) {
-        navOverlay.addEventListener('click', closeMobileMenu);
+        navOverlay.onclick = closeMobileMenu;
     }
     
     if (navClose) {
-        navClose.addEventListener('click', closeMobileMenu);
+        navClose.onclick = closeMobileMenu;
     }
     
     // Cerrar menú al hacer clic en enlaces (solo en móvil)
     document.addEventListener('click', (e) => {
-        if (e.target.classList.contains('nav-link') && window.innerWidth < 992) {
+        const target = e.target;
+        // Solo actuar si el menú está abierto y es un clic en un nav-link
+        if (isMobileMenuOpen() && (target.classList.contains('nav-link') || target.closest('.nav-link'))) {
+            // No prevenimos el evento por defecto para permitir que el clic llegue al handler de navegación
             closeMobileMenu();
         }
     });

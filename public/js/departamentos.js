@@ -47,6 +47,13 @@ async function cargarDepartamentos() {
                     <div class="col-md-6" id="buscar-departamento-wrap">
                         <input type="text" class="form-control" id="buscar-departamento" placeholder="Buscar departamento..." autocomplete="off" tabindex="0" aria-label="Buscar departamento">
                     </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="filtro-estado-departamento" aria-label="Filtrar por estado">
+                            <option value="">Todos los estados</option>
+                            <option value="activo">Activo</option>
+                            <option value="inactivo">Inactivo</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="row mb-2">
@@ -113,6 +120,47 @@ async function cargarDepartamentos() {
         
         // Agregar eventos para filtros
         const buscarDepartamento = document.getElementById('buscar-departamento');
+        const filtroEstado = document.getElementById('filtro-estado-departamento');
+
+        const realizarBusqueda = async () => {
+            const q = (buscarDepartamento?.value || '').trim();
+            const estado = filtroEstado?.value || '';
+            console.log(`[DEBUG] Realizando búsqueda - Filtros: texto="${q}", estado="${estado}"`);
+            try {
+                // Forzar limpieza de cache agregando un timestamp
+                const resp = await fetchAPI(`/departamentos?search=${encodeURIComponent(q)}&estado=${encodeURIComponent(estado)}&limit=50&_t=${Date.now()}`, { suppressErrorLog: true });
+                console.log('[DEBUG] Respuesta del servidor:', resp);
+                const nuevos = (resp.departamentos || []).map(d => ({ id: d.id, nombre: d.nombre, estado: d.estado || 'activo' }));
+                const tabla = document.getElementById('tabla-departamentos');
+                if (tabla) {
+                    if (nuevos.length === 0) {
+                        tabla.innerHTML = `<tr><td colspan="3" class="text-center">No se encontraron departamentos</td></tr>`;
+                    } else {
+                        tabla.innerHTML = nuevos.map(departamento => `
+                            <tr data-id="${departamento.id}">
+                                <td class="cell-wrap">${departamento.nombre}</td>
+                                <td class="cell-wrap"><span class="status-dot ${(departamento.estado || 'activo')}"></span> ${((departamento.estado || 'activo') === 'activo') ? 'Activo' : 'Inactivo'}</td>
+                                <td class="text-center col-actions">
+                                    <div class="btn-group btn-group-sm table-actions" role="group" aria-label="Acciones">
+                                        <button class="btn btn-edit" onclick="editarDepartamento(${departamento.id})" title="Editar departamento">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn ${departamento.estado === 'activo' ? 'btn-toggle' : 'btn-toggle btn-activate'}" 
+                                                onclick="cambiarEstadoDepartamento(${departamento.id}, '${departamento.estado === 'activo' ? 'inactivo' : 'activo'}')" 
+                                                title="${departamento.estado === 'activo' ? 'Desactivar' : 'Activar'}">
+                                            <i class="bi ${departamento.estado === 'activo' ? 'bi-person-x' : 'bi-person-check'}"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+            } catch (e) {
+                console.error('Error en búsqueda:', e);
+            }
+        };
+
         if (buscarDepartamento) {
             // Asegurar que el input sea interactivo y tenga foco
             try {
@@ -128,40 +176,13 @@ async function cargarDepartamentos() {
 
             let debounceId;
             buscarDepartamento.addEventListener('input', () => {
-                const q = (buscarDepartamento.value || '').trim();
                 clearTimeout(debounceId);
-                debounceId = setTimeout(async () => {
-                    try {
-                        const resp = await fetchAPI(`/departamentos?search=${encodeURIComponent(q)}&limit=50`, { suppressErrorLog: true });
-                        const nuevos = (resp.departamentos || []).map(d => ({ id: d.id, nombre: d.nombre, estado: d.estado || 'activo' }));
-                        const tabla = document.getElementById('tabla-departamentos');
-                        if (tabla) {
-                            tabla.innerHTML = nuevos.map(departamento => `
-                                <tr data-id="${departamento.id}">
-                                    <td class="cell-wrap">${departamento.nombre}</td>
-                                    <td class="cell-wrap"><span class="status-dot ${(departamento.estado || 'activo')}"></span> ${((departamento.estado || 'activo') === 'activo') ? 'Activo' : 'Inactivo'}</td>
-                                    <td class="text-center col-actions">
-                                        <div class="btn-group btn-group-sm table-actions" role="group" aria-label="Acciones">
-                                            <button class="btn btn-edit" onclick="editarDepartamento(${departamento.id})" title="Editar departamento">
-                                                <i class="bi bi-pencil"></i>
-                                            </button>
-                                            <button class="btn ${departamento.estado === 'activo' ? 'btn-toggle' : 'btn-toggle btn-activate'}" 
-                                                    onclick="cambiarEstadoDepartamento(${departamento.id}, '${departamento.estado === 'activo' ? 'inactivo' : 'activo'}')" 
-                                                    title="${departamento.estado === 'activo' ? 'Desactivar' : 'Activar'}">
-                                                <i class="bi ${departamento.estado === 'activo' ? 'bi-person-x' : 'bi-person-check'}"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            `).join('');
-                        }
-                    } catch (e) {
-                        // Fallback a filtrado local si falla la búsqueda remota
-                        filtrarDepartamentos();
-                        mostrarNotificacion('Error al buscar departamentos: ' + (e.message || ''), 'warning');
-                    }
-                }, 250);
+                debounceId = setTimeout(realizarBusqueda, 250);
             });
+        }
+
+        if (filtroEstado) {
+            filtroEstado.addEventListener('change', realizarBusqueda);
         }
         
     } catch (error) {
@@ -987,10 +1008,10 @@ function editarDepartamento(departamentoId) {
 }
 
 /**
- * Alias para volver a la vista de lista
+ * Función para cargar el módulo de gestión de departamentos
  */
-function cargarGestionDepartamentos() {
-    cargarDepartamentos();
+async function cargarGestionDepartamentos() {
+    await cargarDepartamentos();
 }
 
 /**

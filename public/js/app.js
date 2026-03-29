@@ -603,6 +603,11 @@ function cargarContenidoPagina(pagina) {
         mainContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     
+    // Cerrar menú móvil si está abierto tras navegar
+    if (window.mobileNav && typeof window.mobileNav.close === 'function') {
+        window.mobileNav.close();
+    }
+    
     mostrarCargando(false);
 }
 
@@ -638,6 +643,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     misPagos: () => typeof cargarMisPagos === 'function' && cargarMisPagos(u || {})
                 };
                 if (map[pagina]) map[pagina]();
+                
+                // Cerrar menú móvil para ciudadanos también
+                if (window.mobileNav && typeof window.mobileNav.close === 'function') {
+                    window.mobileNav.close();
+                }
             } else if (typeof cargarContenidoPagina === 'function') {
                 cargarContenidoPagina(pagina);
             }
