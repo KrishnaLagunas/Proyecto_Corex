@@ -465,13 +465,24 @@ async function cargarMunicipalidades() {
                     </div>
                 </div>
                 <div class="row g-2 align-items-end mb-2">
-                    <div class="col-md-6" id="buscar-departamento-wrap">
+                    <div class="col-md-3" id="buscar-departamento-wrap">
                         <input type="text" class="form-control" id="buscar-departamento" placeholder="Buscar municipalidad..." autocomplete="off" tabindex="0" aria-label="Buscar municipalidad">
                     </div>
-                </div>
-                <div class="row mb-2">
-                    <div class="col-md-3 offset-md-9 d-flex justify-content-end">
-                        <button class="btn btn-primary btn-new-user" onclick="mostrarFormularioMunicipalidad()">
+                    <div class="col-md-3">
+                        <select class="form-select" id="filtro-nombre-municipalidad">
+                            <option value="">Todas las municipalidades</option>
+                            ${departamentos.map(m => `<option value="${m.id}">${m.nombre}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="filtro-estado-municipalidad">
+                            <option value="">Todos los estados</option>
+                            <option value="activo">Activo</option>
+                            <option value="inactivo">Inactivo</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex justify-content-end">
+                        <button class="btn btn-primary btn-new-user w-100" onclick="mostrarFormularioMunicipalidad()">
                             <i class="bi bi-building-add"></i> Nueva Municipalidad
                         </button>
                     </div>
@@ -531,30 +542,46 @@ async function cargarMunicipalidades() {
         };
         tabla.innerHTML = renderMunicipios(departamentos);
         const buscar = document.getElementById('buscar-departamento');
+        const filtroEstado = document.getElementById('filtro-estado-municipalidad');
+        const filtroNombreMuni = document.getElementById('filtro-nombre-municipalidad');
+        
+        const realizarBusqueda = async () => {
+            const q = (buscar?.value || '').trim();
+            const estado = filtroEstado?.value || '';
+            const muniId = filtroNombreMuni?.value || '';
+            try {
+                const resp = await fetchAPI(`/municipalidades?search=${encodeURIComponent(q)}&estado=${encodeURIComponent(estado)}&limit=50`);
+                let nuevos = (resp.departamentos || []).map(d => ({
+                    id: d.id,
+                    nombre: d.nombre,
+                    rut: d.rut ?? '',
+                    rutFmt: formatRut(d.rut ?? ''),
+                    email: d.email ?? d.email_contacto ?? '',
+                    telefono: d.telefono ?? d.telefono_contacto ?? '',
+                    direccion: d.direccion ?? '',
+                    region: d.region ?? '',
+                    comuna: d.comuna ?? '',
+                    estado: d.estado || 'activo'
+                }));
+                
+                if (muniId) {
+                    nuevos = nuevos.filter(m => m.id.toString() === muniId);
+                }
+                
+                const t = document.getElementById('tabla-departamentos');
+                if (t) t.innerHTML = renderMunicipios(nuevos);
+            } catch (e) {
+                mostrarNotificacion('Error al buscar municipalidades: ' + (e.message || ''), 'warning');
+            }
+        };
+
         if (buscar) {
             buscar.removeAttribute('disabled');
             buscar.style.pointerEvents = 'auto';
-            buscar.addEventListener('input', async () => {
-                const q = (buscar.value || '').trim();
-                try {
-                    const resp = await fetchAPI(`/municipalidades?search=${encodeURIComponent(q)}&limit=50`);
-                    const nuevos = (resp.departamentos || []).map(d => ({
-                        id: d.id,
-                        nombre: d.nombre,
-                        rut: d.rut ?? '',
-                        rutFmt: formatRut(d.rut ?? ''),
-                        email: d.email ?? d.email_contacto ?? '',
-                        telefono: d.telefono ?? d.telefono_contacto ?? '',
-                        direccion: d.direccion ?? '',
-                        region: d.region ?? '',
-                        comuna: d.comuna ?? '',
-                        estado: d.estado || 'activo'
-                    }));
-                    const t = document.getElementById('tabla-departamentos');
-                    if (t) t.innerHTML = renderMunicipios(nuevos);
-                } catch (e) {
-                    mostrarNotificacion('Error al buscar municipalidades: ' + (e.message || ''), 'warning');
-                }
+            let debounceId;
+            buscar.addEventListener('input', () => {
+                clearTimeout(debounceId);
+                debounceId = setTimeout(realizarBusqueda, 250);
             });
             // Asegurar foco inmediato en desktop
             try { buscar.focus(); } catch (_) {}
@@ -565,6 +592,14 @@ async function cargarMunicipalidades() {
                 });
                 wrap.style.pointerEvents = 'auto';
             }
+        }
+        
+        if (filtroEstado) {
+            filtroEstado.addEventListener('change', realizarBusqueda);
+        }
+
+        if (filtroNombreMuni) {
+            filtroNombreMuni.addEventListener('change', realizarBusqueda);
         }
         try {
             if (window.mobileNav && typeof window.mobileNav.close === 'function') window.mobileNav.close();

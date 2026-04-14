@@ -37,7 +37,8 @@ const idSchema = Joi.object({
 const departamentoQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).messages(mensajesError),
   limit: Joi.number().integer().min(1).max(100).messages(mensajesError),
-  search: Joi.string().min(1).max(100).messages(mensajesError),
+  search: Joi.string().max(100).allow('', null).messages(mensajesError),
+  estado: Joi.string().valid('activo', 'inactivo').allow('', null).messages(mensajesError),
   sort: Joi.string().valid('nombre').messages(mensajesError),
   order: Joi.string().valid('ASC', 'DESC', 'asc', 'desc').messages(mensajesError)
 }).messages(mensajesError);

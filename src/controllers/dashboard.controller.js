@@ -51,9 +51,9 @@ const dashboardController = {
       const proyectosActivos = 0;
       const totalUsuarios = await safeEval(() => Usuario.count({ where: usuarioWhere }));
       const totalMunicipalidades = filtraPorMuni ? (muniId ? 1 : 0) : await safeEval(() => Municipalidad.count());
-      const totalDepartamentos = filtraPorMuni && muniId
-        ? await safeEval(() => Departamento.count({ where: { municipalidad_id: muniId } }))
-        : await safeEval(() => Departamento.count());
+      const totalDepartamentos = await safeEval(() => Departamento.count());
+      const deptosActivos = await safeEval(() => Departamento.count({ where: { estado: 'activo' } }));
+      const deptosInactivos = await safeEval(() => Departamento.count({ where: { estado: 'inactivo' } }));
 
       // Estadísticas de trámites por estado (filtradas)
       let tramitesPorEstado = [];
@@ -147,6 +147,8 @@ const dashboardController = {
         totalUsuarios,
         proyectosActivos,
         totalDepartamentos,
+        deptosActivos,
+        deptosInactivos,
         pagosRecientes,
         tramitesPagoCount: parseInt(tramitesPagoCount) || 0,
         tramitesGratisCount: parseInt(tramitesGratisCount) || 0,
@@ -369,20 +371,21 @@ const dashboardController = {
           [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'tramites']
         ],
         where: { fecha_solicitud: { [Op.between]: [start, end] } },
-        group: ['municipalidad_id']
+        group: ['municipalidad_id'],
+        raw: true
       });
 
       // Pagos por municipalidad via tramite
       const pagos = await Pago.findAll({
         attributes: [
+          [require('sequelize').col('Tramite.municipalidad_id'), 'municipalidad_id'],
           [require('sequelize').fn('COUNT', require('sequelize').col('Pago.id')), 'pagos']
         ],
-        include: [{ model: Tramite, required: true, attributes: [], where: { municipalidad_id: { [Op.ne]: null } } }],
+        include: [{ model: Tramite, required: true, attributes: [], where: { municipalidad_id: { [require('sequelize').Op.ne]: null } } }],
         where: { fecha_pago: { [Op.between]: [start, end] } },
-        group: ['Tramite.municipalidad_id']
+        group: ['Tramite.municipalidad_id'],
+        raw: true
       });
-
-      // Proyectos deshabilitados
 
       // Usuarios activos por municipalidad (último login)
       const usuarios = await Usuario.findAll({
@@ -391,33 +394,35 @@ const dashboardController = {
           [require('sequelize').fn('COUNT', require('sequelize').col('id')), 'usuarios_activos']
         ],
         where: { ultimo_login: { [Op.between]: [start, end] } },
-        group: ['municipalidad_id']
+        group: ['municipalidad_id'],
+        raw: true
       });
 
-      // Unir métricas
+      // Obtener todas las municipalidades y pre-poblarlas
+      const todasMuni = await Municipalidad.findAll({ attributes: ['id', 'nombre'], raw: true });
+      const muniMap = new Map(todasMuni.map(m => [m.id, m.nombre]));
+      
       const map = new Map();
+      todasMuni.forEach(m => {
+        map.set(m.id, { municipalidad_id: m.id, tramites: 0, pagos: 0, usuarios_activos: 0 });
+      });
+
       const add = (id, key, value) => {
         if (!id) return;
-        const o = map.get(id) || { municipalidad_id: id, tramites: 0, pagos: 0, proyectos: 0, usuarios_activos: 0 };
-        o[key] = Number(value) || 0;
+        const o = map.get(id) || { municipalidad_id: id, tramites: 0, pagos: 0, usuarios_activos: 0 };
+        o[key] += Number(value) || 0; // Acumular
         map.set(id, o);
       };
 
-      tramites.forEach(t => add(t.municipalidad_id, 'tramites', t.dataValues.tramites));
-      pagos.forEach(p => add(p.dataValues.Tramite.municipalidad_id, 'pagos', p.dataValues.pagos));
-      // Proyectos deshabilitados
-      usuarios.forEach(u => add(u.municipalidad_id, 'usuarios_activos', u.dataValues.usuarios_activos));
-
-      const ids = Array.from(map.keys());
-      const muniRows = ids.length ? await Municipalidad.findAll({ where: { id: { [require('sequelize').Op.in]: ids } }, attributes: ['id', 'nombre'] }) : [];
-      const muniMap = new Map(muniRows.map(m => [m.id, m.nombre]));
+      tramites.forEach(t => add(t.municipalidad_id, 'tramites', t.tramites));
+      pagos.forEach(p => add(p.municipalidad_id, 'pagos', p.pagos));
+      usuarios.forEach(u => add(u.municipalidad_id, 'usuarios_activos', u.usuarios_activos));
 
       const ranking = Array.from(map.values()).map(r => ({
         municipalidad_id: r.municipalidad_id,
         municipalidad_nombre: muniMap.get(r.municipalidad_id) || null,
         tramites: r.tramites,
         pagos: r.pagos,
-        proyectos: r.proyectos,
         usuarios_activos: r.usuarios_activos,
         score: r.tramites + r.pagos * 2 + Math.min(r.usuarios_activos, 100) * 0.1
       })).sort((a, b) => b.score - a.score);

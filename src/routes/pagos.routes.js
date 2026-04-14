@@ -45,7 +45,7 @@ router.post('/',
  */
 router.put('/:id', 
   isAuthenticated, 
-  hasRole(['admin', 'funcionario']),
+  hasRole(['administrador', 'superadministrador', 'funcionario']),
   validateParams(pagoSchemas.idParam),
   validateSchema(pagoSchemas.updatePago), 
   pagosController.updatePago

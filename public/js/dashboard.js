@@ -42,6 +42,8 @@ async function cargarDashboard() {
       tramitesPorEstado = [],
       pagosPorMes = [],
       totalDepartamentos = 0,
+      deptosActivos = 0,
+      deptosInactivos = 0,
       pagosRecientes = undefined,
       tramitesPagoCount = 0,
       tramitesGratisCount = 0
@@ -106,7 +108,7 @@ async function cargarDashboard() {
         `;
     } else if (esAdmin) {
         cardsHTML = `
-          <div class="col-6 col-md-4 col-lg-2 mb-4">
+          <div class="col-6 col-md-4 col-lg mb-4">
             <a href="#" class="kpi-card" data-page="usuarios">
               <div class="kpi-icon"><i class="bi bi-people"></i></div>
               <div class="kpi-info">
@@ -115,7 +117,7 @@ async function cargarDashboard() {
               </div>
             </a>
           </div>
-          <div class="col-6 col-md-4 col-lg-2 mb-4">
+          <div class="col-6 col-md-4 col-lg mb-4">
             <a href="#" class="kpi-card" data-page="departamentos">
               <div class="kpi-icon"><i class="bi bi-building"></i></div>
               <div class="kpi-info">
@@ -124,7 +126,7 @@ async function cargarDashboard() {
               </div>
             </a>
           </div>
-          <div class="col-6 col-md-4 col-lg-2 mb-4">
+          <div class="col-6 col-md-4 col-lg mb-4">
             <a href="#" class="kpi-card" data-page="tramites">
               <div class="kpi-icon"><i class="bi bi-file-earmark-text"></i></div>
               <div class="kpi-info">
@@ -134,7 +136,7 @@ async function cargarDashboard() {
               </div>
             </a>
           </div>
-          <div class="col-6 col-md-4 col-lg-2 mb-4">
+          <div class="col-6 col-md-4 col-lg mb-4">
             <a href="#" class="kpi-card" data-page="pagos">
               <div class="kpi-icon"><i class="bi bi-cash-coin"></i></div>
               <div class="kpi-info">
@@ -144,16 +146,7 @@ async function cargarDashboard() {
               </div>
             </a>
           </div>
-          <div class="col-6 col-md-4 col-lg-2 mb-4">
-            <div class="kpi-card">
-              <div class="kpi-icon"><i class="bi bi-bar-chart"></i></div>
-              <div class="kpi-info">
-                <div class="kpi-title">Proyectos</div>
-                <div class="kpi-value">${proyectosActivos}</div>
-              </div>
-            </div>
-          </div>
-          <div class="col-6 col-md-4 col-lg-2 mb-4">
+          <div class="col-6 col-md-4 col-lg mb-4">
             <div class="kpi-card">
               <div class="kpi-icon"><i class="bi bi-clock-history"></i></div>
               <div class="kpi-info">
@@ -429,6 +422,22 @@ async function cargarDashboard() {
       chartInitPagosDonut('chart-pagos-pendiente', 0, '#FF9800');
       chartInitPagosDonut('chart-pagos-rechazado', 0, '#FF8A80');
 
+      if (esAdmin) {
+        const deptoCanvas = document.getElementById('chart-departamentos-estado');
+        if (deptoCanvas && deptoCanvas.getContext) {
+          const ctxDepto = deptoCanvas.getContext('2d');
+          const dActivos = parseInt(deptosActivos) || 0;
+          const dInactivos = parseInt(deptosInactivos) || 0;
+          const colorsDepto = [dActivos === 0 ? '#8B0000' : '#4CAF50', dInactivos === 0 ? '#8B0000' : '#607D8B'];
+          window.dashboardCharts.departamentosEstado = new Chart(ctxDepto, {
+            type: 'bar',
+            data: { labels: ['Activos', 'Inactivos'], datasets: [{ data: [dActivos, dInactivos], backgroundColor: colorsDepto }] },
+            options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+          });
+        }
+      }
+
+
     } catch (e) {
       console.error('Error al cargar dashboard:', e);
       const mc = document.getElementById('main-content');
@@ -564,35 +573,24 @@ async function cargarDashboard() {
 
         // Departamentos activos vs inactivos
         const departamentosCanvas = document.getElementById('chart-departamentos-estado');
-        if (departamentosCanvas && departamentosStats && Array.isArray(departamentosStats.estadoPorDepartamento)) {
-          const estadoArrD = departamentosStats.estadoPorDepartamento;
-          const activoItemD = estadoArrD.find(s => (s.estado || s.dataValues?.estado) === 'activo');
-          const inactivoItemD = estadoArrD.find(s => (s.estado || s.dataValues?.estado) === 'inactivo');
-          const activosD = parseInt((activoItemD && (activoItemD.total ?? activoItemD.dataValues?.total)) || 0) || 0;
-          const inactivosD = parseInt((inactivoItemD && (inactivoItemD.total ?? inactivoItemD.dataValues?.total)) || 0) || 0;
+        if (departamentosCanvas) {
+          const activosD = parseInt(d.deptosActivos) || 0;
+          const inactivosD = parseInt(d.deptosInactivos) || 0;
           const suggestedD = Math.max(8, Math.max(activosD, inactivosD));
+          const colsD = [activosD === 0 ? '#8B0000' : '#4CAF50', inactivosD === 0 ? '#8B0000' : '#607D8B'];
+          
           if (!window.dashboardCharts.departamentosEstado) {
             const ctx5 = departamentosCanvas.getContext('2d');
             window.dashboardCharts.departamentosEstado = new Chart(ctx5, {
               type: 'bar',
-              data: { labels: ['Activos', 'Inactivos'], datasets: [{ data: [activosD, inactivosD], backgroundColor: ['#4CAF50', '#FF7043'] }] },
+              data: { labels: ['Activos', 'Inactivos'], datasets: [{ data: [activosD, inactivosD], backgroundColor: colsD }] },
               options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, suggestedMax: suggestedD } }, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
             });
           } else {
-            window.dashboardCharts.departamentosEstado.data.labels = ['Activos', 'Inactivos'];
             window.dashboardCharts.departamentosEstado.data.datasets[0].data = [activosD, inactivosD];
+            window.dashboardCharts.departamentosEstado.data.datasets[0].backgroundColor = colsD;
             window.dashboardCharts.departamentosEstado.options.scales.x.suggestedMax = suggestedD;
-            window.dashboardCharts.departamentosEstado.options.scales.x.ticks.stepSize = 1;
-            window.dashboardCharts.departamentosEstado.update();
-          }
-        } else if (departamentosCanvas) {
-          if (!window.dashboardCharts.departamentosEstado) {
-            const ctx5 = departamentosCanvas.getContext('2d');
-            window.dashboardCharts.departamentosEstado = new Chart(ctx5, {
-              type: 'bar',
-              data: { labels: ['Activos', 'Inactivos'], datasets: [{ data: [0, 0], backgroundColor: ['#4CAF50', '#FF7043'] }] },
-              options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1 }, suggestedMax: 8 } }, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
-            });
+            window.dashboardCharts.departamentosEstado.update('none');
           }
         }
         const buildCarouselItem = (p) => {
@@ -749,7 +747,6 @@ async function mostrarSupervisionMultiMunicipalidad() {
                         <th>Municipalidad</th>
                         <th class="text-center">Trámites</th>
                         <th class="text-center">Pagos</th>
-                        <th class="text-center">Proyectos</th>
                         <th class="text-center">Usuarios Activos</th>
                         <th class="text-center">Puntuación</th>
                       </tr>
@@ -779,7 +776,6 @@ async function mostrarSupervisionMultiMunicipalidad() {
             <td>${item.municipalidad_nombre || '—'}</td>
             <td class="text-center">${item.tramites}</td>
             <td class="text-center">${item.pagos}</td>
-            <td class="text-center">${item.proyectos}</td>
             <td class="text-center">${item.usuarios_activos}</td>
             <td class="text-center">${Number(item.score || 0).toFixed(2)}</td>
           </tr>

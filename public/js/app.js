@@ -168,6 +168,13 @@ function cargarContenidoPagina(pagina) {
             }
             break;
         }
+        case 'municipalidades':
+            if (typeof cargarMunicipalidades === 'function') {
+                cargarMunicipalidades();
+            } else {
+                mostrarNotificacion('Error al cargar el módulo de municipalidades', 'danger');
+            }
+            break;
         case 'usuarios':
             // Cargar tabla de usuarios
             if (typeof cargarUsuarios === 'function') {
@@ -682,22 +689,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Delegación para el ojito de contraseña en caso de re-render (Login)
-    document.addEventListener('click', (e) => {
-        const toggle = e.target && e.target.closest && e.target.closest('#toggle-password');
-        if (toggle) {
-            e.preventDefault();
-            const input = document.getElementById('password');
-            if (!input) return;
-            const toShow = input.type === 'password';
-            input.type = toShow ? 'text' : 'password';
-            const icon = toggle.querySelector('i');
-            if (icon) {
-                icon.classList.toggle('bi-eye', !toShow);
-                icon.classList.toggle('bi-eye-slash', toShow);
-            }
-        }
-    });
+    // Delegación para el ojito de contraseña en caso de re-render (Login) - ELIMINADO POR CONFLICTO
 
     // Delegación para botones de ver/ocultar contraseña (Genérico con clase .toggle-password-btn)
     document.addEventListener('click', (e) => {

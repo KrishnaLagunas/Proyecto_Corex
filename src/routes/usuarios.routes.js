@@ -101,7 +101,7 @@ router.put(
 router.put(
   '/:id(\\d+)/estado',
   isAuthenticated,
-  hasRole(['admin']),
+  hasRole(['administrador', 'superadministrador']),
   validateParams(idSchema),
   validateSchema(changeEstadoSchema),
   usuariosController.changeEstado

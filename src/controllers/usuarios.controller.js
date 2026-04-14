@@ -292,15 +292,9 @@ const usuariosController = {
       }
 
       if (rolCreador === 'superadministrador') {
-        // Superadministrador: puede crear administradores y funcionarios/secretarías, requiriendo municipalidad
+        // Superadministrador: solo puede crear administradores
         const allowedRolesSuper = [
-          'administrador',
-          'funcionario',
-          'secretaria de educación',
-          'secretaria de obras',
-          'secretaria de transito',
-          'secretaria de seguridad',
-          'secretaria de salud'
+          'administrador'
         ];
         if (!allowedRolesSuper.includes(rolDestino.nombre)) {
           throw new ApiError('Rol no permitido para creación por superadministrador', 403);

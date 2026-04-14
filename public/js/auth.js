@@ -228,22 +228,7 @@ window.intentarRestaurarSesion = intentarRestaurarSesion;
         }
     });
 
-    // Delegación para el ojito de contraseña en caso de re-render
-    document.addEventListener('click', (e) => {
-        const toggle = e.target && e.target.closest && e.target.closest('#toggle-password');
-        if (toggle) {
-            e.preventDefault();
-            const input = document.getElementById('password');
-            if (!input) return;
-            const toShow = input.type === 'password';
-            input.type = toShow ? 'text' : 'password';
-            const icon = toggle.querySelector('i');
-            if (icon) {
-                icon.classList.toggle('bi-eye', toShow);
-                icon.classList.toggle('bi-eye-slash', !toShow);
-            }
-        }
-    });
+    // Delegación para el ojito de contraseña en caso de re-render - ELIMINADO POR CONFLICTO
 
     document.addEventListener('submit', (e) => {
         const form = e.target && e.target.closest && e.target.closest('#login-form');
@@ -1453,14 +1438,7 @@ function mostrarFormularioLogin() {
     } catch (_) {}
     const toggleBtn = document.getElementById('toggle-password');
     const passwordInput = document.getElementById('password');
-    if (toggleBtn && passwordInput) {
-        toggleBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            const show = passwordInput.type === 'password';
-            passwordInput.type = show ? 'text' : 'password';
-            toggleBtn.innerHTML = show ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
-        });
-    }
+    // toggleBtn local desactivado para usar el eventListener global en app.js
 }
 
 /**

@@ -477,6 +477,9 @@ function cargarUsuarios(usuarioId = null) {
 
 // Renderiza vista de lista de usuarios con filtros y paginación
 async function mostrarListaUsuarios() {
+    const currentUser = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+    const esSuperadmin = (currentUser?.rol_nombre || currentUser?.role) === 'superadministrador';
+
     const mainContent = document.getElementById('main-content');
     if (!mainContent) return;
     mainContent.classList.remove('d-none');
@@ -498,6 +501,7 @@ async function mostrarListaUsuarios() {
                     <option value="">Todos los roles</option>
                     <option value="superadministrador">Superadministrador</option>
                     <option value="administrador">Administrador</option>
+                    ${!esSuperadmin ? `
                     <option value="funcionario">Funcionario</option>
                     <option value="secretaria de educación">Secretaria de Educación</option>
                     <option value="secretaria de obras">Secretaria de Obras</option>
@@ -505,6 +509,7 @@ async function mostrarListaUsuarios() {
                     <option value="secretaria de seguridad">Secretaria de Seguridad</option>
                     <option value="secretaria de salud">Secretaria de Salud</option>
                     <option value="ciudadano">Ciudadano</option>
+                    ` : ''}
                 </select>
             </div>
             <div class="col-md-3">
@@ -533,7 +538,7 @@ async function mostrarListaUsuarios() {
                             <th class="text-nowrap">RUT</th>
                             <th class="text-center">Rol</th>
                             <th>Municipalidad</th>
-                            <th>Departamento</th>
+                            ${esSuperadmin ? '' : '<th>Departamento</th>'}
                             <th class="text-center">Estado</th>
                             <th class="text-center">Creado</th>
                             <th class="text-center col-actions">Acciones</th>
@@ -573,6 +578,9 @@ async function mostrarListaUsuarios() {
 
 // Actualiza la tabla de usuarios y la paginación
 async function actualizarTablaUsuarios(page = 1) {
+    const currentUser = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
+    const esSuperadmin = (currentUser?.rol_nombre || currentUser?.role) === 'superadministrador';
+
     const tbody = document.getElementById('tabla-usuarios');
     const pagContainer = document.getElementById('paginacion-usuarios');
     const buscar = document.getElementById('buscar-usuario')?.value.trim();
@@ -608,11 +616,11 @@ async function actualizarTablaUsuarios(page = 1) {
                     <td class="cell-nowrap">${u.rut || ''}</td>
                     <td class="text-center">${u.Rol?.nombre || u.rol_nombre || ''}</td>
                     <td class="cell-wrap">${u.Municipalidad?.nombre || u.municipalidad?.nombre || 'N/A'}</td>
-                    <td class="cell-wrap">${(() => {
+                    ${esSuperadmin ? '' : `<td class="cell-wrap">${(() => {
                         const deptos = u.Departamentos || u.departamentos;
                         if (deptos && deptos.length > 0) return deptos[0].nombre;
                         return u.departamento?.nombre || 'N/A';
-                    })()}</td>
+                    })()}</td>`}
                     <td class="text-center"><span class="estado-${u.estado}">${u.estado}</span></td>
                     <td class="text-center">${typeof formatearFecha === 'function' ? formatearFecha(u.createdAt) : ''}</td>
                     <td class="text-center col-actions">
@@ -807,7 +815,7 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                 <div class="col-md-8 offset-md-2">
                     <div class="card no-hover">
                         <div class="card-body">
-                            <form id="form-usuario" data-accion="${accion}" data-id="${usuarioId || ''}">
+                            <form id="form-usuario" data-accion="${accion}" data-id="${usuarioId || ''}" autocomplete="off">
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">
@@ -840,7 +848,7 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="email" class="form-label">Email</label>
-                                            <input type="email" class="form-control" id="email" value="${usuario?.email || ''}" required>
+                                            <input type="email" class="form-control" id="email" value="${usuario?.email || ''}" autocomplete="off" required>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
@@ -898,7 +906,7 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                                     };
 
                                                     if (esSuperadminLocal) {
-                                                        const allowed = ['administrador','funcionario','secretaria de educación','secretaria de salud','secretaria de seguridad','secretaria de obras','secretaria de transito'];
+                                                        const allowed = ['administrador'];
                                                         return ['']
                                                             .concat(allowed)
                                                             .map(n => n ? `<option value="${n}" ${actual===n?'selected':''}>${toTitleCase(n)}</option>` : '<option value="">Selecciona rol</option>')
@@ -953,14 +961,14 @@ async function mostrarFormularioUsuario(usuarioId = null) {
                                     ${!usuarioId ? `
                                     <div class="col-md-6">
                                         <div class="mb-3">
-                                            <label for="password" class="form-label">Contraseña</label>
+                                            <label for="nuevo-password" class="form-label">Contraseña</label>
                                             <div class="input-group">
-                                                <input type="password" class="form-control" id="password" required>
-                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password')">
-                                                    <i class="bi bi-eye" id="password-icon"></i>
+                                                <input type="password" class="form-control" id="nuevo-password" autocomplete="new-password" required>
+                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('nuevo-password')">
+                                                    <i class="bi bi-eye" id="nuevo-password-icon"></i>
                                                 </button>
                                             </div>
-                                            <div id="password_hint" class="form-text">Debe tener 8+, mayúscula, minúscula, número y símbolo (@$!%*?&#.).</div>
+                                            <div id="nuevo-password_hint" class="form-text">Debe tener 8+, mayúscula, minúscula, número y símbolo (@$!%*?&#.).</div>
                                         </div>
                                     </div>` : ''}
                                 </div>
@@ -1108,7 +1116,7 @@ async function guardarUsuario(e) {
     const departamento_id = departamento_id_raw ? parseInt(departamento_id_raw) : null;
     const municipalidad_id_raw = form?.querySelector('#municipalidad_id')?.value;
     const municipalidad_id = municipalidad_id_raw ? parseInt(municipalidad_id_raw) : null;
-    const password = form?.querySelector('#password')?.value;
+    const password = form?.querySelector('#nuevo-password')?.value;
 
     // Normalizar antes de validar/enviar (con valores por defecto seguros)
     rut = normalizarRut(rut || '');
@@ -1325,14 +1333,14 @@ async function mostrarFormularioCrearAdministrador() {
                                     </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
-                                            <label for="password" class="form-label">Contraseña</label>
+                                            <label for="nuevo-password" class="form-label">Contraseña</label>
                                             <div class="input-group">
-                                                <input type="password" class="form-control" id="password" required>
-                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password')">
-                                                    <i class="bi bi-eye" id="password-icon"></i>
+                                                <input type="password" class="form-control" id="nuevo-password" required>
+                                                <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('nuevo-password')">
+                                                    <i class="bi bi-eye" id="nuevo-password-icon"></i>
                                                 </button>
                                             </div>
-                                            <div id="password_hint" class="form-text">Debe tener 8+, mayúscula, minúscula, número y símbolo (@$!%*?&#.).</div>
+                                            <div id="nuevo-password_hint" class="form-text">Debe tener 8+, mayúscula, minúscula, número y símbolo (@$!%*?&#.).</div>
                                         </div>
                                     </div>
                                 </div>
