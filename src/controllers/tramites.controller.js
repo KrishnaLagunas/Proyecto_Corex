@@ -74,31 +74,73 @@ const tramitesController = {
       if (req.user.rol_nombre === 'ciudadano') {
         // Los ciudadanos solo pueden ver sus propios trámites
         where.ciudadano_id = req.user.id;
-      } else if (['funcionario','secretaria de educación','secretaria de salud','secretaria de seguridad','secretaria de obras','secretaria de transito'].includes(String(req.user.rol_nombre).toLowerCase())) {
-        const funcionario = await Usuario.findByPk(req.user.id, {
-          include: [{ model: Municipalidad }],
-          attributes: ['id', 'municipalidad_id']
-        });
+      } else {
+        // Verificar si es un rol de funcionario (normalizado)
+        const rolNombre = String(req.user.rol_nombre || '').toLowerCase();
+        const esFuncionario = rolNombre.includes('admin') || 
+                              rolNombre.includes('func') || 
+                              rolNombre.includes('secretaria') || 
+                              rolNombre.includes('direcc') || 
+                              rolNombre.includes('jefe') || 
+                              rolNombre.includes('encargado') || 
+                              rolNombre.includes('tesorer');
 
-        const muniId = funcionario?.municipalidad_id || funcionario?.Municipalidad?.id || null;
-        // Filtrar por departamentos asignados al funcionario
-        let departamentosAsignados = [];
-        try {
-          const DepartamentoUsuario = require('../models/DepartamentoUsuario');
-          const asignaciones = await DepartamentoUsuario.findAll({ where: { usuario_id: req.user.id }, attributes: ['departamento_id'] });
-          departamentosAsignados = asignaciones.map(a => a.departamento_id);
-        } catch (_) { departamentosAsignados = []; }
+        if (esFuncionario && !rolNombre.includes('admin')) {
+          const funcionario = await Usuario.findByPk(req.user.id, {
+            include: [{ model: Municipalidad }],
+            attributes: ['id', 'municipalidad_id']
+          });
 
-        if (muniId && departamentosAsignados.length > 0) {
-          where.municipalidad_id = muniId;
-          where.departamento_id = { [Op.in]: departamentosAsignados };
-        } else if (muniId) {
-          // Sin asignaciones: ver solo trámites propios de su municipalidad
-          where.municipalidad_id = muniId;
-          where.funcionario_id = req.user.id;
-        } else {
-          // Sin municipalidad: ver solo trámites propios
-          where.funcionario_id = req.user.id;
+          const muniId = funcionario?.municipalidad_id || funcionario?.Municipalidad?.id || null;
+          // Filtrar por departamentos asignados al funcionario
+          let departamentosAsignados = [];
+          try {
+            const DepartamentoUsuario = require('../models/DepartamentoUsuario');
+            const asignaciones = await DepartamentoUsuario.findAll({ where: { usuario_id: req.user.id }, attributes: ['departamento_id'] });
+            departamentosAsignados = asignaciones.map(a => a.departamento_id);
+          } catch (_) { departamentosAsignados = []; }
+
+          // Si no hay asignaciones explícitas, intentar inferir el departamento por el nombre del rol
+          if (departamentosAsignados.length === 0) {
+            try {
+              // Palabras clave para detectar roles de departamento
+              if (rolNombre.includes('secretaria de') || rolNombre.includes('dirección de') || rolNombre.includes('departamento de')) {
+                // Extraer término clave (ej: "salud" de "secretaria de salud")
+                let termino = rolNombre
+                  .replace('secretaria de', '')
+                  .replace('dirección de', '')
+                  .replace('departamento de', '')
+                  .trim();
+                
+                if (termino.length > 2) {
+                  // Buscar departamento que coincida con el término
+                  const depto = await Departamento.findOne({
+                    where: {
+                      nombre: { [Op.like]: `%${termino}%` }
+                    }
+                  });
+                  if (depto) {
+                    departamentosAsignados.push(depto.id);
+                  }
+                }
+              }
+            } catch (e) {
+              logger.warn('Error infiriendo departamento por rol:', e);
+            }
+          }
+
+          if (muniId && departamentosAsignados.length > 0) {
+            where.municipalidad_id = muniId;
+            where.departamento_id = { [Op.in]: departamentosAsignados };
+          } else if (muniId) {
+            // Sin asignaciones: ver solo trámites propios de su municipalidad
+            where.municipalidad_id = muniId;
+            // Opcional: si queremos que vean todos los de la muni si no tienen depto asignado
+            // where.funcionario_id = req.user.id; 
+          } else {
+            // Sin municipalidad: ver solo trámites propios
+            where.funcionario_id = req.user.id;
+          }
         }
       }
       // Administrador: restringir a su municipalidad asignada
@@ -251,7 +293,7 @@ const tramitesController = {
             const anyMuni = await Municipalidad.findOne();
             if (anyMuni && anyMuni.id) municipalidad_id = anyMuni.id;
           }
-        } catch (_) {}
+        } catch (err) { console.error('Error silenciado:', err.message); }
       }
       
       // Verificar que la municipalidad existe
@@ -645,7 +687,7 @@ const tramitesController = {
       await Documento.destroy({ where: { tramite_id: id } });
       const codigoTramite = tramite.codigo;
       await tramite.destroy();
-      try { logger.info(`[Ciudadano][Eliminar Trámite] código=${codigoTramite} id=${id} ciudadano=${req.user.id}`); } catch (_) {}
+      try { logger.info(`[Ciudadano][Eliminar Trámite] código=${codigoTramite} id=${id} ciudadano=${req.user.id}`); } catch (err) { console.error('Error silenciado:', err.message); }
       res.json({ message: 'Trámite eliminado exitosamente' });
     } catch (error) {
       next(error);
@@ -670,13 +712,43 @@ const tramitesController = {
       const isAdmin = rol === 'administrador';
       const isFuncionario = ['funcionario','secretaria de educación','secretaria de salud','secretaria de seguridad','secretaria de obras','secretaria de transito'].includes(rol);
       
-      let filterWhere = (isAdmin || isFuncionario)
-        ? (muniId
-            ? (isAdmin
-                ? { [Op.or]: [{ municipalidad_id: muniId }, { municipalidad_id: null }] }
-                : { municipalidad_id: muniId })
-            : { municipalidad_id: -1 })
-        : {};
+      let filterWhere = {};
+      if (isAdmin || isFuncionario) {
+        if (muniId) {
+          if (isAdmin) {
+            filterWhere = { [Op.or]: [{ municipalidad_id: muniId }, { municipalidad_id: null }] };
+          } else {
+            filterWhere = { municipalidad_id: muniId };
+            
+            // Lógica de departamentos para funcionarios
+            let departamentosAsignados = [];
+            try {
+              const DepartamentoUsuario = require('../models/DepartamentoUsuario');
+              const asignaciones = await DepartamentoUsuario.findAll({ where: { usuario_id: req.user.id }, attributes: ['departamento_id'] });
+              departamentosAsignados = asignaciones.map(a => a.departamento_id);
+            } catch (err) { console.error('Error silenciado:', err.message); }
+
+            if (departamentosAsignados.length === 0) {
+              try {
+                // Palabras clave para detectar roles de departamento
+                if (rol.includes('secretaria de') || rol.includes('dirección de') || rol.includes('departamento de')) {
+                  let termino = rol.replace('secretaria de', '').replace('dirección de', '').replace('departamento de', '').trim();
+                  if (termino.length > 2) {
+                    const depto = await Departamento.findOne({ where: { nombre: { [Op.like]: `%${termino}%` } } });
+                    if (depto) departamentosAsignados.push(depto.id);
+                  }
+                }
+              } catch (err) { console.error('Error silenciado:', err.message); }
+            }
+
+            if (departamentosAsignados.length > 0) {
+              filterWhere.departamento_id = { [Op.in]: departamentosAsignados };
+            }
+          }
+        } else {
+          filterWhere = { municipalidad_id: -1 };
+        }
+      }
 
       // Aplicar filtros de fecha si existen
       if (fechaInicio && fechaFin) {

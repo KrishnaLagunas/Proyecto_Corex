@@ -337,9 +337,9 @@ const pagosController = {
           tramite.requiere_pago = true;
           tramite.monto = parseFloat(monto);
           await tramite.save();
-          try { logger.info(`[Pagos][CREATE][CIUDADANO_FALLBACK] tramite_id=${tramite.id} monto_set=${tramite.monto}`); } catch (_) {}
+          try { logger.info(`[Pagos][CREATE][CIUDADANO_FALLBACK] tramite_id=${tramite.id} monto_set=${tramite.monto}`); } catch (err) { console.error('Error silenciado:', err.message); }
         } catch (e) {
-          try { logger.warn(`[Pagos][CREATE][CIUDADANO_FALLBACK_FAIL] ${e.message}`); } catch (_) {}
+          try { logger.warn(`[Pagos][CREATE][CIUDADANO_FALLBACK_FAIL] ${e.message}`); } catch (err) { console.error('Error silenciado:', err.message); }
         }
       }
       if (req.user.rol_nombre === 'administrador') {
@@ -356,7 +356,7 @@ const pagosController = {
       }
       
       if (!tramite.requiere_pago) {
-        try { logger.warn(`[Pagos][CREATE][RECHAZADO] tramite_id=${tramite.id} tipo="${String(tramite.tipo||'')}" monto=${tramite.monto} requiere_pago=${tramite.requiere_pago}`); } catch (_) {}
+        try { logger.warn(`[Pagos][CREATE][RECHAZADO] tramite_id=${tramite.id} tipo="${String(tramite.tipo||'')}" monto=${tramite.monto} requiere_pago=${tramite.requiere_pago}`); } catch (err) { console.error('Error silenciado:', err.message); }
         throw new ApiError('El trámite seleccionado no requiere pago', 400);
       }
       
@@ -369,14 +369,14 @@ const pagosController = {
           try {
             tramite.monto = mMon;
             await tramite.save();
-            try { logger.info(`[Pagos][CREATE][CIUDADANO_MONTO_SET] tramite_id=${tramite.id} monto_set=${mMon}`); } catch (_) {}
+            try { logger.info(`[Pagos][CREATE][CIUDADANO_MONTO_SET] tramite_id=${tramite.id} monto_set=${mMon}`); } catch (err) { console.error('Error silenciado:', err.message); }
           } catch (e) {
-            try { logger.warn(`[Pagos][CREATE][CIUDADANO_MONTO_SET_FAIL] ${e.message}`); } catch (_) {}
-            try { logger.warn(`[Pagos][CREATE][MONTO_MISMATCH] tramite_id=${tramite.id} esperado=${tMon} recibido=${mMon}`); } catch (_) {}
+            try { logger.warn(`[Pagos][CREATE][CIUDADANO_MONTO_SET_FAIL] ${e.message}`); } catch (err) { console.error('Error silenciado:', err.message); }
+            try { logger.warn(`[Pagos][CREATE][MONTO_MISMATCH] tramite_id=${tramite.id} esperado=${tMon} recibido=${mMon}`); } catch (err) { console.error('Error silenciado:', err.message); }
             throw new ApiError(`El monto debe ser ${tramite.monto}`, 400);
           }
         } else {
-          try { logger.warn(`[Pagos][CREATE][MONTO_MISMATCH] tramite_id=${tramite.id} esperado=${tMon} recibido=${mMon}`); } catch (_) {}
+          try { logger.warn(`[Pagos][CREATE][MONTO_MISMATCH] tramite_id=${tramite.id} esperado=${tMon} recibido=${mMon}`); } catch (err) { console.error('Error silenciado:', err.message); }
           throw new ApiError(`El monto debe ser ${tramite.monto}`, 400);
         }
       }
@@ -866,7 +866,7 @@ pagosController.deletePagoCiudadano = async (req, res, next) => {
       throw new (require('../middlewares/errorHandler').ApiError)('No puedes eliminar pagos de otro ciudadano', 403);
     }
     await pago.destroy();
-    try { (require('../utils/logger')).info(`[Ciudadano][Eliminar Pago] id=${id} ciudadano=${req.user.id}`); } catch (_) {}
+    try { (require('../utils/logger')).info(`[Ciudadano][Eliminar Pago] id=${id} ciudadano=${req.user.id}`); } catch (err) { console.error('Error silenciado:', err.message); }
     res.json({ message: 'Pago eliminado correctamente' });
   } catch (error) {
     next(error);

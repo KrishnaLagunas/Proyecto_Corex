@@ -56,20 +56,33 @@ async function cargarDashboard() {
 
     // Detectar rol actual
     const currentUser = (typeof obtenerUsuario === 'function') ? obtenerUsuario() : null;
-    const currentRole = currentUser?.role || null;
-    const esFuncionario = currentRole === 'funcionario';
+    const rRaw = currentUser && (currentUser.rol || currentUser.role || currentUser.rol_nombre);
+    const roleStr = (rRaw || '').toString().toLowerCase();
+    
+    let esFuncionario = false;
+    if (roleStr.includes('func') || roleStr.includes('secretaria') || roleStr.includes('direcc') || roleStr.includes('jefe') || roleStr.includes('encargado') || roleStr.includes('tesorer')) {
+        esFuncionario = true;
+    }
+    // Asegurar que admin/superadmin NO sean considerados funcionarios para la vista
+    let esAdmin = false;
+    if (roleStr.includes('admin') || roleStr.includes('super')) {
+        esFuncionario = false;
+        esAdmin = true;
+    }
 
     // Construir UI con IDs para actualización en tiempo real
     mainContent.classList.remove('d-none');
 
     // Título y mensaje según rol
-    const headerTitle = esFuncionario ? 'Panel de Funcionario' : 'Panel Administrativo';
+    const headerTitle = esFuncionario ? 'Panel de Funcionario' : (esAdmin ? 'Panel Administrativo' : 'Panel de Control');
     const muniName = currentUser?.municipalidad_nombre || '';
-    const headerInfo = (!esFuncionario && muniName) ? `${muniName}` : '';
+    // Mostrar siempre la municipalidad si está disponible, sin importar el rol
+    const headerInfo = muniName;
 
     // Tarjetas según rol
-    const cardsHTML = esFuncionario
-      ? `
+    let cardsHTML = '';
+    if (esFuncionario) {
+        cardsHTML = `
           <div class="col-12 col-md-6 col-lg-4 mb-4">
             <a href="#" class="kpi-card" data-page="tramites">
               <div class="kpi-icon"><i class="bi bi-file-earmark-text"></i></div>
@@ -90,8 +103,9 @@ async function cargarDashboard() {
               </div>
             </a>
           </div>
-        `
-      : `
+        `;
+    } else if (esAdmin) {
+        cardsHTML = `
           <div class="col-6 col-md-4 col-lg-2 mb-4">
             <a href="#" class="kpi-card" data-page="usuarios">
               <div class="kpi-icon"><i class="bi bi-people"></i></div>
@@ -149,6 +163,7 @@ async function cargarDashboard() {
             </div>
           </div>
         `;
+    }
 
     mainContent.innerHTML = `
       <div class="container-fluid py-3">
@@ -245,7 +260,7 @@ async function cargarDashboard() {
               </div>
             </div>
           </div>
-          ${!esFuncionario ? `
+          ${esAdmin ? `
           <div class="col-lg-6 mb-3">
             <div class="card shadow-sm chart-card">
               <div class="card-header d-flex justify-content-between align-items-center">
@@ -462,8 +477,7 @@ async function cargarDashboard() {
 
         // Cargar estadísticas adicionales
         let pagosMesDetalleRes = null;
-        const [pagosStats, departamentosStats, pagosMesDetalleTmp] = await Promise.all([
-          fetchAPI('/pagos/stats/general', { suppressErrorLog: true }).catch(err => { console.warn('[Dashboard] pagos stats error', err?.message || err); return null; }),
+        const [departamentosStats, pagosMesDetalleTmp] = await Promise.all([
           fetchAPI('/departamentos/stats/general', { suppressErrorLog: true }).catch(err => { console.warn('[Dashboard] departamentos stats error', err?.message || err); return null; }),
           (async () => {
             const now = new Date();
@@ -599,7 +613,7 @@ async function cargarDashboard() {
           } catch (_) { cPagoFecha.textContent = '—'; }
         };
         // Pagos activos vs inactivos (donut)
-        let pagosEstadoArr = Array.isArray(pagosStats?.estadoStats) ? pagosStats.estadoStats : [];
+        let pagosEstadoArr = Array.isArray(d.pagosPorEstado) ? d.pagosPorEstado : [];
         if (!pagosEstadoArr.length) {
           try {
             const respPagosListado = await fetchAPI('/pagos?limit=100&order=DESC', { suppressErrorLog: true });
@@ -611,7 +625,7 @@ async function cargarDashboard() {
               const cur = mapa.get(est) || 0;
               mapa.set(est, cur + 1);
             });
-            pagosEstadoArr = Array.from(mapa.entries()).map(([estado, total]) => ({ estado, total }));
+            pagosEstadoArr = Array.from(mapa.entries()).map(([estado, total]) => ({ estado, total: total })); // fix: total was undefined in fallback
             console.log('[Dashboard] fallback estado pagos desde listado', pagosEstadoArr);
           } catch (e) {
             console.warn('[Dashboard] No se pudo obtener listado de pagos para fallback', e?.message || e);
@@ -619,9 +633,9 @@ async function cargarDashboard() {
         }
         const getPagoC = (name) => {
           const item = pagosEstadoArr.find(s => (s.estado || s.dataValues?.estado) === name);
-          return parseInt((item && (item.total ?? item.dataValues?.total)) || 0) || 0;
+          return parseInt((item && (item.cantidad ?? item.total ?? item.dataValues?.cantidad)) || 0) || 0;
         };
-        const totalPag = pagosEstadoArr.reduce((sum, s) => sum + (parseInt((s.total ?? s.dataValues?.total) || 0) || 0), 0) || parseInt(d.totalPagosCount || 0) || 0;
+        const totalPag = pagosEstadoArr.reduce((sum, s) => sum + (parseInt((s.cantidad ?? s.total ?? s.dataValues?.cantidad) || 0) || 0), 0) || parseInt(d.totalPagosCount || 0) || 0;
         const updPagDonut = (id, val, color, countElId) => {
           const el = document.getElementById(id);
           const cnt = document.getElementById(countElId);

@@ -3,7 +3,6 @@
  */
 
 // Variables globales para el menú móvil
-let menuToggle = null;
 let navOverlay = null;
 let navClose = null;
 let mainNavbar = null;
@@ -13,16 +12,15 @@ let mainNavbar = null;
  */
 function initMobileNav() {
     // Obtener elementos del DOM
-    menuToggle = document.getElementById('menu-toggle');
     navOverlay = document.getElementById('nav-overlay');
     navClose = document.getElementById('nav-close');
     mainNavbar = document.getElementById('main-navbar');
+    const menuToggle = document.getElementById('menu-toggle');
     
     // Agregar event listeners
     if (menuToggle) {
         menuToggle.onclick = openMobileMenu;
     }
-    
     if (navOverlay) {
         navOverlay.onclick = closeMobileMenu;
     }
@@ -80,11 +78,6 @@ function closeMobileMenu() {
         mainNavbar.classList.remove('active');
         navOverlay.classList.remove('active');
         document.body.style.overflow = '';
-        
-        // Devolver focus al botón de menú
-        if (menuToggle) {
-            menuToggle.focus();
-        }
     }
 }
 

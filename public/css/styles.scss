@@ -167,66 +167,7 @@ body {
 }
 
 // ===== HEADER INSTITUCIONAL =====
-.header {
-  background: $blue-primary;
-  color: $white;
-  padding: $spacing-3 $spacing-6;
-  text-align: center;
-  box-shadow: 0 4px 20px rgba($blue-primary, 0.15);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  border-bottom: 3px solid $green-success;
-  @include glass-effect(15px, 0.1);
-  overflow: hidden;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, $blue-accent 0%, $blue-light 50%, $blue-accent 100%);
-    opacity: 1;
-    box-shadow: 0 0 20px $blue-accent;
-  }
-  
-  &::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle, rgba($blue-accent, 0.1) 0%, transparent 70%);
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-  }
-  
-  h1 {
-    font-family: $font-family-heading;
-    font-size: $font-size-4xl;
-    font-weight: $font-weight-extrabold;
-    margin: 0 0 $spacing-3 0;
-    letter-spacing: -0.03em;
-    text-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 2px 8px rgba($blue-accent, 0.3);
-    position: relative;
-    z-index: 2;
-  }
-  
-  .subtitle {
-    font-size: $font-size-base;
-    font-weight: $font-weight-semibold;
-    opacity: 0.95;
-    margin-top: $spacing-1;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-    position: relative;
-    z-index: 2;
-  }
-}
+// Eliminado
 
 // ===== NAVEGACIÓN EMPRESARIAL =====
 .nav {

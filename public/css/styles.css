@@ -122,39 +122,54 @@ body {
 body:has(#login-container:not(.d-none)) {
     background: #f8f9fa;
     position: relative;
-    overflow: auto;
+    overflow: hidden; /* Forzar ocultar scroll en login */
+    height: 100vh; /* Asegurar altura exacta de viewport */
 }
 
 /* Diseño Corex para el login (sólo visual) */
 #login-container.corex-login-bg {
     position: relative;
-    padding-top: 80px;
-    padding-bottom: 80px;
+    padding-top: 0;
+    padding-bottom: 0;
     background: transparent; /* Fondo se aplica al body para ocupar todo el viewport */
-    overflow-x: auto;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
 }
 
 /* Login Grid Layout - Restored Side-by-Side */
 .login-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 4rem;
+    gap: 2rem;
     align-items: center;
     max-width: 1200px;
     margin: 0 auto;
     min-height: 60vh;
 }
 
-.login-left, .login-right {
+.login-left {
     width: 100%;
     display: flex;
-    justify-content: center;
+    justify-content: flex-end;
+}
+
+.login-right {
+    width: 100%;
+    display: flex;
+    justify-content: flex-start;
 }
 
 @media (max-width: 992px) {
     .login-grid {
         grid-template-columns: 1fr;
         gap: 2rem;
+    }
+
+    .login-left, .login-right {
+        justify-content: center;
     }
 }
 
@@ -213,16 +228,17 @@ body:not(.auth-mode):has(#register-container:not(.d-none)) footer {
     border: 1px solid rgba(19,97,227,0.12);
 }
 
-.corex-welcome-card {
+/* .corex-welcome-card {
     position: relative;
     border-radius: 20px;
     box-shadow: 0 18px 36px rgba(0,0,0,0.25);
-    background: linear-gradient(180deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.16) 100%);
-    border: 1px solid rgba(255,255,255,0.75);
-    backdrop-filter: blur(20px) saturate(130%);
-    -webkit-backdrop-filter: blur(20px) saturate(130%);
+    background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%) !important;
+    background-color: transparent !important;
+    border: 1px solid rgba(255,255,255,0.3) !important;
+    backdrop-filter: blur(15px) saturate(130%);
+    -webkit-backdrop-filter: blur(15px) saturate(130%);
     color: #1f2937;
-}
+} */
 
 .password-group .input-group-text {
     cursor: default;
@@ -372,6 +388,22 @@ body:not(.auth-mode):has(#register-container:not(.d-none)) footer {
 
 #login-container .card { height: auto; }
 #login-container .corex-login-card .card-body > form { margin-bottom: 0; }
+
+/* Header con fondo azul específico para login */
+#login-container .card-header.bg-primary {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Arreglo input group radius */
+#login-container .input-group .form-control {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+#login-container .input-group .input-group-text {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
 
 /* Layout principal */
 #app {
@@ -1624,4 +1656,51 @@ td .btn:last-child {
 canvas {
     max-width: 100% !important;
     height: auto !important;
+
+/* === Footer Deslizante === */
+#footer-hover-zone {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 20px;
+    z-index: 9998;
+    background: transparent;
+}
+
+.footer-slide {
+    position: fixed !important;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 9999;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.2);
+    background: var(--gray-800);
+    padding: var(--spacing-4) var(--spacing-6);
+    text-align: center;
+    border-top: 3px solid var(--secondary-color);
+}
+
+.footer-content {
+    color: white;
+    font-size: var(--font-size-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-2);
+}
+
+.footer-slide:hover,
+#footer-hover-zone:hover ~ .footer-slide {
+    transform: translateY(0);
+}
+
+/* Fix for "Iniciar Nuevo Trámite" form card height */
+.card:has(#form-container) {
+    height: auto !important;
+    min-height: auto !important;
+    flex: none !important;
+}
 }

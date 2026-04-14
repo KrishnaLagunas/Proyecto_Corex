@@ -532,6 +532,7 @@ async function mostrarListaUsuarios() {
                             <th>Email</th>
                             <th class="text-nowrap">RUT</th>
                             <th class="text-center">Rol</th>
+                            <th>Municipalidad</th>
                             <th>Departamento</th>
                             <th class="text-center">Estado</th>
                             <th class="text-center">Creado</th>
@@ -596,7 +597,7 @@ async function actualizarTablaUsuarios(page = 1) {
         if (usuarios.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="8" class="text-center">No hay usuarios que coincidan</td>
+                    <td colspan="9" class="text-center">No hay usuarios que coincidan</td>
                 </tr>
             `;
         } else {
@@ -606,6 +607,7 @@ async function actualizarTablaUsuarios(page = 1) {
                     <td class="cell-wrap cell-email">${u.email || ''}</td>
                     <td class="cell-nowrap">${u.rut || ''}</td>
                     <td class="text-center">${u.Rol?.nombre || u.rol_nombre || ''}</td>
+                    <td class="cell-wrap">${u.Municipalidad?.nombre || u.municipalidad?.nombre || 'N/A'}</td>
                     <td class="cell-wrap">${(() => {
                         const deptos = u.Departamentos || u.departamentos;
                         if (deptos && deptos.length > 0) return deptos[0].nombre;

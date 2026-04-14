@@ -57,6 +57,24 @@ const usuariosController = {
           return res.json({ usuarios: [], pagination: { total: 0, totalPages: 0, currentPage: parseInt(page), limit: parseInt(limit) } });
         }
       }
+
+      // Restricciones de visualización para superadministrador
+      if (req.user.rol_nombre === 'superadministrador') {
+        const RolModel = require('../models').Rol;
+        const allowedRoles = await RolModel.findAll({
+          where: { nombre: { [Op.in]: ['administrador', 'superadministrador'] } },
+          attributes: ['id']
+        });
+        const allowedIds = allowedRoles.map(r => r.id);
+        
+        if (where.id_rol) {
+          if (!allowedIds.includes(where.id_rol)) {
+            return res.json({ usuarios: [], pagination: { total: 0, totalPages: 0, currentPage: parseInt(page), limit: parseInt(limit) } });
+          }
+        } else {
+          where.id_rol = { [Op.in]: allowedIds };
+        }
+      }
       
       // Filtro por municipalidad
       if (municipalidad_id) {
@@ -246,7 +264,7 @@ const usuariosController = {
           const rolFound = await RolModel.findOne({ where: { nombre: nombreRol } });
           if (rolFound) idRolFinal = rolFound.id;
         }
-      } catch (_) {}
+      } catch (err) { console.error('Error silenciado:', err.message); }
 
       // Verificar que la municipalidad existe si se proporciona
       if (municipalidad_id) {
@@ -323,7 +341,10 @@ const usuariosController = {
       logger.info(`[Usuarios] Nombre compuesto: "${nombreConcatenado}" | Apellido compuesto: "${apellidoConcatenado}"`);
 
       // Crear el usuario (el hash se aplica en el hook del modelo)
-      const muniAsignada = (rolCreador === 'administrador') ? req.user.municipalidad_id : municipalidad_id;
+      let muniAsignada = (rolCreador === 'administrador') ? req.user.municipalidad_id : municipalidad_id;
+      if (rolDestino && rolDestino.nombre === 'superadministrador') {
+        muniAsignada = null; // Un superadministrador nunca tiene municipalidad asignada
+      }
 
       const datosPersistir = {
         nombre: nombreNormalizado,
@@ -361,8 +382,8 @@ const usuariosController = {
       
       logger.info(`Nuevo usuario creado: ${email} (id_rol=${idRolFinal || 'N/A'})`);
       
-      // Asignar departamento si se proporciona
-      if (req.body.departamento_id) {
+      // Asignar departamento si se proporciona y NO es superadministrador
+      if (req.body.departamento_id && (!rolDestino || rolDestino.nombre !== 'superadministrador')) {
         try {
           const { Departamento, DepartamentoUsuario } = require('../models');
           const deptIdRaw = req.body.departamento_id;
@@ -440,7 +461,7 @@ const usuariosController = {
         role,
         estado
       } = req.body;
-      try { logger.info(`[Usuarios][UPDATE][RAW] ${JSON.stringify(req.body)}`); console.log('[DEBUG][USUARIOS][UPDATE][RAW]', req.body); } catch (_) {}
+      try { logger.info(`[Usuarios][UPDATE][RAW] ${JSON.stringify(req.body)}`); console.log('[DEBUG][USUARIOS][UPDATE][RAW]', req.body); } catch (err) { console.error('Error silenciado:', err.message); }
       
       // Verificar permisos
       const esAdmin = ['administrador','superadministrador'].includes(req.user.rol_nombre);
@@ -526,7 +547,7 @@ const usuariosController = {
       // Campos que solo puede actualizar un administrador
       if (esAdmin) {
         if (id_rol) usuario.id_rol = id_rol;
-        if (municipalidad_id) usuario.municipalidad_id = municipalidad_id;
+        if (municipalidad_id !== undefined) usuario.municipalidad_id = municipalidad_id;
         if (role) {
           const input = String(role).toLowerCase();
           const map = {
@@ -539,6 +560,17 @@ const usuariosController = {
           if (rolFound) usuario.id_rol = rolFound.id;
         }
         if (estado) usuario.estado = estado;
+
+        // Limpiar municipalidad si es superadmin
+        let isSuperadmin = false;
+        if (usuario.id_rol) {
+          const RolModel = require('../models').Rol;
+          const currentRol = await RolModel.findByPk(usuario.id_rol);
+          if (currentRol && currentRol.nombre === 'superadministrador') {
+            isSuperadmin = true;
+            usuario.municipalidad_id = null;
+          }
+        }
         
         // Manejar asignación de departamento
         if (req.body.departamento_id !== undefined) {
@@ -554,8 +586,8 @@ const usuariosController = {
               where: { usuario_id: targetUserId } 
             });
             
-            // Crear nueva asignación si corresponde
-            if (deptId && !isNaN(deptId)) {
+            // Crear nueva asignación si corresponde y no es superadministrador
+            if (deptId && !isNaN(deptId) && !isSuperadmin) {
               const depto = await Departamento.findByPk(deptId);
               if (depto) {
                 await DepartamentoUsuario.create({
@@ -586,7 +618,7 @@ const usuariosController = {
       // Guardar los cambios
       await usuario.save();
       
-      try { logger.info(`[Usuarios][UPDATE][SAVED] ${usuario.email}`); console.log('[DEBUG][USUARIOS][UPDATE][SAVED]', usuario.toJSON ? usuario.toJSON() : usuario); } catch (_) {}
+      try { logger.info(`[Usuarios][UPDATE][SAVED] ${usuario.email}`); console.log('[DEBUG][USUARIOS][UPDATE][SAVED]', usuario.toJSON ? usuario.toJSON() : usuario); } catch (err) { console.error('Error silenciado:', err.message); }
       
       // Obtener el usuario actualizado (sin la contraseña)
       const usuarioActualizado = await Usuario.findByPk(id, {
@@ -643,103 +675,17 @@ const usuariosController = {
         throw new ApiError('Usuario no encontrado', 404);
       }
       
-      // Verificar referencias reales antes de eliminar (integridad referencial)
-      // Usamos consultas SQL directas para evitar cualquier conflicto de asociaciones
-      let tramitesCiudadano = 0;
-      let tramitesFuncionario = 0;
-      let pagosCiudadano = 0;
-      let pagosFuncionario = 0;
-      let documentos = 0;
-      let presupuestosResp = 0;
-      let contratosResp = 0;
-      let proyectosResp = 0;
-      try {
-        const [[row]] = await sequelize.query(
-        'SELECT COUNT(*) AS tramitesCiudadano FROM tramites WHERE ciudadano_id = ?',
-        { replacements: [id] }
-        );
-        tramitesCiudadano = row.tramitesCiudadano || 0;
-      } catch (_) {}
-      try {
-        const [[row]] = await sequelize.query(
-        'SELECT COUNT(*) AS tramitesFuncionario FROM tramites WHERE funcionario_id = ?',
-        { replacements: [id] }
-        );
-        tramitesFuncionario = row.tramitesFuncionario || 0;
-      } catch (_) {}
-      try {
-        const [[row]] = await sequelize.query(
-        'SELECT COUNT(*) AS pagosCiudadano FROM pagos WHERE ciudadano_id = ?',
-        { replacements: [id] }
-        );
-        pagosCiudadano = row.pagosCiudadano || 0;
-      } catch (_) {}
-      try {
-        const [[row]] = await sequelize.query(
-        'SELECT COUNT(*) AS pagosFuncionario FROM pagos WHERE funcionario_id = ?',
-        { replacements: [id] }
-        );
-        pagosFuncionario = row.pagosFuncionario || 0;
-      } catch (_) {}
-      try {
-        const [[row]] = await sequelize.query(
-        'SELECT COUNT(*) AS documentos FROM documentos WHERE usuario_id = ?',
-        { replacements: [id] }
-        );
-        documentos = row.documentos || 0;
-      } catch (_) {}
-      try {
-        const [[row]] = await sequelize.query(
-        'SELECT COUNT(*) AS presupuestosResp FROM presupuestos WHERE responsable_id = ?',
-        { replacements: [id] }
-        );
-        presupuestosResp = row.presupuestosResp || 0;
-      } catch (err) {
-        presupuestosResp = 0;
-      }
-      try {
-        const [[row]] = await sequelize.query(
-        'SELECT COUNT(*) AS contratosResp FROM contratos WHERE responsable_id = ?',
-        { replacements: [id] }
-        );
-        contratosResp = row.contratosResp || 0;
-      } catch (_) {}
-      try {
-        const [[row]] = await sequelize.query(
-        'SELECT COUNT(*) AS proyectosResp FROM proyectos WHERE responsable_id = ?',
-        { replacements: [id] }
-        );
-        proyectosResp = row.proyectosResp || 0;
-      } catch (_) {}
-
-      const totalReferencias = tramitesCiudadano + tramitesFuncionario + pagosCiudadano + pagosFuncionario + documentos + presupuestosResp + contratosResp + proyectosResp;
-      if (totalReferencias > 0) {
-        const causas = [];
-        if (tramitesCiudadano) causas.push(`${tramitesCiudadano} trámite(s) como ciudadano`);
-        if (tramitesFuncionario) causas.push(`${tramitesFuncionario} trámite(s) como funcionario`);
-        if (pagosCiudadano) causas.push(`${pagosCiudadano} pago(s) como ciudadano`);
-        if (pagosFuncionario) causas.push(`${pagosFuncionario} pago(s) como funcionario`);
-        if (documentos) causas.push(`${documentos} documento(s) subido(s)`);
-        if (presupuestosResp) causas.push(`${presupuestosResp} presupuesto(s) responsable`);
-        if (contratosResp) causas.push(`${contratosResp} contrato(s) responsable`);
-        if (proyectosResp) causas.push(`${proyectosResp} proyecto(s) responsable`);
-
-        throw new ApiError(
-          `No se puede eliminar el usuario porque tiene registros asociados: ${causas.join(', ')}`,
-          400
-        );
-      }
-      
       // Guardar información para el log
       const emailUsuario = usuario.email;
       
-      // Eliminar el usuario
-      await usuario.destroy();
+      // En lugar de borrar físicamente (usuario.destroy()), inactivamos al usuario
+      usuario.estado = 'inactivo';
+      await usuario.save();
       
-      logger.info(`Usuario eliminado: ${emailUsuario}`);
+      logger.info(`Usuario inactivado: ${emailUsuario}`);
       
       res.json({
-        message: 'Usuario eliminado exitosamente'
+        message: 'Usuario inactivado exitosamente (borrado lógico)'
       });
     } catch (error) {
       next(error);
@@ -974,7 +920,7 @@ const usuariosController = {
           if (Object.prototype.hasOwnProperty.call(desc, 'rol')) {
             perfil.rol = (req.user?.rol_nombre || perfil.rol || '')
           }
-        } catch (_) {}
+        } catch (err) { console.error('Error silenciado:', err.message); }
         await perfil.save()
         return res.json({ foto_url: url })
       }
@@ -988,7 +934,7 @@ const usuariosController = {
         if (hasCol('nombre_usuario')) createData.nombre_usuario = `${(user?.nombre||'').trim()} ${(user?.apellido||'').trim()}`.trim()
         if (hasCol('email')) createData.email = user?.email || ''
         if (hasCol('rol')) createData.rol = (req.user?.rol_nombre || '')
-      } catch (_) {}
+      } catch (err) { console.error('Error silenciado:', err.message); }
 
       await PerfilUsuario.create(createData)
       res.json({ foto_url: url })

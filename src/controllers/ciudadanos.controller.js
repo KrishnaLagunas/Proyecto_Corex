@@ -30,15 +30,17 @@ const ciudadanosController = {
         password 
       } = req.body;
 
-      // Verificar si el ciudadano ya existe por email
+      // Verificar si el ciudadano ya existe por email en ambas tablas
       const existingEmail = await Ciudadano.findOne({ where: { email } });
-      if (existingEmail) {
+      const existingUsuarioByEmail = await Usuario.findOne({ where: { email } });
+      if (existingEmail || existingUsuarioByEmail) {
         throw new ApiError('El correo electrónico ya está registrado', 400);
       }
 
-      // Verificar si el RUT ya existe
+      // Verificar si el RUT ya existe en ambas tablas (previene registros duplicados cruzados)
       const existingRut = await Ciudadano.findOne({ where: { rut } });
-      if (existingRut) {
+      const existingUsuarioByRut = await Usuario.findOne({ where: { rut } });
+      if (existingRut || existingUsuarioByRut) {
         throw new ApiError('El RUT ya está registrado', 400);
       }
 
@@ -65,9 +67,6 @@ const ciudadanosController = {
       // Asegurar sincronización con la tabla usuarios (rol: ciudadano)
       const nombre = [primer_nombre, segundo_nombre].filter(Boolean).join(' ').trim();
       const apellido = [apellido_paterno, apellido_materno].filter(Boolean).join(' ').trim();
-
-      const existingUsuarioByEmail = await Usuario.findOne({ where: { email } });
-      const existingUsuarioByRut = await Usuario.findOne({ where: { rut } });
 
       if (!existingUsuarioByEmail && !existingUsuarioByRut) {
         const rolCiudadano = await Rol.findOne({ where: { nombre: 'ciudadano' } });
@@ -298,13 +297,37 @@ const ciudadanosController = {
       });
       const appUrl = process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
       const mailOptions = {
-        from: `${process.env.MAIL_FROM_NAME || 'Corex'} <${process.env.GMAIL_USER}>`,
+        from: `"Sistema ERP Municipal" <${process.env.GMAIL_USER}>`,
         to: email,
-        subject: 'Recuperación de contraseña',
+        subject: 'Recuperación de contraseña - Sistema ERP Municipal',
         html: `
-          <p>Has solicitado recuperar tu contraseña.</p>
-          <p>Este enlace expira en 15 minutos.</p>
-          <p><a href="${appUrl}/?resetToken=${encodeURIComponent(resetToken)}" target="_blank" rel="noopener">Restablecer contraseña</a></p>
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px; background-color: #f9f9f9;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <h2 style="color: #0d6efd; margin: 0;">Sistema ERP Municipal</h2>
+              <p style="color: #6c757d; margin: 5px 0;">Gestión Municipal Inteligente</p>
+            </div>
+            <div style="background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+              <h3 style="color: #333; margin-top: 0;">Restablecimiento de Contraseña</h3>
+              <p style="color: #555; line-height: 1.6;">
+                Hemos recibido una solicitud para restablecer la contraseña de su cuenta en el <strong>Sistema ERP Municipal</strong>.
+              </p>
+              <p style="color: #555; line-height: 1.6;">
+                Si usted realizó esta solicitud, haga clic en el siguiente botón para crear una nueva contraseña:
+              </p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${appUrl}/?resetToken=${encodeURIComponent(resetToken)}" style="background-color: #0d6efd; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 5px; font-weight: bold; display: inline-block;">Restablecer Contraseña</a>
+              </div>
+              <p style="color: #555; line-height: 1.6;">
+                Este enlace será válido por <strong>15 minutos</strong>.
+              </p>
+              <p style="color: #777; font-size: 0.9em; margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
+                Si usted no solicitó este cambio, puede ignorar este correo de forma segura. Su contraseña actual seguirá siendo válida.
+              </p>
+            </div>
+            <div style="text-align: center; margin-top: 20px; color: #999; font-size: 0.8em;">
+              &copy; ${new Date().getFullYear()} Sistema ERP Municipal. Todos los derechos reservados.
+            </div>
+          </div>
         `
       };
       try { await transporter.sendMail(mailOptions); } catch (e) { logger.warn('Fallo envío email recuperación ciudadano', e); }
@@ -330,7 +353,7 @@ const ciudadanosController = {
   resetPassword: async (req, res, next) => {
     try {
       const { token, password } = req.body;
-      try { logger.info(`[Ciudadanos][RESET][REQ] token=${String(token).slice(0,8)}...`); } catch(_) {}
+      try { logger.info(`[Ciudadanos][RESET][REQ] token=${String(token).slice(0,8)}...`); } catch (err) { console.error('Error silenciado:', err.message); }
 
       const ciudadano = await Ciudadano.findOne({ where: { token_verificacion: token } });
       if (!ciudadano) {
@@ -352,7 +375,7 @@ const ciudadanosController = {
       ciudadano.password = password; // El hash se genera automáticamente
       ciudadano.token_verificacion = null;
       await ciudadano.save();
-      try { const ok = await ciudadano.comparePassword(password); logger.info(`[Ciudadanos][RESET][SAVED] email=${ciudadano.email} hash_ok=${ok}`); } catch(_) {}
+      try { const ok = await ciudadano.comparePassword(password); logger.info(`[Ciudadanos][RESET][SAVED] email=${ciudadano.email} hash_ok=${ok}`); } catch (err) { console.error('Error silenciado:', err.message); }
 
       // Sincronizar también con Usuarios si existe un registro con el mismo email
       try {
@@ -362,7 +385,7 @@ const ciudadanosController = {
           usuario.token_recuperacion = null;
           usuario.expiracion_token = null;
           await usuario.save();
-          try { const ok2 = await usuario.comparePassword(password); logger.info(`[Ciudadanos][RESET][SYNC-USUARIO] email=${ciudadano.email} hash_ok=${ok2}`); } catch(_) {}
+          try { const ok2 = await usuario.comparePassword(password); logger.info(`[Ciudadanos][RESET][SYNC-USUARIO] email=${ciudadano.email} hash_ok=${ok2}`); } catch (err) { console.error('Error silenciado:', err.message); }
         }
       } catch (syncErr) {
         logger.warn('No se pudo sincronizar password de Ciudadano a Usuario:', syncErr);

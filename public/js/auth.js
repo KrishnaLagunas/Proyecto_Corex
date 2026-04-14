@@ -90,7 +90,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
     } catch (_) {}
-
     const token = obtenerTokenActual();
 
     console.log('[AUTH] DOMContentLoaded');
@@ -102,10 +101,10 @@ document.addEventListener('DOMContentLoaded', () => {
     })());
     console.log('[AUTH] token actual unificado:', token);
 
+    // Fix: No limpiar cookies aquí para permitir que app.js restaure sesión desde cookies si localStorage está vacío
     if (!token) {
-        try { clearCorexCookies(); } catch (_) {}
+        programarMostrarLogin(0);
     }
-
     // Configurar el evento de submit del formulario de login
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
@@ -142,7 +141,13 @@ async function intentarRestaurarSesion() {
         let u = null;
         try {
             const usrStr = localStorage.getItem('usuario');
-            if (usrStr) u = JSON.parse(usrStr);
+            if (usrStr) {
+                u = JSON.parse(usrStr);
+                if (u && u.role) {
+                    redirigirSegunRol(u);
+                    return;
+                }
+            }
         } catch (_) {}
 
         console.log('[AUTH] Intentando validar sesión con /usuarios/perfil');
@@ -153,7 +158,7 @@ async function intentarRestaurarSesion() {
             let rol = (perfil.rol || perfil.role || perfil.rol_nombre || '').toString().toLowerCase();
 
             if (rol.includes('admin') && !rol.includes('super')) rol = 'admin';
-            else if (rol.includes('func') || rol.includes('secretaria')) rol = 'funcionario';
+            else if (rol.includes('func') || rol.includes('secretaria') || rol.includes('direcc') || rol.includes('jefe') || rol.includes('encargado') || rol.includes('tesorer')) rol = 'funcionario';
             else if (rol.includes('super')) rol = 'superadministrador';
             else if (rol.includes('ciud')) rol = 'ciudadano';
 
@@ -472,6 +477,10 @@ async function manejarLogin(e) {
         // independientemente de lo que diga 'portal' (que a veces devuelve 'ciudadano' por defecto)
         const esFuncionario = rolNombreBackend.includes('func') || 
                               rolNombreBackend.includes('secretaria') || 
+                              rolNombreBackend.includes('direcc') ||
+                              rolNombreBackend.includes('jefe') ||
+                              rolNombreBackend.includes('encargado') ||
+                              rolNombreBackend.includes('tesorer') ||
                               normalizarRol(user.role) === 'funcionario';
         
         if (esFuncionario) {
@@ -548,10 +557,8 @@ async function redirigirSegunRol(usuario) {
     }
     
     // Mostrar elementos comunes de la interfaz
-    const header = document.querySelector('.header');
     const footer = document.querySelector('footer');
     
-    if (header) header.classList.remove('d-none');
     if (footer) footer.classList.remove('d-none');
 
     // Asegurar que el navbar sea visible y tenga el menú correcto antes de cargar la página
@@ -588,8 +595,6 @@ async function redirigirSegunRol(usuario) {
         } catch (_) {}
     } catch (_) {}
 
-    const userInfo = document.getElementById('user-info');
-    if (userInfo) { userInfo.innerHTML = ''; }
     const navActions = document.querySelector('#main-navbar .nav-actions');
     if (navActions) {
         const existing = document.getElementById('user-profile-block');
@@ -619,8 +624,22 @@ async function redirigirSegunRol(usuario) {
                     const emailEl = document.getElementById('perfil-modal-email');
                     const avatarModal = document.getElementById('perfil-modal-avatar');
                     const ultimoEl = document.getElementById('perfil-modal-ultimo');
+                    const muniContainer = document.getElementById('perfil-modal-muni-container');
+                    const muniValue = document.getElementById('perfil-modal-muni');
+
                     if (nombreEl) nombreEl.textContent = `${perfil.nombre || ''} ${perfil.apellido || ''}`.trim();
                     if (rolEl) rolEl.textContent = obtenerNombreRol(perfil.role || usuario.role);
+                    
+                    if (muniContainer && muniValue) {
+                        const userRole = (perfil.role || usuario.role || '').toLowerCase();
+                        if (userRole !== 'ciudadano' && perfil.municipalidad_nombre) {
+                            muniValue.textContent = perfil.municipalidad_nombre;
+                            muniContainer.style.display = 'block';
+                        } else {
+                            muniContainer.style.display = 'none';
+                        }
+                    }
+
                     if (emailEl) emailEl.textContent = perfil.email || usuario.email;
                     if (avatarModal) {
                         avatarModal.innerHTML = perfil.foto_url ? `<img src="${perfil.foto_url}" style="width:100%;height:100%;object-fit:cover;">` : '<i class="bi bi-person-circle" style="font-size:2rem;"></i>';
@@ -681,16 +700,19 @@ async function redirigirSegunRol(usuario) {
     
     // Redirigir según el rol o restaurar página previa
     const lastPage = localStorage.getItem('currentPage');
+    const rolNormalizado = String(usuario.role || '').toLowerCase();
+
     if (lastPage && typeof cargarContenidoPagina === 'function') {
         cargarContenidoPagina(lastPage);
         return;
     }
 
-    switch (usuario.role) {
+    switch (rolNormalizado) {
         case 'superadministrador':
             cargarInterfazSuperadmin(usuario);
             break;
         case 'admin':
+        case 'administrador':
             cargarInterfazAdmin(usuario);
             break;
         case 'funcionario':
@@ -700,8 +722,9 @@ async function redirigirSegunRol(usuario) {
             cargarPortalCiudadano(usuario);
             break;
         default:
-            console.error('Rol no reconocido:', usuario.role, '— mostrando interfaz de administrador por defecto');
-            cargarInterfazAdmin(usuario);
+            console.error('Rol no reconocido:', usuario.role);
+            mostrarNotificacion('Error: No se pudo determinar el rol del usuario.', 'danger');
+            setTimeout(() => cerrarSesion(), 2000);
     }
 }
 
@@ -1116,7 +1139,10 @@ async function cargarPortalCiudadano(usuario) {
     // Mostrar el menú principal con estilo Corex y generar menú de ciudadano
     const navbar = document.getElementById('main-navbar');
     if (navbar) navbar.classList.remove('d-none');
-    try { localStorage.setItem('currentPage', 'portalCiudadano'); } catch (_) {}
+    // Fix: No sobrescribir currentPage si ya existe, para permitir refrescar en otras secciones
+    if (!localStorage.getItem('currentPage')) {
+        try { localStorage.setItem('currentPage', 'portalCiudadano'); } catch (_) {}
+    }
     try { generarMenu('ciudadano'); } catch (_) {}
     
     // Obtener trámites del usuario desde la API
@@ -1165,12 +1191,14 @@ async function cargarPortalCiudadano(usuario) {
                                         </span>
                                     </td>
                                     <td>
-                                        <button class="btn btn-sm btn-secondary me-2" onclick="descargarConstanciaTramite(${tramite.id})">
-                                            <i class="bi bi-download"></i> Descargar boleta
-                                        </button>
-                                        <button class="btn btn-sm btn-primary ver-detalle-tramite" data-id="${tramite.id}">
-                                            <i class="bi bi-eye"></i> Ver
-                                        </button>
+                                        <div class="d-flex gap-1">
+                                            <button class="btn btn-sm btn-secondary" onclick="descargarConstanciaTramite(${tramite.id})" title="Descargar boleta" data-bs-toggle="tooltip">
+                                                <i class="bi bi-download"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-success ver-detalle-tramite" data-id="${tramite.id}">
+                                                <i class="bi bi-eye"></i> Ver
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -1247,6 +1275,16 @@ async function cargarPortalCiudadano(usuario) {
             </div>
         `;
         
+        // Inicializar tooltips de Bootstrap
+        try {
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        } catch (e) {
+            console.warn('No se pudieron inicializar los tooltips', e);
+        }
+
         // Agregar eventos a los botones
         const btnMisTramites = document.getElementById('btn-mis-tramites');
         const btnNuevoTramite = document.getElementById('btn-nuevo-tramite');
@@ -1327,11 +1365,11 @@ function mostrarFormularioLogin() {
     if (registerContainer) {
         registerContainer.classList.add('d-none');
     }
-
+    // Ocultar elementos de la interfaz
     const header = document.querySelector('.header');
     const navbar = document.getElementById('main-navbar');
     const mainContent = document.getElementById('main-content');
-
+    
     if (header) header.classList.add('d-none');
     if (navbar) navbar.classList.add('d-none');
     if (mainContent) mainContent.classList.add('d-none');
@@ -1437,15 +1475,19 @@ function mostrarFormularioRecuperarPassword() {
         }
 
         loginContainer.innerHTML = `
-            <div class="row justify-content-center">
+            <div class="row justify-content-center w-100">
                 <div class="col-md-6 col-lg-5">
-                    <div class="card shadow">
+                    <div class="card shadow corex-login-card">
                         <div class="card-header bg-primary text-white text-center py-3">
                             <h3 class="mb-0"><i class="bi bi-building me-2"></i>Sistema ERP Municipal</h3>
                             <p class="mb-0">Gestión Municipal Inteligente</p>
                         </div>
                         <div class="card-body p-4">
                             <h4 class="text-center mb-4">Recuperar Contraseña</h4>
+                            <div class="alert alert-info mb-4" role="alert" style="font-size: 0.9rem;">
+                                <i class="bi bi-info-circle-fill me-2"></i>
+                                Ingresa tu correo electrónico registrado y recibirás un enlace de verificación para restablecer tu contraseña. El enlace tiene una validez de 15 minutos.
+                            </div>
                             <form id="smtp-reset-form">
                                 <div class="mb-3">
                                     <label for="smtp-recovery-email" class="form-label">Introduzca el correo electrónico</label>
@@ -1600,10 +1642,8 @@ function mostrarFormularioRecuperarPassword() {
 function mostrarFormularioResetConToken(token) {
     const loginContainer = document.getElementById('login-container');
     if (loginContainer) {
-        const header = document.querySelector('.header');
         const navbar = document.getElementById('main-navbar');
         const mainContent = document.getElementById('main-content');
-        if (header) header.classList.add('d-none');
         if (navbar) navbar.classList.add('d-none');
         if (mainContent) mainContent.classList.add('d-none');
 
@@ -1639,9 +1679,9 @@ function mostrarFormularioResetConToken(token) {
             loginContainer.dataset.originalHtml = loginContainer.innerHTML;
         }
         loginContainer.innerHTML = `
-            <div class="row justify-content-center">
+            <div class="row justify-content-center w-100">
                 <div class="col-md-6 col-lg-5">
-                    <div class="card shadow">
+                    <div class="card shadow corex-login-card">
                         <div class="card-header bg-primary text-white text-center py-3">
                             <h3 class="mb-0"><i class="bi bi-building me-2"></i>Sistema ERP Municipal</h3>
                             <p class="mb-0">Gestión Municipal Inteligente</p>
@@ -1654,6 +1694,9 @@ function mostrarFormularioResetConToken(token) {
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="bi bi-key"></i></span>
                                         <input type="password" class="form-control" id="token-new-password" required>
+                                        <button class="btn btn-outline-secondary" type="button" id="toggle-new-password" style="border-top-right-radius: 0.375rem; border-bottom-right-radius: 0.375rem;">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
                                     </div>
                                 </div>
                                 <div class="mb-3">
@@ -1661,6 +1704,9 @@ function mostrarFormularioResetConToken(token) {
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="bi bi-shield-lock"></i></span>
                                         <input type="password" class="form-control" id="token-confirm-password" required>
+                                        <button class="btn btn-outline-secondary" type="button" id="toggle-confirm-password" style="border-top-right-radius: 0.375rem; border-bottom-right-radius: 0.375rem;">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
                                     </div>
                                 </div>
                         <div class="d-grid gap-2 mt-2">
@@ -1684,7 +1730,31 @@ function mostrarFormularioResetConToken(token) {
         const tokenForm = document.getElementById('token-reset-form');
         const tokenMessage = document.getElementById('token-message');
         const backLink = document.getElementById('back-to-login-from-token');
-        if (backLink) backLink.addEventListener('click', (e) => { e.preventDefault(); mostrarFormularioLogin(); });
+
+        // Configurar visibilidad de contraseña
+        const togglePassword = (inputId, btnId) => {
+            const input = document.getElementById(inputId);
+            const btn = document.getElementById(btnId);
+            if (input && btn) {
+                btn.addEventListener('click', () => {
+                    const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+                    input.setAttribute('type', type);
+                    const icon = btn.querySelector('i');
+                    if (icon) {
+                        icon.classList.toggle('bi-eye');
+                        icon.classList.toggle('bi-eye-slash');
+                    }
+                });
+            }
+        };
+        togglePassword('token-new-password', 'toggle-new-password');
+        togglePassword('token-confirm-password', 'toggle-confirm-password');
+
+        if (backLink) backLink.addEventListener('click', (e) => { 
+            e.preventDefault(); 
+            // Redirigir a la raíz para limpiar el token de la URL y mostrar el login limpio
+            window.location.href = '/';
+        });
         if (tokenForm) {
             tokenForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -1766,7 +1836,7 @@ function generarMenu(rol) {
         menuHTML = `
             <li class="nav-item">
                 <a href="#" class="nav-link ${currentPage==='dashboard'?'active':''}" data-page="dashboard">
-                    <i class="bi bi-speedometer2"></i> Panel
+                    <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
             </li>
             <li class="nav-item">
@@ -1819,7 +1889,7 @@ function generarMenu(rol) {
         menuHTML = `
             <li class="nav-item">
                 <a href="#" class="nav-link ${pageKey==='panel-superadmin'?'active':''}" data-page="panel-superadmin">
-                    <i class="bi bi-speedometer2"></i> Panel
+                    <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
             </li>
             <li class="nav-item">
@@ -2172,12 +2242,23 @@ async function cargarMisTramites(usuario) {
                         <td><span class="badge ${obtenerColorEstadoTramite(pagosCompletadosPorTramite.has(tramite.id) || tramite.pago_completado ? 'pagado' : tramite.estado)}" data-estado="${pagosCompletadosPorTramite.has(tramite.id) || tramite.pago_completado ? 'pagado' : tramite.estado}">${obtenerNombreEstadoTramite(pagosCompletadosPorTramite.has(tramite.id) || tramite.pago_completado ? 'pagado' : tramite.estado)}</span></td>
                         <td>
                             <div class="d-flex gap-2">
-                                <button class="btn btn-sm btn-primary ver-detalle-tramite" data-id="${tramite.id}"><i class="bi bi-eye"></i> Ver</button>
+                                <button class="btn btn-sm btn-secondary" onclick="descargarConstanciaTramite(${tramite.id})" title="Descargar boleta" data-bs-toggle="tooltip">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                                <button class="btn btn-sm btn-success ver-detalle-tramite" data-id="${tramite.id}"><i class="bi bi-eye"></i> Ver</button>
                                 ${String(tramite.estado).toLowerCase() === 'pendiente' && !pagosCompletadosPorTramite.has(tramite.id) ? `<button class="btn btn-sm btn-outline-danger quitar-tramite" data-id="${tramite.id}" data-titulo="${tramite.titulo}" data-tipo="${obtenerNombreTipoTramite(tramite.tipo)}"><i class="bi bi-x-circle"></i> Quitar</button>` : ''}
                             </div>
                         </td>
                     </tr>
                 `).join('');
+                
+                // Inicializar tooltips
+                try {
+                    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                    tooltipTriggerList.map(function (tooltipTriggerEl) {
+                        return new bootstrap.Tooltip(tooltipTriggerEl);
+                    });
+                } catch (e) {}
             }
             if (paginaActualEl) paginaActualEl.textContent = `${paginaActual} / ${totalPaginas}`;
             if (infoPaginacion) infoPaginacion.textContent = `Mostrando ${start + 1}–${end} de ${listaFiltrada.length}`;
@@ -4459,6 +4540,9 @@ function getUserCookieName(userId, role) {
 }
 
 function setSessionToken(token, info) {
+    try {
+        localStorage.setItem('token', token);
+    } catch (_) {}
     try {
         // sessionStorage removed
     } catch (_) {}

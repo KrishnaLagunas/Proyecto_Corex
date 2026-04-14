@@ -79,7 +79,7 @@ const departamentosController = {
         const code = (err?.original?.code) || (err?.parent?.code) || '';
         const msg = err?.message || '';
         if (!esMun && (/ER_NO_SUCH_TABLE/i.test(code) || /doesn'?t exist/i.test(msg) || /Unknown column .*municipalidad_id/i.test(msg))) {
-          try { logger.warn('[Departamentos] Tabla departamentos no existe; devolviendo lista vacía'); } catch (_) {}
+          try { logger.warn('[Departamentos] Tabla departamentos no existe; devolviendo lista vacía'); } catch (err) { console.error('Error silenciado:', err.message); }
           count = 0; rows = [];
         } else {
           throw err;
@@ -91,12 +91,12 @@ const departamentosController = {
         const telefono = j.telefono ?? j.telefono_contacto ?? null;
         return { ...j, email, telefono };
       });
-      try { logger.info(`[Departamentos] ${esMun ? 'Municipalidades' : 'Departamentos'} obtenidos: ${JSON.stringify(rowsPlain)}`); } catch (_) {}
+      try { logger.info(`[Departamentos] ${esMun ? 'Municipalidades' : 'Departamentos'} obtenidos: ${JSON.stringify(rowsPlain)}`); } catch (err) { console.error('Error silenciado:', err.message); }
       
       // Calcular total de páginas
       const totalPages = Math.ceil(count / limit);
       
-      try { res.set('Cache-Control', 'no-store'); } catch (_) {}
+      try { res.set('Cache-Control', 'no-store'); } catch (err) { console.error('Error silenciado:', err.message); }
       res.json({
         departamentos: rowsPlain,
         pagination: {
@@ -138,9 +138,9 @@ const departamentosController = {
       
       // Control de acceso: admin
       // Visualización global de departamentos; no restringir por municipalidad
-      try { res.set('Cache-Control', 'no-store'); } catch (_) {}
+      try { res.set('Cache-Control', 'no-store'); } catch (err) { console.error('Error silenciado:', err.message); }
       res.json(departamento);
-      try { logger.info(`[Departamentos] Detalle ${esMunicipalidades(req) ? 'municipalidad' : 'departamento'} ${id}: ${JSON.stringify(departamento)}`); } catch (_) {}
+      try { logger.info(`[Departamentos] Detalle ${esMunicipalidades(req) ? 'municipalidad' : 'departamento'} ${id}: ${JSON.stringify(departamento)}`); } catch (err) { console.error('Error silenciado:', err.message); }
     } catch (error) {
       next(error);
     }
@@ -159,7 +159,7 @@ const departamentosController = {
       }
       if (esMunicipalidades(req)) {
         const raw = req.body || {};
-        try { logger.info(`[Municipalidades][CREATE][RAW] ${JSON.stringify(raw)}`); console.log('[DEBUG][MUNI][RAW]', raw); } catch (_) {}
+        try { logger.info(`[Municipalidades][CREATE][RAW] ${JSON.stringify(raw)}`); console.log('[DEBUG][MUNI][RAW]', raw); } catch (err) { console.error('Error silenciado:', err.message); }
         const nombre = typeof raw.nombre === 'string' ? raw.nombre.trim() : raw.nombre;
         const direccion = typeof raw.direccion === 'string' ? raw.direccion.trim() : raw.direccion;
         const region = typeof raw.region === 'string' ? raw.region.trim() : raw.region;
@@ -179,7 +179,7 @@ const departamentosController = {
         if (!rutNorm && typeof raw.rut === 'string' && raw.rut.length) {
           rutNorm = raw.rut.replace(/[\.\-\s]/g, '').replace(/[^0-9kK]/g, '').toLowerCase();
         }
-        try { logger.info(`[Municipalidades][CREATE][NORMALIZED] rutInput=${rutInput} -> rutNorm=${rutNorm} ; telInput=${telefono} -> telNorm=${telNorm}`); console.log('[DEBUG][MUNI][NORMALIZED]', { rutInput, rutNorm, telInput: telefono, telNorm, email, nombre, direccion, region, comuna, estado }); } catch (_) {}
+        try { logger.info(`[Municipalidades][CREATE][NORMALIZED] rutInput=${rutInput} -> rutNorm=${rutNorm} ; telInput=${telefono} -> telNorm=${telNorm}`); console.log('[DEBUG][MUNI][NORMALIZED]', { rutInput, rutNorm, telInput: telefono, telNorm, email, nombre, direccion, region, comuna, estado }); } catch (err) { console.error('Error silenciado:', err.message); }
         const estado = typeof raw.estado === 'string' ? raw.estado.trim().toLowerCase() : raw.estado;
         const existeNombre = await Municipalidad.findOne({ where: { nombre } });
         if (existeNombre) {
@@ -201,7 +201,7 @@ const departamentosController = {
           throw new ApiError('El correo electrónico es obligatorio', 400);
         }
         try {
-          try { logger.info(`[Municipalidades][CREATE][PAYLOAD] ${JSON.stringify({ nombre, rut: rutNorm || null, telefono: telNorm || telefono || null, email: email || null, direccion, region, comuna, estado })}`); console.log('[DEBUG][MUNI][PAYLOAD]', { nombre, rut: rutNorm || null, telefono: telNorm || telefono || null, email: email || null, direccion, region, comuna, estado }); } catch (_) {}
+          try { logger.info(`[Municipalidades][CREATE][PAYLOAD] ${JSON.stringify({ nombre, rut: rutNorm || null, telefono: telNorm || telefono || null, email: email || null, direccion, region, comuna, estado })}`); console.log('[DEBUG][MUNI][PAYLOAD]', { nombre, rut: rutNorm || null, telefono: telNorm || telefono || null, email: email || null, direccion, region, comuna, estado }); } catch (err) { console.error('Error silenciado:', err.message); }
           const nuevo = await Municipalidad.create({ 
             nombre,
             direccion: direccion || null,
@@ -218,7 +218,7 @@ const departamentosController = {
               telefono: nuevo.telefono || telNorm || telefono || null
             });
           }
-          try { logger.info(`[Municipalidades][CREATE] ${nuevo.id} rut=${nuevo.rut || ''} tel=${nuevo.telefono || ''}`); } catch (_) {}
+          try { logger.info(`[Municipalidades][CREATE] ${nuevo.id} rut=${nuevo.rut || ''} tel=${nuevo.telefono || ''}`); } catch (err) { console.error('Error silenciado:', err.message); }
           logger.info(`Nueva municipalidad creada: ${nombre}`);
           const completo = await Municipalidad.findByPk(nuevo.id);
           return res.status(201).json({
@@ -344,13 +344,13 @@ const departamentosController = {
       
       // Guardar los cambios
       await departamento.save();
-      try { logger.info(`[Departamentos] Actualizado ${esMun ? 'municipalidad' : 'departamento'} ${id}: tel=${departamento.telefono || departamento.telefono_contacto || ''}, email=${departamento.email || departamento.email_contacto || ''}`); } catch (_) {}
+      try { logger.info(`[Departamentos] Actualizado ${esMun ? 'municipalidad' : 'departamento'} ${id}: tel=${departamento.telefono || departamento.telefono_contacto || ''}, email=${departamento.email || departamento.email_contacto || ''}`); } catch (err) { console.error('Error silenciado:', err.message); }
       
       logger.info(`Departamento actualizado: ${departamento.nombre}`);
       
       // Obtener el departamento actualizado con sus relaciones
       const departamentoActualizado = esMun ? await Municipalidad.findByPk(id) : await Departamento.findByPk(id);
-      try { const j = typeof departamentoActualizado.toJSON === 'function' ? departamentoActualizado.toJSON() : departamentoActualizado; logger.info(`[Departamentos] Post-save ${esMun ? 'municipalidad' : 'departamento'} ${id}: ${JSON.stringify({ telefono: j.telefono ?? j.telefono_contacto ?? null, email: j.email ?? j.email_contacto ?? null })}`); } catch (_) {}
+      try { const j = typeof departamentoActualizado.toJSON === 'function' ? departamentoActualizado.toJSON() : departamentoActualizado; logger.info(`[Departamentos] Post-save ${esMun ? 'municipalidad' : 'departamento'} ${id}: ${JSON.stringify({ telefono: j.telefono ?? j.telefono_contacto ?? null, email: j.email ?? j.email_contacto ?? null })}`); } catch (err) { console.error('Error silenciado:', err.message); }
       
       res.json({
         message: 'Departamento actualizado exitosamente',
@@ -398,7 +398,7 @@ const departamentosController = {
           const code = (err?.original?.code) || (err?.parent?.code) || '';
           const msg = err?.message || '';
           if (/ER_NO_SUCH_TABLE/i.test(code) || /doesn'?t exist/i.test(msg)) {
-            try { logger.warn('[Eliminar Municipalidad] Tabla proyectos no existe; se omite verificación de proyectos.'); } catch (_) {}
+            try { logger.warn('[Eliminar Municipalidad] Tabla proyectos no existe; se omite verificación de proyectos.'); } catch (err) { console.error('Error silenciado:', err.message); }
             proyectosAsociados = 0;
           } else {
             throw err;
@@ -421,7 +421,7 @@ const departamentosController = {
       
       // Eliminar la municipalidad/departamento
       await departamento.destroy();
-      try { logger.info(`[Eliminar Municipalidad] Eliminada ${departamento.nombre} (id: ${departamento.id})`); } catch (_) {}
+      try { logger.info(`[Eliminar Municipalidad] Eliminada ${departamento.nombre} (id: ${departamento.id})`); } catch (err) { console.error('Error silenciado:', err.message); }
       
       logger.info(`Departamento eliminado: ${departamento.nombre}`);
       
