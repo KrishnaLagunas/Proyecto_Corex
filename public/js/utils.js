@@ -492,7 +492,7 @@ function crearPaginacion(totalItems, currentPage = 1, itemsPerPage = CONFIG.PAGI
 }
 
 /**
- * Función para exportar datos a CSV
+ * Función para exportar datos a CSV con compatibilidad total para Excel
  * @param {Array} data - Datos a exportar
  * @param {string} filename - Nombre del archivo
  */
@@ -505,24 +505,24 @@ function exportarCSV(data, filename) {
     // Obtener encabezados
     const headers = Object.keys(data[0]);
     
-    // Crear contenido CSV
-    let csvContent = headers.join(',') + '\n';
+    // Crear contenido CSV compatible con Excel (sep=; y punto y coma)
+    let csvContent = 'sep=;\n' + headers.join(';') + '\n';
     
     // Agregar filas
     data.forEach(item => {
         const row = headers.map(header => {
-            // Escapar comas y comillas
+            // Escapar punto y coma, comillas y saltos de línea
             let cell = item[header] !== null && item[header] !== undefined ? item[header].toString() : '';
-            if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+            if (cell.includes(';') || cell.includes('"') || cell.includes('\n')) {
                 cell = '"' + cell.replace(/"/g, '""') + '"';
             }
             return cell;
-        }).join(',');
+        }).join(';');
         csvContent += row + '\n';
     });
     
-    // Crear blob y descargar
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Crear blob con BOM UTF-8 (\ufeff) para que Excel reconozca acentos correctamente
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     
     const link = document.createElement('a');

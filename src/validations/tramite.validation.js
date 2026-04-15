@@ -78,26 +78,27 @@ const tramiteSchemas = {
     ciudadano_id: Joi.number().integer().positive().messages(customMessages),
     departamento_id: Joi.number().integer().positive().required().messages(customMessages),
     municipalidad_id: Joi.number().integer().positive().required().messages(customMessages)
-  }),
+  }).unknown(true),
 
   /**
    * Esquema para actualizar un trámite existente
    */
   updateTramite: Joi.object({
-    codigo: Joi.string().min(3).max(20).messages(customMessages),
-    titulo: Joi.string().min(5).max(100).messages(customMessages),
-    tipo: Joi.string().valid('licencia', 'permiso', 'certificado', 'registro', 'solicitud', 'reclamo', 'otro').messages(customMessages),
+    codigo: Joi.string().min(3).max(50).messages(customMessages),
+    titulo: Joi.string().min(3).max(100).messages(customMessages),
+    tipo: Joi.string().min(3).max(200).messages(customMessages),
     estado: Joi.string().valid('pendiente', 'en_proceso', 'en_revision', 'aprobado', 'rechazado', 'finalizado').messages(customMessages),
     prioridad: Joi.string().valid('baja', 'media', 'alta', 'urgente').messages(customMessages),
-    descripcion: Joi.string().min(10).max(1000).messages(customMessages),
+    descripcion: Joi.string().min(3).max(1000).messages(customMessages),
     notas_internas: Joi.string().max(1000).allow('', null).messages(customMessages),
     observaciones: Joi.string().max(1000).allow('', null).messages(customMessages),
     requiere_pago: Joi.boolean().messages(customMessages),
     monto: Joi.number().min(0).allow(null).messages(customMessages),
     pago_completado: Joi.boolean().messages(customMessages),
     funcionario_id: Joi.number().integer().positive().allow(null).messages(customMessages),
-    municipalidad_id: Joi.number().integer().positive().messages(customMessages)
-  })
+    municipalidad_id: Joi.number().integer().positive().messages(customMessages),
+    departamento_id: Joi.number().integer().positive().messages(customMessages)
+  }).unknown(true)
 };
 
 module.exports = {

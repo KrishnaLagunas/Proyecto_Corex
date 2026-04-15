@@ -1180,6 +1180,9 @@ async function cargarPortalCiudadano(usuario) {
                                             <button class="btn btn-sm btn-secondary" onclick="descargarConstanciaTramite(${tramite.id})" title="Descargar boleta" data-bs-toggle="tooltip">
                                                 <i class="bi bi-download"></i>
                                             </button>
+                                            <button class="btn btn-sm btn-warning" onclick="if(window.editarTramiteCiudadano) { editarTramiteCiudadano(${tramite.id}); } else { document.getElementById('btn-mis-tramites').click(); }" title="Editar trámite" data-bs-toggle="tooltip">
+                                                <i class="bi bi-pencil"></i> Editar
+                                            </button>
                                             <button class="btn btn-sm btn-success ver-detalle-tramite" data-id="${tramite.id}">
                                                 <i class="bi bi-eye"></i> Ver
                                             </button>
@@ -2223,6 +2226,7 @@ async function cargarMisTramites(usuario) {
                                 <button class="btn btn-sm btn-secondary" onclick="descargarConstanciaTramite(${tramite.id})" title="Descargar boleta" data-bs-toggle="tooltip">
                                     <i class="bi bi-download"></i>
                                 </button>
+                                <button class="btn btn-sm btn-warning" onclick="editarTramiteCiudadano(${tramite.id})"><i class="bi bi-pencil"></i> Editar</button>
                                 <button class="btn btn-sm btn-success ver-detalle-tramite" data-id="${tramite.id}"><i class="bi bi-eye"></i> Ver</button>
                                 ${String(tramite.estado).toLowerCase() === 'pendiente' && !pagosCompletadosPorTramite.has(tramite.id) ? `<button class="btn btn-sm btn-outline-danger quitar-tramite" data-id="${tramite.id}" data-titulo="${tramite.titulo}" data-tipo="${obtenerNombreTipoTramite(tramite.tipo)}"><i class="bi bi-x-circle"></i> Quitar</button>` : ''}
                             </div>
@@ -2338,7 +2342,24 @@ async function cargarMisTramites(usuario) {
     window.addEventListener('tramite:creado', window.__onTramiteCreadoMisTramites);
 }
 
-function cargarFormularioNuevoTramite(usuario) {
+window.editarTramiteCiudadano = async function(tramiteId) {
+    // Cerrar cualquier tooltip abierto (evita el fondo negro pegado)
+    document.querySelectorAll('.tooltip').forEach(t => t.remove());
+    try {
+        mostrarCargando(true);
+        const resp = await fetchAPI(`/tramites/${tramiteId}`);
+        const tramite = resp.tramite || resp;
+        const usuario = JSON.parse(localStorage.getItem('usuario'));
+        cargarFormularioNuevoTramite(usuario || {}, tramite);
+    } catch (err) {
+        console.error('Error al editar trámite:', err);
+        mostrarNotificacion('Error al cargar datos del trámite', 'danger');
+    } finally {
+        mostrarCargando(false);
+    }
+};
+
+function cargarFormularioNuevoTramite(usuario, tramiteAEditar = null) {
     // Asegurar perfil de usuario si no se pasa como argumento
     if (!usuario || !usuario.id) {
         try {
@@ -2348,6 +2369,7 @@ function cargarFormularioNuevoTramite(usuario) {
             }
         } catch (_) {}
     }
+    const esEdicion = !!tramiteAEditar;
     const mainContent = document.getElementById('main-content');
     if (mainContent) {
         // Crear el contenido HTML
@@ -2358,11 +2380,11 @@ function cargarFormularioNuevoTramite(usuario) {
                         <nav aria-label="breadcrumb">
                             <ol class="breadcrumb">
                                 <li class="breadcrumb-item"><a href="#" id="volver-portal">Portal Ciudadano</a></li>
-                                <li class="breadcrumb-item active">Nuevo Trámite</li>
+                                <li class="breadcrumb-item active">${esEdicion ? 'Editar Trámite' : 'Nuevo Trámite'}</li>
                             </ol>
                         </nav>
                         <div class="d-flex justify-content-between align-items-center mb-4">
-                            <h2 class="mb-0">Iniciar Nuevo Trámite</h2>
+                            <h2 class="mb-0">${esEdicion ? 'Editar Trámite' : 'Iniciar Nuevo Trámite'}</h2>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-outline-secondary" id="btn-volver-portal">
                                     <i class="bi bi-arrow-left"></i> Volver al Portal
@@ -2371,7 +2393,7 @@ function cargarFormularioNuevoTramite(usuario) {
                         </div>
                         <div class="card shadow-sm">
                             <div class="card-body">
-                                <div id="form-container">
+                                <div id="form-container" data-id="${esEdicion ? tramiteAEditar.id : ''}">
                                     <div class="mb-3">
                                         <label for="municipalidad-tramite" class="form-label">Municipalidad</label>
                                         <small class="text-muted">Paso 1: seleccione la municipalidad</small>
@@ -2395,11 +2417,11 @@ function cargarFormularioNuevoTramite(usuario) {
                                     </div>
                                     <div class="mb-3">
                                         <label for="titulo-tramite" class="form-label">Título</label>
-                                        <input type="text" class="form-control" id="titulo-tramite">
+                                        <input type="text" class="form-control" id="titulo-tramite" value="${esEdicion ? (tramiteAEditar.titulo || '') : ''}">
                                     </div>
                                     <div class="mb-3">
                                         <label for="descripcion-tramite" class="form-label">Descripción</label>
-                                        <textarea class="form-control" id="descripcion-tramite" rows="4"></textarea>
+                                        <textarea class="form-control" id="descripcion-tramite" rows="4">${esEdicion ? (tramiteAEditar.descripcion || '') : ''}</textarea>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Documentos Adjuntos</label>
@@ -2424,7 +2446,7 @@ function cargarFormularioNuevoTramite(usuario) {
                                     </div>
                                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                                         <button type="button" class="btn btn-secondary" id="btn-cancelar-tramite">Cancelar</button>
-                                        <button type="button" class="btn btn-primary" id="btn-enviar-tramite">Enviar Solicitud</button>
+                                        <button type="button" class="btn btn-primary" id="btn-enviar-tramite">${esEdicion ? 'Guardar Cambios' : 'Enviar Solicitud'}</button>
                                     </div>
                                 </div>
                             </div>
@@ -2606,6 +2628,33 @@ function cargarFormularioNuevoTramite(usuario) {
                 }
             })();
 
+            // Restaurar valores si es edición (después de una ligera pausa para que carguen departamentos/municipalidades)
+            if (esEdicion) {
+                setTimeout(() => {
+                    const selMuni = document.getElementById('municipalidad-tramite');
+                    const selDep = document.getElementById('departamento-tramite');
+                    const selTipo = document.getElementById('tipo-tramite');
+
+                    if (selMuni && tramiteAEditar.municipalidad_id) {
+                        selMuni.value = tramiteAEditar.municipalidad_id;
+                        selMuni.dispatchEvent(new Event('change'));
+                        setTimeout(() => {
+                            if (selDep && tramiteAEditar.departamento_id) {
+                                selDep.value = tramiteAEditar.departamento_id;
+                                selDep.dispatchEvent(new Event('change'));
+                                setTimeout(() => {
+                                    if (selTipo && tramiteAEditar.tipo) {
+                                        const tipoOpts = Array.from(selTipo.options);
+                                        const optMatch = tipoOpts.find(o => o.text.includes(tramiteAEditar.tipo) || o.value.includes(tramiteAEditar.tipo));
+                                        if (optMatch) selTipo.value = optMatch.value;
+                                    }
+                                }, 100);
+                            }
+                        }, 100);
+                    }
+                }, 500);
+            }
+
             const TRAMITES_POR_DEPTO = {
                 educacion: [
                     { nombre: 'Solicitudes de becas municipales', tipo: 'solicitud' },
@@ -2722,7 +2771,10 @@ async function enviarNuevoTramite(usuario) {
     // Mostrar indicador de carga
     mostrarCargando(true);
     
-    // Obtener valores del formulario
+    const formContainer = document.getElementById('form-container');
+    const esEdicion = formContainer && formContainer.dataset.id && formContainer.dataset.id.trim() !== '';
+    const tramiteIdAEditar = esEdicion ? formContainer.dataset.id.trim() : null;
+
     const tipoSelectEl = document.getElementById('tipo-tramite');
     const tipoNombre = tipoSelectEl.value;
     const titulo = document.getElementById('titulo-tramite').value;
@@ -2764,15 +2816,24 @@ async function enviarNuevoTramite(usuario) {
         let guardadoExitoso = false;
         
         try {
-            // 1. Crear trámite en la API (JSON)
-            // Usamos fetchAPI directamente para evitar dependencia de tramites.js y errores de contexto
-            const resp = await fetchAPI('/tramites', {
-                method: 'POST',
-                body: nuevoTramite
-            });
-            
-            const tramiteCreado = resp.tramite || resp;
-            const tramiteId = tramiteCreado.id;
+            let tramiteId = null;
+            if (esEdicion) {
+                // 1A. Actualizar trámite existente (PUT)
+                const resp = await fetchAPI(`/tramites/${tramiteIdAEditar}`, {
+                    method: 'PUT',
+                    body: nuevoTramite
+                });
+                const tramiteActualizado = resp.tramite || resp;
+                tramiteId = tramiteActualizado.id || tramiteIdAEditar;
+            } else {
+                // 1B. Crear trámite en la API (POST)
+                const resp = await fetchAPI('/tramites', {
+                    method: 'POST',
+                    body: nuevoTramite
+                });
+                const tramiteCreado = resp.tramite || resp;
+                tramiteId = tramiteCreado.id;
+            }
 
             if (tramiteId) {
                 // 2. Subir archivos si existen
@@ -2790,8 +2851,9 @@ async function enviarNuevoTramite(usuario) {
                             method: 'POST',
                             body: fd
                         }).catch(err => {
-                            console.error(`Error subiendo ${file.name}:`, err);
-                            mostrarNotificacion(`No se pudo subir ${file.name}`, 'warning');
+                            console.error(`Error detallado subiendo ${file.name}:`, err);
+                            const msgError = err.body?.message || err.message || 'Error desconocido';
+                            mostrarNotificacion(`No se pudo subir ${file.name}: ${msgError}`, 'warning');
                         });
                     });
                     
@@ -2807,7 +2869,16 @@ async function enviarNuevoTramite(usuario) {
             try {
                 // Si falla la API, guardar solo en localStorage
                 const tramites = obtenerTramites();
-                tramites.push(nuevoTramite);
+                if (esEdicion) {
+                    const idx = tramites.findIndex(t => t.id == tramiteIdAEditar || String(t.id) === tramiteIdAEditar);
+                    if (idx >= 0) {
+                        tramites[idx] = { ...tramites[idx], ...nuevoTramite };
+                    } else {
+                        tramites.push(nuevoTramite);
+                    }
+                } else {
+                    tramites.push(nuevoTramite);
+                }
                 localStorage.setItem('tramites', JSON.stringify(tramites));
                 guardadoExitoso = true;
                 
@@ -2834,7 +2905,7 @@ async function enviarNuevoTramite(usuario) {
         
         if (guardadoExitoso) {
             // Mostrar mensaje de éxito
-            mostrarNotificacion('Trámite enviado correctamente', 'success');
+            mostrarNotificacion(esEdicion ? 'Trámite actualizado correctamente' : 'Trámite enviado correctamente', 'success');
             
             // Ocultar indicador de carga
             mostrarCargando(false);
@@ -2842,8 +2913,12 @@ async function enviarNuevoTramite(usuario) {
             // Notificar y refrescar vistas que escuchan el evento
             window.dispatchEvent(new CustomEvent('tramite:creado', { detail: nuevoTramite }));
 
-            // Redirigir automáticamente a Mis Pagos
-            cargarMisPagos(usuario);
+            // Redirigir automáticamente
+            if (esEdicion) {
+                setTimeout(() => cargarMisTramites(usuario), 500);
+            } else {
+                cargarMisPagos(usuario);
+            }
         } else {
             throw new Error('No se pudo guardar el trámite');
         }

@@ -1,5 +1,5 @@
 const { Usuario, Rol, Municipalidad } = require('../models');
-const nodemailer = require('nodemailer');
+const emailService = require('../services/email.service');
 const { generateToken, verifyToken } = require('../config/jwt');
 const bcrypt = require('bcryptjs');
 const logger = require('../utils/logger');
@@ -355,53 +355,11 @@ const authController = {
       const recoveryToken = await user.generateRecoveryToken();
       await user.save();
 
-      const transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 465,
-        secure: true,
-        auth: {
-          user: process.env.GMAIL_USER,
-          pass: process.env.GMAIL_PASS
-        }
-      });
+      // Usar el servicio centralizado (asíncrono)
+      emailService.sendPasswordReset(email, recoveryToken)
+        .catch(e => logger.warn('Fallo envío de email de recuperación', e));
 
-      const appUrl = process.env.APP_BASE_URL || `http://localhost:${process.env.PORT || 3001}`;
-      const mailOptions = {
-        from: `"Sistema ERP Municipal" <${process.env.GMAIL_USER}>`,
-        to: email,
-        subject: 'Recuperación de contraseña - Sistema ERP Municipal',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px; background-color: #f9f9f9;">
-            <div style="text-align: center; margin-bottom: 20px;">
-              <h2 style="color: #0d6efd; margin: 0;">Sistema ERP Municipal</h2>
-              <p style="color: #6c757d; margin: 5px 0;">Gestión Municipal Inteligente</p>
-            </div>
-            <div style="background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-              <h3 style="color: #333; margin-top: 0;">Restablecimiento de Contraseña</h3>
-              <p style="color: #555; line-height: 1.6;">
-                Hemos recibido una solicitud para restablecer la contraseña de su cuenta en el <strong>Sistema ERP Municipal</strong>.
-              </p>
-              <p style="color: #555; line-height: 1.6;">
-                Si usted realizó esta solicitud, haga clic en el siguiente botón para crear una nueva contraseña:
-              </p>
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${appUrl}/?resetToken=${encodeURIComponent(recoveryToken)}" style="background-color: #0d6efd; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 5px; font-weight: bold; display: inline-block;">Restablecer Contraseña</a>
-              </div>
-              <p style="color: #555; line-height: 1.6;">
-                Este enlace será válido por <strong>15 minutos</strong>.
-              </p>
-              <p style="color: #777; font-size: 0.9em; margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
-                Si usted no solicitó este cambio, puede ignorar este correo de forma segura. Su contraseña actual seguirá siendo válida.
-              </p>
-            </div>
-            <div style="text-align: center; margin-top: 20px; color: #999; font-size: 0.8em;">
-              &copy; ${new Date().getFullYear()} Sistema ERP Municipal. Todos los derechos reservados.
-            </div>
-          </div>
-        `
-      };
-
-      try { await transporter.sendMail(mailOptions); } catch (e) { logger.warn('Fallo envío de email de recuperación', e); }
+      logger.info(`Token de recuperación generado para: ${email}`);
       logger.info(`Token de recuperación generado para: ${email}`);
 
       // Por ahora, solo devolvemos el token en la respuesta (solo para desarrollo)

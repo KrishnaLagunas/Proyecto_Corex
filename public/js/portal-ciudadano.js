@@ -87,6 +87,10 @@ async function cargarPortalCiudadano() {
                                                 <button class="btn btn-sm btn-info" onclick="verDetalleTramiteCiudadano(${tramo.id})">
                                                     <i class="bi bi-eye"></i>
                                                 </button>
+                                                <button class="btn btn-sm btn-warning" onclick="editarTramiteCiudadano(${tramo.id})">
+                                                    <i class="bi bi-pencil"></i> Editar
+                                                </button>
+
                                                 ${tramo.estado === 'pendiente' ? `
                                                     <button class="btn btn-sm btn-success" onclick="pagarEnLinea(${tramo.id})">
                                                         <i class="bi bi-credit-card"></i> Pagar
@@ -897,10 +901,11 @@ async function marcarTodasLeidas() {
 // -------------------------
 // Nuevo Trámite (Portal)
 // -------------------------
-async function mostrarFormularioNuevoTramite() {
+async function mostrarFormularioNuevoTramite(tramiteAEditar = null) {
   try {
     mostrarCargando(true);
 
+    const esEdicion = !!tramiteAEditar;
     const tiposTramite = await fetchAPI('/tramites/tipos?estado=activo');
     const departamentosResp = await fetchAPI('/departamentos?limit=100');
     const departamentos = Array.isArray(departamentosResp)
@@ -914,14 +919,14 @@ async function mostrarFormularioNuevoTramite() {
           <button class="btn btn-outline-secondary mb-3" onclick="cargarPortalCiudadano()">
             <i class="bi bi-arrow-left"></i> Volver al portal
           </button>
-          <h2>Nuevo Trámite</h2>
+          <h2>${esEdicion ? 'Editar Trámite' : 'Nuevo Trámite'}</h2>
         </div>
       </div>
       <div class="row">
         <div class="col-md-8 offset-md-2">
           <div class="card">
             <div class="card-body">
-              <form id="form-nuevo-tramite">
+              <form id="form-nuevo-tramite" data-id="${esEdicion ? tramiteAEditar.id : ''}">
                 <div class="mb-3">
                   <label for="tipo-tramite" class="form-label">Tipo de Trámite</label>
                   <select class="form-select" id="tipo-tramite" required>
@@ -931,7 +936,7 @@ async function mostrarFormularioNuevoTramite() {
                 </div>
                 <div class="mb-3">
                   <label for="titulo" class="form-label">Título</label>
-                  <input type="text" class="form-control" id="titulo" required />
+                  <input type="text" class="form-control" id="titulo" required value="${esEdicion ? (tramiteAEditar.titulo || '') : ''}" />
                 </div>
                 <div class="mb-3">
                   <label for="departamento" class="form-label">Departamento</label>
@@ -942,12 +947,19 @@ async function mostrarFormularioNuevoTramite() {
                 </div>
                 <div class="mb-3">
                   <label for="descripcion" class="form-label">Descripción</label>
-                  <textarea class="form-control" id="descripcion" rows="3" required></textarea>
+                  <textarea class="form-control" id="descripcion" rows="3" required>${esEdicion ? (tramiteAEditar.descripcion || '') : ''}</textarea>
                 </div>
+                
+                <div class="mb-3">
+                  <label for="documentos-tramite" class="form-label">Documentos Adjuntos</label>
+                  <input type="file" id="documentos-tramite" class="form-control" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,image/*">
+                  <div class="form-text">Formatos permitidos: PDF, Word, Excel, Imágenes. Máximo 7 archivos.</div>
+                </div>
+
                 <div id="modulo-pago" class="mt-3 d-none"></div>
                 <div class="d-grid gap-2">
                   <button type="submit" id="btn-nuevo-tramite" class="btn btn-primary">
-                    <i class="bi bi-send"></i> Enviar Solicitud
+                    <i class="bi bi-send"></i> ${esEdicion ? 'Guardar Cambios' : 'Enviar Solicitud'}
                   </button>
                   <button type="button" class="btn btn-outline-secondary" onclick="cargarPortalCiudadano()">Cancelar</button>
                 </div>
@@ -957,6 +969,13 @@ async function mostrarFormularioNuevoTramite() {
         </div>
       </div>
     `;
+
+    if (esEdicion) {
+      const tipoOpts = Array.from(document.getElementById('tipo-tramite').options);
+      const matchOpt = tipoOpts.find(o => o.text.trim().toLowerCase() === (tramiteAEditar.tipo || '').toLowerCase());
+      if (matchOpt) document.getElementById('tipo-tramite').value = matchOpt.value;
+      document.getElementById('departamento').value = tramiteAEditar.departamento_id || '';
+    }
 
     const form = document.getElementById('form-nuevo-tramite');
     form.addEventListener('submit', iniciarTramite);
@@ -1142,18 +1161,37 @@ async function iniciarTramite(e) {
       return;
     }
 
-    if (!configPago.requiere) {
+    const form = document.getElementById('form-nuevo-tramite');
+    const tramiteIdEdicion = form.dataset.id;
+    const esEdicion = !!tramiteIdEdicion;
+
+    if (!configPago.requiere || esEdicion) {
       const tipo = normalizarTipo(tipoNombre);
-      const nuevoTramite = {
+      const payloadTramite = {
         titulo,
         descripcion,
-        tipo,
+        tipo: tipoNombre,
         departamento_id: parseInt(departamentoId),
         requiere_pago: false,
         monto: 0
       };
-      await fetchAPI('/tramites', { method: 'POST', body: JSON.stringify(nuevoTramite) });
-      mostrarNotificacion('Trámite iniciado correctamente', 'success');
+      
+      let tramiteGuardado;
+      if (esEdicion) {
+        let resp = await fetchAPI(`/tramites/${tramiteIdEdicion}`, { method: 'PUT', body: JSON.stringify(payloadTramite) });
+        tramiteGuardado = resp.tramite || resp;
+        mostrarNotificacion('Trámite actualizado correctamente', 'success');
+      } else {
+        let resp = await fetchAPI('/tramites', { method: 'POST', body: JSON.stringify(payloadTramite) });
+        tramiteGuardado = resp.tramite || resp;
+        mostrarNotificacion('Trámite iniciado correctamente', 'success');
+      }
+      
+      const fileInput = document.getElementById('documentos-tramite');
+      if (fileInput && fileInput.files.length > 0) {
+          await subirDocumentosTramite(tramiteGuardado.id, fileInput.files);
+      }
+
       await cargarPortalCiudadano();
     } else {
       mostrarNotificacion('Use el botón "Enviar Solicitud" dentro del módulo de pago.', 'info');
@@ -1591,13 +1629,29 @@ async function enviarSolicitudConPago() {
     const nuevoTramite = {
       titulo,
       descripcion,
-      tipo,
+      tipo: tipoNombre,
       departamento_id: departamentoId,
       requiere_pago: true,
       monto
     };
-    const creado = await fetchAPI('/tramites', { method: 'POST', body: JSON.stringify(nuevoTramite) });
+    
+    // Si estamos editando y llegamos hasta aquí (no debería, el flujo de pago no está para edición si ya se creó)
+    const formNode = document.getElementById('form-nuevo-tramite');
+    const idEdicion = formNode?.dataset?.id;
+    let creado;
+    
+    if (idEdicion) {
+        creado = await fetchAPI(`/tramites/${idEdicion}`, { method: 'PUT', body: JSON.stringify(nuevoTramite) });
+    } else {
+        creado = await fetchAPI('/tramites', { method: 'POST', body: JSON.stringify(nuevoTramite) });
+    }
+    
     const tramite = creado?.tramite || creado;
+
+    const fileInput = document.getElementById('documentos-tramite');
+    if (fileInput && fileInput.files.length > 0) {
+        await subirDocumentosTramite(tramite.id, fileInput.files);
+    }
 
     const usuario = await fetchAPI('/usuarios/perfil');
     const ciudadanoId = usuario?.id;
@@ -1608,14 +1662,60 @@ async function enviarSolicitudConPago() {
       tramite_id: tramite.id,
       ciudadano_id: ciudadanoId
     };
-    await fetchAPI('/pagos', { method: 'POST', body: JSON.stringify(cuerpoPago) });
-
-    mostrarNotificacion('Solicitud enviada y pago registrado correctamente', 'success');
+    
+    if (!idEdicion) {
+      await fetchAPI('/pagos', { method: 'POST', body: JSON.stringify(cuerpoPago) });
+      mostrarNotificacion('Solicitud enviada y pago registrado correctamente', 'success');
+    } else {
+      mostrarNotificacion('Trámite actualizado correctamente', 'success');
+    }
     await cargarPortalCiudadano();
   } catch (err) {
     console.error('Error al enviar solicitud con pago:', err);
-    mostrarNotificacion('Error al enviar solicitud con pago: ' + err.message, 'danger');
+    mostrarNotificacion('Error al enviar solicitud: ' + err.message, 'danger');
   } finally {
     mostrarCargando(false);
   }
 }
+
+async function subirDocumentosTramite(tramiteId, files) {
+    const lim = Math.min(files.length, 7);
+    for (let i = 0; i < lim; i++) {
+        const file = files[i];
+        
+        if (file.size > 5 * 1024 * 1024) {
+            mostrarNotificacion(`El archivo ${file.name} supera los 5MB permitidos.`, 'warning');
+            continue;
+        }
+
+        const formData = new FormData();
+        formData.append('documento', file);
+        formData.append('tipo', 'Adjunto del Ciudadano');
+
+        try {
+            const token = localStorage.getItem('token');
+            const resp = await fetch(`/api/tramites/${tramiteId}/documentos`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+            if (!resp.ok) console.error("Error al subir documento:", file.name);
+        } catch (error) {
+            console.error('Excepción al subir documento', error);
+        }
+    }
+}
+
+async function editarTramiteCiudadano(tramiteId) {
+    try {
+        mostrarCargando(true);
+        const tramite = await fetchAPI(`/tramites/${tramiteId}`);
+        await mostrarFormularioNuevoTramite(tramite);
+    } catch (error) {
+        console.error('Error al cargar trámite para editar:', error);
+        mostrarNotificacion('No se pudo cargar la información del trámite', 'danger');
+    } finally {
+        mostrarCargando(false);
+    }
+}
+

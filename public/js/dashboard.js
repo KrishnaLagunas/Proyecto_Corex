@@ -167,11 +167,11 @@ async function cargarDashboard() {
             ${headerInfo ? `<div class="muni-badge"><i class="bi bi-building"></i><span>${headerInfo}</span></div>` : ''}
           </div>
           <div class="col-4 text-end">
-            <div class="d-inline-flex align-items-center gap-2 px-3 py-1 rounded border bg-light" id="dashboard-datetime-container">
-              <i class="bi bi-calendar3"></i>
+            <div class="d-inline-flex align-items-center gap-2 px-3 py-2 rounded shadow-sm" id="dashboard-datetime-container" style="background: #f3f4f6; border: 1px solid #d1d5db;">
+              <i class="bi bi-calendar3 text-primary"></i>
               <span id="dashboard-date"></span>
               <span class="vr mx-1"></span>
-              <i class="bi bi-clock"></i>
+              <i class="bi bi-clock text-primary"></i>
               <span id="dashboard-time"></span>
             </div>
           </div>
@@ -349,8 +349,8 @@ async function cargarDashboard() {
         return parseInt(it?.cantidad || 0) || 0;
       };
       const getCountMerged = (estados) => estados.reduce((sum, st) => sum + getCount(st), 0);
-      const countProceso = getCountMerged(['en_proceso', 'pendiente', 'aprobado']);
-      const countCompletado = getCountMerged(['completado', 'finalizado']);
+      const countProceso = getCountMerged(['en_proceso', 'pendiente', 'en_revision']);
+      const countCompletado = getCountMerged(['completado', 'finalizado', 'aprobado']);
       const countRechazado = getCount('rechazado');
       const cProceso = document.getElementById('count-tram-proceso'); if (cProceso) cProceso.textContent = countProceso;
       const cCompl = document.getElementById('count-tram-finalizado'); if (cCompl) cCompl.textContent = countCompletado;
@@ -369,8 +369,8 @@ async function cargarDashboard() {
       const donutOptions = (id) => ({
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '70%',
-        animation: { duration: 0 },
+        cutout: '75%',
+        animation: { duration: 600 },
         plugins: {
           legend: { display: false },
           tooltip: { enabled: false }
@@ -382,16 +382,16 @@ async function cargarDashboard() {
         const ctx = el.getContext('2d');
         const isZero = (parseInt(val) || 0) === 0;
         const dataArr = isZero ? [1, 0] : [val, Math.max(totalTramites - val, 0)];
-        const colorsArr = isZero ? ['#8B0000', '#E0E0E0'] : [color, '#E0E0E0'];
+        const colorsArr = isZero ? ['#9e2a2a', '#e5e7eb'] : [color, '#e5e7eb'];
         window.dashboardCharts[id] = new Chart(ctx, {
           type: 'doughnut',
           data: { labels: ['Valor', 'Resto'], datasets: [{ data: dataArr, backgroundColor: colorsArr }] },
           options: donutOptions(id)
         });
       };
-      chartInitDonut('chart-tramites-proceso', countProceso, '#1E3A8A');
-      chartInitDonut('chart-tramites-finalizado', countCompletado, '#2E7D32');
-      chartInitDonut('chart-tramites-rechazado', countRechazado, '#FF8A80');
+      chartInitDonut('chart-tramites-proceso', countProceso, '#1e3a8a');
+      chartInitDonut('chart-tramites-finalizado', countCompletado, '#4a9c5d');
+      chartInitDonut('chart-tramites-rechazado', countRechazado, '#9e2a2a');
       const gpCanvas = document.getElementById('chart-tramites-gratis-pago');
       if (gpCanvas && gpCanvas.getContext) {
         const ctxGP = gpCanvas.getContext('2d');
@@ -411,16 +411,16 @@ async function cargarDashboard() {
         const ctx = el.getContext('2d');
         const isZero = (parseInt(val) || 0) === 0;
         const dataArr = isZero ? [1, 0] : [val, Math.max(totalPagosCount - val, 0)];
-        const colorsArr = isZero ? ['#8B0000', '#E0E0E0'] : [color, '#E0E0E0'];
+        const colorsArr = isZero ? ['#9e2a2a', '#e5e7eb'] : [color, '#e5e7eb'];
         window.dashboardCharts[id] = new Chart(ctx, {
           type: 'doughnut',
           data: { labels: ['Valor', 'Resto'], datasets: [{ data: dataArr, backgroundColor: colorsArr }] },
           options: donutOptions(id)
         });
       };
-      chartInitPagosDonut('chart-pagos-completado', 0, '#2E7D32');
-      chartInitPagosDonut('chart-pagos-pendiente', 0, '#FF9800');
-      chartInitPagosDonut('chart-pagos-rechazado', 0, '#FF8A80');
+      chartInitPagosDonut('chart-pagos-completado', 0, '#4a9c5d');
+      chartInitPagosDonut('chart-pagos-pendiente', 0, '#1e3a8a');
+      chartInitPagosDonut('chart-pagos-rechazado', 0, '#9e2a2a');
 
       if (esAdmin) {
         const deptoCanvas = document.getElementById('chart-departamentos-estado');
@@ -528,8 +528,11 @@ async function cargarDashboard() {
         }
         const totalTram = tramitesEstadoArr.reduce((acc, e) => acc + (parseInt(e.cantidad || 0) || 0), 0);
         const getC = (est) => {
+          if (Array.isArray(est)) {
+            return est.reduce((sum, s) => sum + getC(s), 0);
+          }
           const it = tramitesEstadoArr.find(e => (e.estado || e.dataValues?.estado) === est);
-          return parseInt((it && (it.cantidad ?? it.dataValues?.cantidad)) || 0) || 0;
+          return parseInt((it && (it.cantidad ?? it.total ?? it.dataValues?.cantidad)) || 0) || 0;
         };
         const updDonut = (id, val, color, countElId) => {
           const el = document.getElementById(id);
@@ -538,7 +541,7 @@ async function cargarDashboard() {
           if (!el || !el.getContext) return;
           const isZero = (parseInt(val) || 0) === 0;
           const dataArr = isZero ? [1, 0] : [val, Math.max(totalTram - val, 0)];
-          const colorsArr = isZero ? ['#8B0000', '#E0E0E0'] : [color, '#E0E0E0'];
+          const colorsArr = isZero ? ['#9e2a2a', '#e5e7eb'] : [color, '#e5e7eb'];
           const ds = { labels: ['Valor', 'Resto'], datasets: [{ data: dataArr, backgroundColor: colorsArr }] };
           if (!window.dashboardCharts[id]) {
             window.dashboardCharts[id] = new Chart(el.getContext('2d'), { type: 'doughnut', data: ds, options: donutOptions(id) });
@@ -547,8 +550,8 @@ async function cargarDashboard() {
             window.dashboardCharts[id].update('none');
           }
         };
-        updDonut('chart-tramites-proceso', getC('en_proceso'), '#1E3A8A', 'count-tram-proceso');
-        updDonut('chart-tramites-finalizado', getC('completado') + getC('finalizado'), '#2E7D32', 'count-tram-finalizado');
+        updDonut('chart-tramites-proceso', getC(['pendiente', 'en_proceso', 'en_revision']), '#1E3A8A', 'count-tram-proceso');
+        updDonut('chart-tramites-finalizado', getC(['finalizado', 'completado', 'aprobado']), '#2E7D32', 'count-tram-finalizado');
         updDonut('chart-tramites-rechazado', getC('rechazado'), '#FF8A80', 'count-tram-rechazado');
         const tGratis = parseInt(d.tramitesGratisCount || 0) || 0;
         const tPago = parseInt(d.tramitesPagoCount || 0) || 0;
@@ -641,7 +644,7 @@ async function cargarDashboard() {
           if (!el || !el.getContext) return;
           const isZero = (parseInt(val) || 0) === 0;
           const dataArr = isZero ? [1, 0] : [val, Math.max(totalPag - val, 0)];
-          const colorsArr = isZero ? ['#8B0000', '#E0E0E0'] : [color, '#E0E0E0'];
+          const colorsArr = isZero ? ['#9e2a2a', '#e5e7eb'] : [color, '#e5e7eb'];
           const ds = { labels: ['Valor', 'Resto'], datasets: [{ data: dataArr, backgroundColor: colorsArr }] };
           if (!window.dashboardCharts[id]) {
             window.dashboardCharts[id] = new Chart(el.getContext('2d'), { type: 'doughnut', data: ds, options: donutOptions(id) });

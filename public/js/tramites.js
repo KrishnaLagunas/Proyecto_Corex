@@ -637,6 +637,41 @@ async function generarReporteTiposTramites() {
 }
 
 /**
+ * Función para generar un reporte de un trámite específico (PDF)
+ * @param {number} tramiteId - ID del trámite
+ */
+async function generarReporteTramite(tramiteId) {
+    try {
+        console.log(`[REPORTE] Generando reporte para trámite ${tramiteId}...`);
+        mostrarCargando(true);
+        
+        const blob = await fetchAPI(`/tramites/${tramiteId}/reporte`, {
+            responseType: 'blob'
+        });
+        
+        // Crear URL para el blob y descargar
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `reporte_tramite_${tramiteId}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        
+        // Limpieza
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        mostrarNotificacion('Reporte generado y descargado correctamente', 'success');
+        
+    } catch (error) {
+        console.error('Error al generar reporte de trámite:', error);
+        mostrarNotificacion('Error al generar el reporte: ' + error.message, 'danger');
+    } finally {
+        mostrarCargando(false);
+    }
+}
+
+/**
  * Función para cargar la lista de trámites
  */
 async function cargarTramites() {
@@ -1109,8 +1144,8 @@ async function verDetalleTramite(tramiteId) {
                                     </div>
                                 </div>
                             <div class="list-group-item py-3 mb-2">
-                                <div class="small text-muted">ID</div>
-                                <div class="fw-semibold">${tramite.id}</div>
+                                <div class="small text-muted">Código de Seguimiento</div>
+                                <div class="fw-semibold">${tramite.codigo}</div>
                             </div>
                             <div class="list-group-item py-3 mb-2">
                                 <div class="small text-muted">Tipo de Trámite</div>
@@ -1236,7 +1271,7 @@ async function verDetalleTramite(tramiteId) {
                                         <div class="fw-semibold">${registro.accion}</div>
                                         <div>${registro.descripcion}</div>
                                         <div class="small text-muted mb-1"><i class="bi bi-calendar3 me-1"></i>${formatearFecha(registro.fecha)}</div>
-                                        <div class="small text-muted"><i class="bi bi-person-fill me-1"></i>${registro.usuario?.nombre} ${registro.usuario?.apellido}</div>
+                                        <div class="small text-muted"><i class="bi bi-person-fill me-1"></i>${registro.usuario ? `${registro.usuario.nombre} ${registro.usuario.apellido}` : 'Sistema'}</div>
                                     </div>
                                 `).join('')}
                                 `}
@@ -1448,7 +1483,7 @@ async function mostrarFormularioDocumento(tramiteId) {
                                 <div class="mb-3">
                                     <label for="archivo" class="form-label">Archivo</label>
                                     <input type="file" class="form-control" id="archivo" required>
-                                    <div class="form-text">Formatos permitidos: PDF, JPG, PNG. Tamaño máximo: 5MB</div>
+                                    <div class="form-text">Formatos permitidos: PDF, Word, Excel, JPG, PNG. Tamaño máximo: 5MB</div>
                                 </div>
                                 
                                 <div class="d-grid gap-2">
@@ -1500,9 +1535,17 @@ async function subirDocumento(e) {
         }
         
         // Validar formato del archivo
-        const formatosPermitidos = ['application/pdf', 'image/jpeg', 'image/png'];
+        const formatosPermitidos = [
+            'application/pdf', 
+            'image/jpeg', 
+            'image/png',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        ];
         if (!formatosPermitidos.includes(archivo.type)) {
-            throw new Error('Formato de archivo no permitido. Use PDF, JPG o PNG');
+            throw new Error('Formato de archivo no permitido. Use PDF, Word, Excel, JPG o PNG');
         }
         
         // Crear FormData para enviar el archivo

@@ -99,6 +99,13 @@ router.get('/:id/constancia',
   tramitesController.generateConstancia
 );
 
+// Reporte detallado para funcionarios y el propio ciudadano
+router.get('/:id/reporte',
+  isAuthenticated,
+  validateParams(tramiteSchemas.idParam),
+  tramitesController.generarReporteDetallado
+);
+
 // Constancia/boleta desde datos locales (PDF descargable)
 router.post('/constancia/local',
   tramitesController.generateConstanciaLocal

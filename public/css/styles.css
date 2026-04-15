@@ -109,7 +109,7 @@ body {
     font-weight: var(--font-weight-normal);
     line-height: var(--line-height-normal);
     color: var(--gray-800);
-    background: linear-gradient(135deg, var(--gray-50) 0%, #ffffff 100%);
+    background: #fdfaf3 !important; /* Crema institucional solicitado */
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -440,15 +440,15 @@ body:not(.auth-mode):has(#register-container:not(.d-none)) footer {
 
 /* Header institucional con azul oscuro */
 .header {
-    background: var(--primary-color); /* Azul oscuro institucional */
+    background: #0d1b3e !important; /* Azul institucional profundo */
     color: white;
     padding: var(--spacing-3) var(--spacing-6);
     text-align: center;
-    box-shadow: 0 4px 20px var(--shadow-color);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     position: sticky;
     top: 0;
     z-index: 1050;
-    border-bottom: 3px solid var(--secondary-color); /* Verde institucional */
+    border-bottom: 2px solid #00d2ff; /* Línea celeste para separar */
     backdrop-filter: blur(15px);
     overflow: hidden;
 }
@@ -529,14 +529,13 @@ body:not(.auth-mode):has(#register-container:not(.d-none)) footer {
 
 /* Navegación empresarial moderna */
 .nav {
-    background: rgba(255, 255, 255, 0.95);
-    border-bottom: 1px solid var(--gray-200);
+    background: #0d1b3e !important;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
     padding: 0;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     position: sticky;
     top: 0;
     z-index: 1000;
-    backdrop-filter: blur(8px);
 }
 
 .nav-container {
@@ -556,11 +555,11 @@ body:not(.auth-mode):has(#register-container:not(.d-none)) footer {
     transform: translateY(-50%);
     font-family: var(--font-family-heading);
     font-weight: var(--font-weight-extrabold);
-    font-size: 1.25rem;
-    letter-spacing: 0.02em;
-    color: var(--primary-color);
-    opacity: 0.85;
+    font-size: 1.4rem;
+    letter-spacing: 0.05em;
+    color: white !important;
     text-decoration: none;
+    text-shadow: 0 0 10px rgba(0, 210, 255, 0.5);
 }
 
 .nav-row, .nav-list, .nav-actions { position: relative; z-index: 1; }
@@ -588,7 +587,7 @@ body:not(.auth-mode):has(#register-container:not(.d-none)) footer {
     display: flex;
     align-items: center;
     padding: var(--spacing-4) var(--spacing-5);
-    color: var(--gray-700);
+    color: rgba(255,255,255,0.9) !important;
     text-decoration: none;
     font-weight: var(--font-weight-medium);
     font-size: var(--font-size-sm);
@@ -612,17 +611,19 @@ body:not(.auth-mode):has(#register-container:not(.d-none)) footer {
 }
 
 .nav-link:hover, .nav-link.active {
-    color: var(--primary-color) !important;
-    background-color: #eff6ff !important; /* Azul muy suave */
+    color: white !important;
+    background-color: rgba(255, 255, 255, 0.1) !important;
     transform: translateY(-1px);
 }
 
 .nav-link.active {
     font-weight: var(--font-weight-semibold);
+    background-color: rgba(0, 210, 255, 0.15) !important;
+    color: #00d2ff !important;
 }
 
 .nav-link:hover i, .nav-link.active i {
-    color: var(--primary-color) !important;
+    color: #00d2ff !important;
 }
 
 .nav-link.active::before {
@@ -724,13 +725,13 @@ body:not(.auth-mode):has(#register-container:not(.d-none)) footer {
 
 /* Tarjetas empresariales sofisticadas */
 .card {
-    background: linear-gradient(145deg, #ffffff 0%, var(--gray-50) 100%);
-    border-radius: var(--border-radius-lg);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.1);
-    border: 1px solid var(--gray-200);
+    background: #fffef9 !important; /* Crema muy claro */
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05) !important;
+    border: 1px solid #e5e7eb;
     margin-bottom: var(--spacing-3);
     overflow: hidden;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.3s ease;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -742,11 +743,10 @@ body:not(.auth-mode):has(#register-container:not(.d-none)) footer {
     position: absolute;
     top: 0;
     left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--primary-color) 0%, var(--accent-color) 50%, var(--primary-light) 100%);
-    opacity: 0;
-    transition: opacity 0.3s ease;
+    bottom: 0;
+    width: 5px;
+    background: #1e3a8a; /* Azul institucional izquierdo */
+    opacity: 0.9;
 }
 
 .card:hover {
@@ -1208,17 +1208,28 @@ td .btn:last-child {
 .kpi-card {
     display: flex;
     align-items: center;
-    padding: var(--spacing-3);
-    background: white;
-    border-radius: var(--border-radius-lg);
-    box-shadow: var(--shadow-sm);
+    padding: 20px;
+    background: #fffef9 !important;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
     text-decoration: none;
     color: var(--gray-800);
     transition: all 0.3s ease;
-    border: 1px solid var(--gray-200);
+    border: 1px solid #e5e7eb;
     height: 100%;
     position: relative;
     overflow: hidden;
+}
+
+.kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 6px;
+    background: #1e3a8a; /* Azul institucional izquierdo */
+    opacity: 1;
 }
 
 .kpi-card:hover {
@@ -1440,8 +1451,8 @@ td .btn:last-child {
         z-index: 1100; /* Asegurar que esté por encima del overlay y otros elementos */
         transition: left 0.3s ease;
         display: none !important; /* Oculto por defecto en móvil hasta que se active */
-        background: white !important; /* Forzar fondo blanco */
-        box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        background: #0d1b3e !important; /* Azul institucional en móvil */
+        box-shadow: 2px 0 10px rgba(0,0,0,0.3);
         pointer-events: auto !important; /* Asegurar que los clics sean detectados */
         border-bottom: none; /* Quitar borde de sticky desktop en móvil */
     }
@@ -1480,19 +1491,19 @@ td .btn:last-child {
     .nav-link {
         padding: 12px 24px !important; /* Aumentar un poco el padding base para dar aire */
         margin: 0;
-        color: var(--gray-700) !important;
+        color: white !important;
         display: flex;
         align-items: center;
         gap: 12px;
     }
     
     .nav-link i {
-        color: var(--gray-600) !important;
+        color: #00d2ff !important;
     }
     
     .nav-link:hover, .nav-link.active {
-        background-color: var(--gray-100) !important;
-        color: var(--primary-color) !important;
+        background-color: rgba(0, 210, 255, 0.15) !important;
+        color: #00d2ff !important;
     }
 
     .nav-actions {
@@ -1656,6 +1667,7 @@ td .btn:last-child {
 canvas {
     max-width: 100% !important;
     height: auto !important;
+}
 
 /* === Footer Deslizante === */
 #footer-hover-zone {
@@ -1675,21 +1687,44 @@ canvas {
     width: 100%;
     z-index: 9999;
     transform: translateY(100%);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.2);
-    background: var(--gray-800);
-    padding: var(--spacing-4) var(--spacing-6);
-    text-align: center;
-    border-top: 3px solid var(--secondary-color);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.6) !important;
+    background: #0d1b3e !important; /* Azul institucional profundo */
+    padding: 20px 0 !important;
+    text-align: center !important;
+    border-top: none !important;
+    display: block !important;
+}
+
+/* Barra celeste difuminada (solicitada por el usuario) */
+.footer-slide::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: 5%;
+    right: 5%;
+    height: 4px;
+    background: linear-gradient(90deg, transparent, #00d2ff, #7dd3fc, #00d2ff, transparent);
+    box-shadow: 0 0 25px rgba(0, 210, 255, 0.9);
+    filter: blur(1px);
+    border-radius: 10px;
+    opacity: 1;
 }
 
 .footer-content {
-    color: white;
-    font-size: var(--font-size-sm);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-2);
+    color: white !important;
+    font-size: 0.95rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 15px !important;
+    font-weight: 400 !important;
+    background: transparent !important;
+}
+
+.footer-content i {
+    color: #00d2ff !important;
+    font-size: 1.2rem !important;
 }
 
 .footer-slide:hover,
@@ -1702,5 +1737,4 @@ canvas {
     height: auto !important;
     min-height: auto !important;
     flex: none !important;
-}
 }

@@ -86,7 +86,7 @@ Departamento.belongsToMany(Usuario, {
 });
 
 // Relaciones de Documento
-Documento.belongsTo(Usuario, { foreignKey: 'usuario_id' });
+Documento.belongsTo(Usuario, { as: 'usuario', foreignKey: 'usuario_id' });
 Documento.belongsTo(Tramite, { foreignKey: 'tramite_id' });
 
 // Relaciones de Pago

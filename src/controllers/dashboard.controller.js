@@ -154,11 +154,11 @@ const dashboardController = {
         tramitesGratisCount: parseInt(tramitesGratisCount) || 0,
         tramitesPorEstado: tramitesPorEstado.map(item => ({
           estado: item.estado,
-          cantidad: parseInt(item.dataValues.cantidad)
+          cantidad: parseInt(item.cantidad || (item.dataValues && item.dataValues.cantidad) || 0)
         })),
         pagosPorEstado: pagosPorEstado.map(item => ({
           estado: item.estado,
-          cantidad: parseInt(item.dataValues.cantidad)
+          cantidad: parseInt(item.cantidad || (item.dataValues && item.dataValues.cantidad) || 0)
         })),
         pagosPorMes: pagosPorMes.map(item => ({
           mes: item.dataValues.mes,
