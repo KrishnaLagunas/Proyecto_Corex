@@ -846,8 +846,17 @@ const tramitesController = {
  */
 tramitesController.getTiposTramites = async (req, res, next) => {
   try {
+    const { departamento_id } = req.query;
+    const where = { estado: 'activo' };
+    
+    if (departamento_id) {
+      where.departamento_id = departamento_id;
+    }
+
+
+
     const configuraciones = await ConfiguracionPago.findAll({
-      where: { estado: 'activo' },
+      where,
       order: [['tramite_nombre', 'ASC']]
     });
 

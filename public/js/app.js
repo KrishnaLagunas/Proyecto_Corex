@@ -513,7 +513,8 @@ function cargarContenidoPagina(pagina) {
                                         <tr>
                                             <td>2001</td>
                                             <td>Impuesto Predial</td>
-                                            <td>$250.00</td>
+                                            <td>${formatearMoneda(250)}</td>
+
                                             <td>05/01/2023</td>
                                             <td><span class="badge bg-success">Completado</span></td>
                                             <td>
@@ -523,7 +524,8 @@ function cargarContenidoPagina(pagina) {
                                         <tr>
                                             <td>2002</td>
                                             <td>Servicio de Agua</td>
-                                            <td>$75.50</td>
+                                            <td>${formatearMoneda(75.5)}</td>
+
                                             <td>10/02/2023</td>
                                             <td><span class="badge bg-danger">Pendiente</span></td>
                                             <td>

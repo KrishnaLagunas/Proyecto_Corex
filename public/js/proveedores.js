@@ -785,7 +785,7 @@ async function verDetalleProveedor(proveedorId) {
                                                     <td>${formatearMoneda(pago.monto)}</td>
                                                     <td>${pago.concepto}</td>
                                                     <td>${pago.contrato?.numero || 'N/A'}</td>
-                                                    <td>${pago.metodo_pago}</td>
+                                                    <td>${obtenerNombreMetodoPago(pago.metodo_pago)}</td>
                                                     <td>
                                                         <button class="btn btn-sm btn-info" onclick="verDetallePago(${pago.id})">
                                                             <i class="bi bi-eye"></i>
@@ -1083,7 +1083,7 @@ async function verDetalleContrato(contratoId) {
                                                     <td>${formatearFecha(pago.fecha)}</td>
                                                     <td>${formatearMoneda(pago.monto)}</td>
                                                     <td>${pago.concepto}</td>
-                                                    <td>${pago.metodo_pago}</td>
+                                                    <td>${obtenerNombreMetodoPago(pago.metodo_pago)}</td>
                                                     <td>
                                                         <button class="btn btn-sm btn-info" onclick="verDetallePago(${pago.id})">
                                                             <i class="bi bi-eye"></i>
@@ -1304,7 +1304,7 @@ async function verDetallePago(pagoId) {
                             </div>
                             <div class="row mb-3">
                                 <div class="col-md-4 fw-bold">Método de Pago:</div>
-                                <div class="col-md-8">${pago.metodo_pago}</div>
+                                <div class="col-md-8">${obtenerNombreMetodoPago(pago.metodo_pago)}</div>
                             </div>
                             <div class="row mb-3">
                                 <div class="col-md-4 fw-bold">Referencia:</div>

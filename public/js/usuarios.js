@@ -614,14 +614,14 @@ async function actualizarTablaUsuarios(page = 1) {
                     <td class="cell-wrap">${(u.nombre || '')} ${(u.apellido || '')}</td>
                     <td class="cell-wrap cell-email">${u.email || ''}</td>
                     <td class="cell-nowrap">${u.rut || ''}</td>
-                    <td class="text-center">${u.Rol?.nombre || u.rol_nombre || ''}</td>
+                    <td class="text-center">${typeof formatearEtiqueta === 'function' ? formatearEtiqueta(u.Rol?.nombre || u.rol_nombre) : (u.Rol?.nombre || u.rol_nombre || '')}</td>
                     <td class="cell-wrap">${u.Municipalidad?.nombre || u.municipalidad?.nombre || 'N/A'}</td>
                     ${esSuperadmin ? '' : `<td class="cell-wrap">${(() => {
                         const deptos = u.Departamentos || u.departamentos;
                         if (deptos && deptos.length > 0) return deptos[0].nombre;
                         return u.departamento?.nombre || 'N/A';
                     })()}</td>`}
-                    <td class="text-center"><span class="estado-${u.estado}">${u.estado}</span></td>
+                    <td class="text-center"><span class="estado-${u.estado}">${typeof formatearEtiqueta === 'function' ? formatearEtiqueta(u.estado) : u.estado}</span></td>
                     <td class="text-center">${typeof formatearFecha === 'function' ? formatearFecha(u.createdAt) : ''}</td>
                     <td class="text-center col-actions">
                         <div class="btn-group btn-group-sm table-actions" role="group" aria-label="Acciones">

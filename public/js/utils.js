@@ -288,14 +288,17 @@ function formatearFecha(fecha) {
  * @returns {string} - Valor formateado como moneda
  */
 function formatearMoneda(valor) {
-    if (valor === null || valor === undefined) return '';
-    
-    return new Intl.NumberFormat('es-CL', {
+    if (valor === null || valor === undefined) return 'CLP $ 0';
+    const num = Number(valor);
+    const formato = new Intl.NumberFormat('es-CL', {
         style: 'currency',
         currency: 'CLP',
-        minimumFractionDigits: 0
-    }).format(valor);
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(num);
+    return `CLP ${formato}`;
 }
+
 
 /**
  * Función para validar un correo electrónico

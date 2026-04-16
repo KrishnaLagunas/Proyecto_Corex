@@ -8,9 +8,10 @@ const sequelize = require('sequelize');
  * Controlador para el manejo de departamentos municipales
  */
 const esMunicipalidades = (req) => {
-  const b = (req.baseUrl || '') + (req.originalUrl || '');
-  return b.includes('/api/municipalidades') || b.includes('/superadmin/municipalidades');
+  const b = (req.baseUrl || '') + (req.originalUrl || '') + (req.path || '');
+  return b.toLowerCase().includes('municipalidades');
 };
+
 
 const departamentosController = {
   /**
@@ -21,6 +22,7 @@ const departamentosController = {
    */
   getAllDepartamentos: async (req, res, next) => {
     try {
+      try { logger.info(`[Departamentos] getAllDepartamentos HIT: url=${req.originalUrl}, user=${req.user?.id}, role=${req.user?.rol_nombre}`); } catch (_) {}
       const { 
         page = 1, 
         limit = 10, 
@@ -96,8 +98,7 @@ const departamentosController = {
       // Calcular total de páginas
       const totalPages = Math.ceil(count / limit);
       
-      try { res.set('Cache-Control', 'no-store'); } catch (err) { console.error('Error silenciado:', err.message); }
-      res.json({
+      const responseBody = {
         departamentos: rowsPlain,
         pagination: {
           total: count,
@@ -105,7 +106,13 @@ const departamentosController = {
           currentPage: parseInt(page),
           limit: parseInt(limit)
         }
-      });
+      };
+      
+      try { logger.info(`[Departamentos] Respuesta enviada: ${JSON.stringify(responseBody).slice(0, 200)}...`); } catch (_) {}
+      
+      try { res.set('Cache-Control', 'no-store'); } catch (err) { console.error('Error silenciado:', err.message); }
+      res.json(responseBody);
+
     } catch (error) {
       next(error);
     }

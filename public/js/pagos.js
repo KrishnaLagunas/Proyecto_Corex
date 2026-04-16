@@ -443,7 +443,8 @@ async function verDetallePago(pagoId) {
         const estado = pago.estado || 'N/A';
         const monto = typeof formatearMoneda === 'function' ? formatearMoneda(pago.monto) : (pago.monto ?? 'N/A');
         const fechaPago = pago.fecha_pago ? formatearFecha(pago.fecha_pago) : '—';
-        const metodoPago = pago.metodo_pago || '—';
+        const metodoPago = typeof obtenerNombreMetodoPago === 'function' ? obtenerNombreMetodoPago(pago.metodo_pago) : (pago.metodo_pago || '—');
+
         const referencia = pago.referencia_externa || '—';
         const notas = pago.notas || 'Sin observaciones';
         const estadoClase = estado === 'completado' ? 'success' : (estado === 'pendiente' ? 'warning' : (estado === 'rechazado' ? 'danger' : 'secondary'));
@@ -481,7 +482,7 @@ async function verDetallePago(pagoId) {
                                 </div>
                                 <div class="col">
                                     <div class="small text-muted">Estado</div>
-                                    <span class="badge rounded-pill p-1 small bg-${estadoClase} text-uppercase">${estado}</span>
+                                    <span class="badge rounded-pill p-1 small bg-${estadoClase}">${typeof formatearEtiqueta === 'function' ? formatearEtiqueta(estado) : estado}</span>
                                 </div>
                                 <div class="col">
                                     <div class="small text-muted">Monto</div>
@@ -506,8 +507,8 @@ async function verDetallePago(pagoId) {
                             <hr class="my-2" />
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <h6 class="m-0">Ciudadano</h6>
-                                ${ciudadano.id ? `<button class="btn btn-sm btn-info" onclick="verPerfilUsuario(${ciudadano.id})"><i class="bi bi-person"></i> Ver Perfil</button>` : ''}
                             </div>
+
                             <div class="row g-2">
                                 <div class="col-12 col-md-6"><div class="small text-muted">Nombre</div><div class="small">${ciudadano.nombre || ''} ${ciudadano.apellido || ''}</div></div>
                                 <div class="col-12 col-md-6"><div class="small text-muted">Email</div><div class="small">${ciudadano.email || '—'}</div></div>
@@ -524,7 +525,7 @@ async function verDetallePago(pagoId) {
                             </div>
                             <div class="row g-2">
                                 <div class="col-12 col-md-4"><div class="small text-muted">Código</div><div class="small">${tramite.codigo || '—'}</div></div>
-                                <div class="col-12 col-md-4"><div class="small text-muted">Título</div><div class="small">${tramite.titulo || '—'}</div></div>
+                                <div class="col-12 col-md-4"><div class="small text-muted">Título</div><div class="small text-uppercase">${(tramite.titulo || '-').toUpperCase()}</div></div>
                                 <div class="col-12 col-md-4"><div class="small text-muted">Tipo</div><div class="small text-uppercase">${tramite.tipo || '—'}</div></div>
                                 <div class="col-12 col-md-4"><div class="small text-muted">Estado</div><div class="small text-uppercase">${tramite.estado || '—'}</div></div>
                                 <div class="col-12 col-md-4"><div class="small text-muted">Prioridad</div><div class="small text-uppercase">${tramite.prioridad || '—'}</div></div>
@@ -826,7 +827,7 @@ async function generarConstanciaLocal(tramite) {
     const fechaEmision = new Date();
     const codigo = tramite.codigo || `T-${tramite.id}`;
     const estado = String(tramite.estado || '').toUpperCase();
-    const titulo = tramite.titulo || 'Trámite';
+    const titulo = (tramite.titulo || 'Trámite').toUpperCase();
     const tipo = typeof obtenerNombreTipoTramite === 'function' ? obtenerNombreTipoTramite(tramite.tipo) : (tramite.tipo || '—');
     let nombreDepartamento = (tramite.Departamento && tramite.Departamento.nombre) || (tramite.departamento && tramite.departamento.nombre) || '';
     if (!nombreDepartamento && tramite.departamento_id) {
@@ -845,7 +846,8 @@ async function generarConstanciaLocal(tramite) {
     const ciudadanoDireccion = (usuario && usuario.direccion) ? usuario.direccion : (tramite.ciudadano && tramite.ciudadano.direccion ? tramite.ciudadano.direccion : '');
     const fechaSol = tramite.fecha_solicitud ? (typeof formatearFecha === 'function' ? formatearFecha(tramite.fecha_solicitud) : new Date(tramite.fecha_solicitud).toLocaleDateString('es-CL')) : '';
     const fechaAct = tramite.fecha_actualizacion ? (typeof formatearFecha === 'function' ? formatearFecha(tramite.fecha_actualizacion) : new Date(tramite.fecha_actualizacion).toLocaleDateString('es-CL')) : fechaSol;
-    const montoFmt = typeof formatearMoneda === 'function' ? formatearMoneda(monto) : (monto ? `$${monto.toLocaleString('es-CL')}` : 'Gratis');
+    const montoFmt = typeof formatearMoneda === 'function' ? formatearMoneda(monto) : (monto ? `CLP $ ${monto.toLocaleString('es-CL')}` : 'Gratis');
+
     const hoyFmt = fechaEmision.toLocaleDateString('es-CL');
     const estilos = `
       <style>

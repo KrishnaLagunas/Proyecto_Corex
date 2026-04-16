@@ -1168,13 +1168,17 @@ async function cargarPortalCiudadano(usuario) {
                                 <tr>
                                     <td>${tramite.codigo}</td>
                                     <td class="text-uppercase">${obtenerNombreTipoTramite(tramite.tipo)}</td>
-                                    <td>${tramite.titulo}</td>
+                                    <td class="text-uppercase">${tramite.titulo}</td>
                                     <td>${formatearFecha(tramite.fecha_solicitud)}</td>
                                     <td>
-                                        <span class="badge ${obtenerColorEstadoTramite(tramite.pago_completado ? 'pagado' : tramite.estado)}" data-estado="${tramite.pago_completado ? 'pagado' : tramite.estado}">
-                                            ${obtenerNombreEstadoTramite(tramite.pago_completado ? 'pagado' : tramite.estado)}
-                                        </span>
+                                        <div class="d-flex flex-column gap-1">
+                                            <span class="badge ${obtenerColorEstadoTramite(tramite.estado)}" data-estado="${tramite.estado}">
+                                                ${obtenerNombreEstadoTramite(tramite.estado)}
+                                            </span>
+                                            ${tramite.pago_completado ? '<span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.7rem; width: fit-content; align-self: center;"><i class="bi bi-check-circle"></i> Pagado</span>' : ''}
+                                        </div>
                                     </td>
+
                                     <td>
                                         <div class="d-flex gap-1">
                                             <button class="btn btn-sm btn-secondary" onclick="descargarConstanciaTramite(${tramite.id})" title="Descargar boleta" data-bs-toggle="tooltip">
@@ -2218,9 +2222,17 @@ async function cargarMisTramites(usuario) {
                     <tr>
                         <td>${tramite.codigo}</td>
                         <td class="text-uppercase">${obtenerNombreTipoTramite(tramite.tipo)}</td>
-                        <td>${tramite.titulo}</td>
+                        <td class="text-uppercase">${tramite.titulo}</td>
                         <td>${formatearFecha(tramite.fecha_solicitud)}</td>
-                        <td><span class="badge ${obtenerColorEstadoTramite(pagosCompletadosPorTramite.has(tramite.id) || tramite.pago_completado ? 'pagado' : tramite.estado)}" data-estado="${pagosCompletadosPorTramite.has(tramite.id) || tramite.pago_completado ? 'pagado' : tramite.estado}">${obtenerNombreEstadoTramite(pagosCompletadosPorTramite.has(tramite.id) || tramite.pago_completado ? 'pagado' : tramite.estado)}</span></td>
+                        <td>
+                            <div class="d-flex flex-column gap-1">
+                                <span class="badge ${obtenerColorEstadoTramite(tramite.estado)}" data-estado="${tramite.estado}">
+                                    ${obtenerNombreEstadoTramite(tramite.estado)}
+                                </span>
+                                ${(pagosCompletadosPorTramite.has(tramite.id) || tramite.pago_completado) ? '<span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.7rem; width: fit-content; align-self: center;"><i class="bi bi-check-circle"></i> Pagado</span>' : ''}
+                            </div>
+                        </td>
+
                         <td>
                             <div class="d-flex gap-2">
                                 <button class="btn btn-sm btn-secondary" onclick="descargarConstanciaTramite(${tramite.id})" title="Descargar boleta" data-bs-toggle="tooltip">
@@ -2577,56 +2589,64 @@ function cargarFormularioNuevoTramite(usuario, tramiteAEditar = null) {
             // -------------------------------------------------
 
             // Cargar departamentos dinámicamente desde la API
-            (async () => {
-                try {
-                    const selectDepartamento = document.getElementById('departamento-tramite');
-                    const resp = await fetchAPI('/departamentos?limit=100');
-                    const departamentos = Array.isArray(resp)
-                        ? resp
-                        : (resp?.departamentos || resp?.data || []);
-
-                    // Reiniciar opciones dejando sólo el placeholder
-                    selectDepartamento.innerHTML = '<option value="">Seleccione un departamento</option>';
-
-                    departamentos.forEach(dep => {
-                        const opt = document.createElement('option');
-                        opt.value = dep.id;
-                        opt.textContent = dep.nombre || dep.nombre_departamento || '';
-                        selectDepartamento.appendChild(opt);
-                    });
-
-                    if (!departamentos.length) {
-                        console.warn('No hay departamentos disponibles. Verifique en el admin.');
-                    }
-                } catch (error) {
-                    console.error('Error al cargar departamentos:', error);
-                }
-            })();
-
-            // Cargar municipalidades dinámicamente desde la API
+            // Cargar selectores dinámicamente de forma secuencial
             (async () => {
                 try {
                     const selectMunicipalidad = document.getElementById('municipalidad-tramite');
-                    const respM = await fetchAPI('/municipalidades?limit=100');
-                    const municipalidades = Array.isArray(respM)
-                        ? respM
-                        : (respM?.departamentos || respM?.data || []);
+                    const selectDepartamento = document.getElementById('departamento-tramite');
 
-                    selectMunicipalidad.innerHTML = '<option value="">Seleccione una municipalidad</option>';
-                    municipalidades.forEach(m => {
-                        const opt = document.createElement('option');
-                        opt.value = m.id;
-                        opt.textContent = m.nombre;
-                        selectMunicipalidad.appendChild(opt);
-                    });
-
-                    if (!municipalidades.length) {
-                        console.warn('No hay municipalidades disponibles.');
+                    // 1. Cargar Municipalidades primero desde el endpoint dedicado
+                    try {
+                        console.log('[DEBUG] Cargando municipalidades desde endpoint dedicado...');
+                        const respM = await fetchAPI('/publica/municipalidades?limit=100');
+                        console.log('[DEBUG] Respuesta municipalidades:', respM);
+                        
+                        const municipalidades = Array.isArray(respM) ? respM : (respM?.departamentos || respM?.data || []);
+                        
+                        if (selectMunicipalidad) {
+                            selectMunicipalidad.innerHTML = '<option value="">Seleccione una municipalidad</option>';
+                            municipalidades.forEach(m => {
+                                const opt = document.createElement('option');
+                                opt.value = m.id;
+                                opt.textContent = m.nombre;
+                                selectMunicipalidad.appendChild(opt);
+                            });
+                            
+                            if (municipalidades.length === 0) {
+                                console.warn('[DEBUG] No se encontraron municipalidades en la respuesta');
+                                mostrarNotificacion('No se encontraron municipalidades activas.', 'warning');
+                            }
+                        }
+                    } catch (errM) {
+                        console.error('[DEBUG] Error cargando municipalidades:', errM);
+                        mostrarNotificacion('Error al conectar con el servidor de municipalidades.', 'error');
                     }
+
+                    // 2. Cargar Departamentos desde el endpoint dedicado
+                    try {
+                        console.log('[DEBUG] Cargando departamentos desde endpoint dedicado...');
+                        const respD = await fetchAPI('/publica/departamentos?limit=100');
+                        const departamentos = Array.isArray(respD) ? respD : (respD?.departamentos || respD?.data || []);
+                        
+                        if (selectDepartamento) {
+                            selectDepartamento.innerHTML = '<option value="">Seleccione un departamento</option>';
+                            departamentos.forEach(dep => {
+                                const opt = document.createElement('option');
+                                opt.value = dep.id;
+                                opt.textContent = dep.nombre || dep.nombre_departamento || '';
+                                selectDepartamento.appendChild(opt);
+                            });
+                        }
+                    } catch (errD) {
+                        console.error('[DEBUG] Error cargando departamentos:', errD);
+                    }
+
                 } catch (error) {
-                    console.error('Error al cargar municipalidades:', error);
+                    console.error('[DEBUG] Error general en inicialización de selectores:', error);
                 }
             })();
+
+
 
             // Restaurar valores si es edición (después de una ligera pausa para que carguen departamentos/municipalidades)
             if (esEdicion) {
@@ -2655,82 +2675,46 @@ function cargarFormularioNuevoTramite(usuario, tramiteAEditar = null) {
                 }, 500);
             }
 
-            const TRAMITES_POR_DEPTO = {
-                educacion: [
-                    { nombre: 'Solicitudes de becas municipales', tipo: 'solicitud' },
-                    { nombre: 'Solicitud de traslado de establecimiento', tipo: 'solicitud' },
-                    { nombre: 'Reclamos y revisiones de casos de convivencia escolar', tipo: 'reclamo' }
-                ],
-                salud: [
-                    { nombre: 'Solicitud de cambio de consultorio', tipo: 'solicitud' },
-                    { nombre: 'Solicitud de Inscripción de consultorio', tipo: 'solicitud' },
-                    { nombre: 'Solicitud de ayuda técnica', tipo: 'solicitud' },
-                    { nombre: 'Reclamos por centro de salud', tipo: 'reclamo' }
-                ],
-                obras: [
-                    { nombre: 'certificado de construcción de obras', tipo: 'certificado' },
-                    { nombre: 'Regularización de viviendas', tipo: 'permiso' },
-                    { nombre: 'Denuncias por obras ilegales', tipo: 'reclamo' }
-                ],
-                seguridad: [
-                    { nombre: 'Solicitud de rondas preventivas', tipo: 'solicitud' },
-                    { nombre: 'Instalación de cámaras o alarmas comunitarias', tipo: 'solicitud' },
-                    { nombre: 'Charlas de seguridad', tipo: 'solicitud' }
-                ],
-                transito: [
-                    { nombre: 'Rectificación de datos o errores en licencias', tipo: 'licencia' },
-                    { nombre: 'Permiso de circulación', tipo: 'permiso' }
-                ]
-            };
-
-            function normalizar(s) { return String(s || '').toLowerCase(); }
-            function claveDepto(nombre) {
-                const n = normalizar(nombre);
-                if (n.includes('educac')) return 'educacion';
-                if (n.includes('salud')) return 'salud';
-                if (n.includes('obra')) return 'obras';
-                if (n.includes('seguridad')) return 'seguridad';
-                if (n.includes('tránsito') || n.includes('transito') || n.includes('transporte')) return 'transito';
-                return null;
-            }
-            const PRECIOS = {
-                'Solicitudes de becas municipales': 0,
-                'Solicitud de traslado de establecimiento': 0,
-                'Reclamos y revisiones de casos de convivencia escolar': 0,
-                'Solicitud de cambio de consultorio': 0,
-                'Solicitud de Inscripción de consultorio': 0,
-                'Solicitud de ayuda técnica': 1000,
-                'Reclamos por centro de salud': 0,
-                'certificado de construcción de obras': 500000,
-                'Regularización de viviendas': 200000,
-                'Denuncias por obras ilegales': 0,
-                'Solicitud de rondas preventivas': 0,
-                'Instalación de cámaras o alarmas comunitarias': 20000,
-                'Charlas de seguridad': 0,
-                'Rectificación de datos o errores en licencias': 3000,
-                'Permiso de circulación': 25000
-            };
-            function formatoPrecio(v) {
-                if (!v || v === 0) return 'GRATUITO';
-                return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(v);
-            }
-            function poblarTipoTramitePorDepartamento() {
+            async function poblarTipoTramitePorDepartamento() {
                 const selectTipo = document.getElementById('tipo-tramite');
                 const selectDepartamento = document.getElementById('departamento-tramite');
-                const selectedOpt = selectDepartamento.options[selectDepartamento.selectedIndex];
-                const nombreDepto = selectedOpt ? (selectedOpt.textContent || '') : '';
-                const clave = claveDepto(nombreDepto);
-                selectTipo.innerHTML = '<option value="">Seleccione un trámite</option>';
-                if (!clave || !TRAMITES_POR_DEPTO[clave]) return;
-                TRAMITES_POR_DEPTO[clave].forEach(t => {
-                    const opt = document.createElement('option');
-                    opt.value = t.nombre;
-                    const precio = PRECIOS[t.nombre] ?? 0;
-                    opt.textContent = `${t.nombre} — ${formatoPrecio(precio)}`;
-                    opt.dataset.tipo = t.tipo;
-                    opt.dataset.precio = String(precio);
-                    selectTipo.appendChild(opt);
-                });
+                const deptoId = selectDepartamento.value;
+                
+                selectTipo.innerHTML = '<option value="">Cargando trámites...</option>';
+                selectTipo.disabled = true;
+
+                if (!deptoId) {
+                    selectTipo.innerHTML = '<option value="">Seleccione un trámite</option>';
+                    return;
+                }
+
+                try {
+                    const tipos = await fetchAPI(`/tramites/tipos?estado=activo&departamento_id=${deptoId}`);
+                    selectTipo.innerHTML = '<option value="">Seleccione un trámite</option>';
+                    
+                    if (Array.isArray(tipos) && tipos.length > 0) {
+                        tipos.forEach(t => {
+                            const opt = document.createElement('option');
+                            opt.value = t.nombre;
+                            
+                            // Formatear nombre en mayúsculas y costo en CLP
+                            const nombreUpper = String(t.nombre || '').toUpperCase();
+                            const costoVal = parseFloat(t.costo_numerico || t.costo) || 0;
+                            const precioTexto = (costoVal === 0) ? 'GRATUITO' : (typeof formatearMoneda === 'function' ? formatearMoneda(costoVal) : `CLP ${costoVal}`);
+                            
+                            opt.textContent = `${nombreUpper} — ${precioTexto}`;
+                            opt.dataset.tipo = t.nombre; // O un mapeo si existe
+                            opt.dataset.precio = String(t.costo_numerico || 0);
+                            selectTipo.appendChild(opt);
+                        });
+                        selectTipo.disabled = false;
+                    } else {
+                        selectTipo.innerHTML = '<option value="">No hay trámites disponibles para este departamento</option>';
+                    }
+                } catch (error) {
+                    console.error('Error al cargar tipos de trámites:', error);
+                    selectTipo.innerHTML = '<option value="">Error al cargar trámites</option>';
+                }
             }
             function aplicarTituloPorTipo() {
                 const selectTipo = document.getElementById('tipo-tramite');
@@ -2994,7 +2978,7 @@ function obtenerNombreEstadoTramite(estado) {
         'finalizado': 'Finalizado'
     };
     
-    return estados[estado] || (estado === 'pagado' ? 'Pagado' : estado);
+    return estados[estado] || (estado === 'pagado' ? 'Pagado' : (typeof formatearEtiqueta === 'function' ? formatearEtiqueta(estado) : estado));
 }
 
 function obtenerColorEstadoTramite(estado) {
@@ -3701,7 +3685,7 @@ async function cargarPagosRealizados(usuario) {
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
                                     <div>
-                                        <h5 class="mb-1">${obtenerNombreTipoTramite(t.tipo)} - ${t.titulo || 'Trámite'}</h5>
+                                        <h5 class="mb-1 text-uppercase">${obtenerNombreTipoTramite(t.tipo)} - ${t.titulo || 'Trámite'}</h5>
                                         <div class="text-muted small">Código: ${t.codigo} • Estado: ${obtenerNombreEstadoTramite(t.estado)} • ${estadoBadge}</div>
                                     </div>
                                 </div>
@@ -4355,7 +4339,7 @@ async function mostrarDetalleTramiteModal(tramiteId) {
         contenido.innerHTML = `
       <div class="row g-3">
         <div class="col-md-8">
-          <h5 class="mb-1">${tramite.titulo || 'Trámite sin título'}</h5>
+          <h5 class="mb-1 text-uppercase">${tramite.titulo || 'Trámite sin título'}</h5>
           <div class="text-muted">Código: ${tramite.codigo || '-'}</div>
         </div>
         <div class="col-md-4 text-md-end">

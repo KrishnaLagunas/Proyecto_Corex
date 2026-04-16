@@ -330,7 +330,7 @@ async function cargarDashboard() {
     try {
       const pagosLabelsInit = Array.isArray(pagosPorMes) ? pagosPorMes.map(p => p.mes || p.label || '') : [];
       const pagosDataInit = Array.isArray(pagosPorMes) ? pagosPorMes.map(p => parseFloat(p.total) || 0) : [];
-      const estadosLabelsInit = Array.isArray(tramitesPorEstado) ? tramitesPorEstado.map(e => e.estado) : [];
+      const estadosLabelsInit = Array.isArray(tramitesPorEstado) ? tramitesPorEstado.map(e => typeof formatearEtiqueta === 'function' ? formatearEtiqueta(e.estado) : e.estado) : [];
       const estadosDataInit = Array.isArray(tramitesPorEstado) ? tramitesPorEstado.map(e => e.cantidad || 0) : [];
 
       const pagosCanvas = document.getElementById('chart-pagos-mes');
@@ -479,7 +479,7 @@ async function cargarDashboard() {
           elPagosRecientes.textContent = d.pagosRecientes;
         }
         if (window.dashboardCharts && window.dashboardCharts.tramitesEstado && Array.isArray(d.tramitesPorEstado)) {
-          window.dashboardCharts.tramitesEstado.data.labels = d.tramitesPorEstado.map(e => e.estado);
+          window.dashboardCharts.tramitesEstado.data.labels = d.tramitesPorEstado.map(e => typeof formatearEtiqueta === 'function' ? formatearEtiqueta(e.estado) : e.estado);
           window.dashboardCharts.tramitesEstado.data.datasets[0].data = d.tramitesPorEstado.map(e => e.cantidad || 0);
           window.dashboardCharts.tramitesEstado.update();
         }
@@ -606,7 +606,8 @@ async function cargarDashboard() {
           const tramite = p?.Tramite || p?.tramite || p?.dataValues?.Tramite;
           const nombre = ciudadano ? `${ciudadano.nombre || ''} ${ciudadano.apellido || ''}`.trim() : 'Ciudadano';
           cPagoCiudadano.textContent = nombre || '—';
-          cPagoTramite.textContent = tramite ? (tramite.titulo || tramite.codigo || 'Trámite') : 'Trámite';
+          const tit = tramite ? (tramite.titulo || tramite.codigo || 'Trámite') : 'Trámite';
+          cPagoTramite.textContent = tit.toUpperCase();
           cPagoMonto.textContent = formatearMoneda(parseFloat(p?.monto || p?.dataValues?.monto) || 0);
           try {
             const f = new Date(p?.fecha_pago || p?.dataValues?.fecha_pago);

@@ -61,7 +61,7 @@ async function cargarTiposTramites() {
                                 <td>${tipo.descripcion}</td>
                                 <td>${typeof tipo.costo === 'number' || !isNaN(parseFloat(tipo.costo)) && !String(tipo.costo).includes('%') ? formatearMoneda(parseFloat(tipo.costo)) : tipo.costo}</td>
                                 <td>${tipo.tiempoEstimado}</td>
-                                <td><span class="estado-${tipo.estado}">${tipo.estado}</span></td>
+                                <td><span class="estado-${tipo.estado}">${typeof formatearEtiqueta === 'function' ? formatearEtiqueta(tipo.estado) : tipo.estado}</span></td>
                                 <td>
                                     <button class="btn btn-sm btn-info" onclick="verDetalleTipoTramite(${tipo.id})">
                                         <i class="bi bi-eye"></i>
@@ -478,7 +478,7 @@ async function verDetalleTipoTramite(tipoTramiteId) {
                             <div class="card-body">
                                 <div class="row mb-3"><div class="col-md-4 fw-bold">ID:</div><div class="col-md-8">${tipoTramite.id}</div></div>
                                 <div class="row mb-3"><div class="col-md-4 fw-bold">Nombre:</div><div class="col-md-8">${tipoTramite.nombre}</div></div>
-                                <div class="row mb-3"><div class="col-md-4 fw-bold">Estado:</div><div class="col-md-8"><span class="estado-${tipoTramite.estado}">${tipoTramite.estado}</span></div></div>
+                                <div class="row mb-3"><div class="col-md-4 fw-bold">Estado:</div><div class="col-md-8"><span class="estado-${tipoTramite.estado}">${typeof formatearEtiqueta === 'function' ? formatearEtiqueta(tipoTramite.estado) : tipoTramite.estado}</span></div></div>
                                 <div class="row mb-3"><div class="col-md-4 fw-bold">Costo:</div><div class="col-md-8">${formatearMoneda(tipoTramite.costo)}</div></div>
                                 <div class="row mb-3"><div class="col-md-4 fw-bold">Tiempo Estimado:</div><div class="col-md-8">${(tipoTramite.tiempo_estimado ?? tipoTramite.tiempoEstimado) || '-'} días</div></div>
                                 <div class="row mb-3"><div class="col-md-4 fw-bold">Descripción:</div><div class="col-md-8">${tipoTramite.descripcion}</div></div>

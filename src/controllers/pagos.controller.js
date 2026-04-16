@@ -1,4 +1,4 @@
-const { Pago, Tramite, Usuario } = require('../models');
+const { Pago, Tramite, Usuario, Municipalidad } = require('../models');
 const { sequelize } = require('../config/database');
 const { ApiError } = require('../middlewares/errorHandler');
 const logger = require('../utils/logger');
@@ -587,10 +587,9 @@ const pagosController = {
         const tramite = await Tramite.findByPk(pago.tramite_id);
         if (tramite) {
           tramite.pago_completado = true;
-          if (tramite.estado === 'pendiente') {
-            tramite.estado = 'aprobado';
-          }
+          // Se mantiene el estado original del trámite (ej: 'pendiente') para revisión manual del funcionario
           await tramite.save();
+
         }
       }
 
@@ -835,6 +834,104 @@ const pagosController = {
         metodoPorPago: metodoPagoStats,
         pagosPorMes
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Genera un comprobante de pago en PDF
+   * @param {Object} req - Objeto de solicitud Express
+   * @param {Object} res - Objeto de respuesta Express
+   * @param {Function} next - Función next de Express
+   */
+  generateComprobante: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const pago = await Pago.findByPk(id, {
+        include: [
+          { model: Usuario, as: 'ciudadano', include: [{ model: Municipalidad }] },
+          { model: Tramite }
+        ]
+      });
+
+      if (!pago) {
+        throw new ApiError('Pago no encontrado', 404);
+      }
+
+      // Solo el ciudadano dueño del pago, un admin o un funcionario (incluyendo secretarías) pueden descargarlo
+      const esDuenio = String(pago.ciudadano_id) === String(req.user.id);
+      const rol = (req.user.rol_nombre || '').toLowerCase();
+      const esAdminOFunc = rol !== 'ciudadano' && rol !== '';
+      
+      if (!esDuenio && !esAdminOFunc) {
+        throw new ApiError('No tienes permiso para descargar este comprobante', 403);
+      }
+
+
+      const municipalidad = pago.ciudadano?.Municipalidad || null;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=comprobante_${id}.pdf`);
+
+      const doc = new PDFDocument({ margin: 50 });
+      doc.pipe(res);
+
+      // Encabezado
+      doc.fontSize(20).text(municipalidad?.nombre || 'MUNICIPALIDAD', { align: 'center' });
+      doc.fontSize(16).text('COMPROBANTE DE PAGO', { align: 'center' });
+      doc.moveDown();
+      doc.moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+      doc.moveDown();
+
+      // Información del Pago
+      doc.fontSize(12).font('Helvetica-Bold').text('INFORMACIÓN DEL PAGO');
+      doc.font('Helvetica').fontSize(11);
+      doc.text(`Código: ${pago.codigo}`);
+      doc.text(`Fecha: ${new Date(pago.fecha_pago).toLocaleString('es-CL')}`);
+      doc.text(`Monto: CLP $ ${Number(pago.monto).toLocaleString('es-CL')}`);
+      const formatLabel = (txt) => {
+        if (!txt) return 'N/A';
+        const map = {
+          'tarjeta_debito': 'Tarjeta de Débito',
+          'tarjeta_credito': 'Tarjeta de Crédito',
+          'transferencia': 'Transferencia Bancaria',
+          'transferencia_bancaria': 'Transferencia Bancaria',
+          'pago_en_linea': 'Pago en Línea',
+          'efectivo': 'Efectivo'
+        };
+        const t = txt.toLowerCase();
+        if (map[t]) return map[t];
+        return t.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      };
+
+      doc.text(`Método: ${formatLabel(pago.metodo_pago)}`);
+      doc.text(`Referencia: ${pago.referencia_externa || 'N/A'}`);
+      doc.text(`Estado: ${formatLabel(pago.estado)}`);
+      doc.moveDown();
+
+      // Información del Ciudadano
+      doc.fontSize(12).font('Helvetica-Bold').text('DATOS DEL CIUDADANO');
+      doc.font('Helvetica').fontSize(11);
+      doc.text(`Nombre: ${pago.ciudadano?.nombre} ${pago.ciudadano?.apellido}`);
+      doc.text(`RUT: ${pago.ciudadano?.rut || '—'}`);
+      doc.text(`Email: ${pago.ciudadano?.email || '—'}`);
+      doc.moveDown();
+
+      // Información del Trámite
+      if (pago.Tramite) {
+        doc.fontSize(12).font('Helvetica-Bold').text('TRÁMITE ASOCIADO');
+        doc.font('Helvetica').fontSize(11);
+        doc.text(`Código: ${pago.Tramite.codigo}`);
+        doc.text(`Título: ${pago.Tramite.titulo}`);
+        doc.text(`Tipo: ${pago.Tramite.tipo}`);
+      }
+
+      doc.moveDown(3);
+      doc.fontSize(10).font('Helvetica-Oblique').text('Este documento es un comprobante oficial de pago generado por el sistema COREX.', { align: 'center' });
+      doc.text(`Generado el: ${new Date().toLocaleString('es-CL')}`, { align: 'center' });
+
+      doc.end();
     } catch (error) {
       next(error);
     }

@@ -66,8 +66,9 @@ app.use('/api/pagos', pagosRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/geografia', geografiaRoutes);
-app.use('/api/mercado-pago', mercadoPagoRoutes);
+app.use('/api/publica', require('./routes/publica.routes'));
 // app.use('/api/ciudadano', ciudadanoRoutes);
+
 
 // Middleware para manejar rutas de API no encontradas
 app.use('/api/*', (req, res) => {

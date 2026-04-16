@@ -25,7 +25,7 @@ const { createUsuarioSchema } = require('../validations/usuario.validation');
 // CRUD de municipalidades (alias de departamentos)
 router.get('/municipalidades',
   isAuthenticated,
-  hasRole(['superadministrador']),
+  hasRole(['superadministrador', 'administrador', 'ciudadano']),
   validateQuery(departamentoQuerySchema),
   departamentosController.getAllDepartamentos
 );

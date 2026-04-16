@@ -79,10 +79,18 @@ async function cargarPortalCiudadano() {
                                 <tbody>
                                     ${tramos.map(tramo => `
                                         <tr>
-                                            <td>${tramo.concepto}</td>
+                                            <td class="text-uppercase">${tramo.concepto}</td>
                                             <td>${formatearMoneda(tramo.monto)}</td>
                                             <td>${formatearFecha(tramo.fecha)}</td>
-                                            <td><span class="estado-${tramo.estado}">${tramo.estado}</span></td>
+                                            <td>
+                                                <div class="d-flex flex-column gap-1">
+                                                    <span class="badge ${obtenerColorEstadoTramite(tramo.estado)}">
+                                                        ${obtenerNombreEstadoTramite(tramo.estado)}
+                                                    </span>
+                                                    ${tramo.pago_completado ? '<span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 0.7rem; width: fit-content;"><i class="bi bi-check-circle"></i> Pagado</span>' : ''}
+                                                </div>
+                                            </td>
+
                                             <td>
                                                 <button class="btn btn-sm btn-info" onclick="verDetalleTramiteCiudadano(${tramo.id})">
                                                     <i class="bi bi-eye"></i>
@@ -261,11 +269,11 @@ async function verTodosPagosCiudadano() {
                                             <td>
                                                 ${pago.estado === 'pendiente' ? `<input type="checkbox" class="chk-pago" data-id="${pago.id}">` : '—'}
                                             </td>
-                                            <td>${pago.concepto}</td>
+                                            <td class="text-uppercase">${pago.concepto}</td>
                                             <td>${formatearMoneda(pago.monto)}</td>
                                             <td>${formatearFecha(pago.fecha)}</td>
                                             <td>${formatearFecha(pago.fechaVencimiento)}</td>
-                                            <td><span class="estado-${pago.estado}">${pago.estado}</span></td>
+                                            <td><span class="estado-${pago.estado}">${typeof formatearEtiqueta === 'function' ? formatearEtiqueta(pago.estado) : pago.estado}</span></td>
                                             <td>
                                                 <button class="btn btn-sm btn-info" onclick="verDetallePagoCiudadano(${pago.id})">
                                                     <i class="bi bi-eye"></i>
@@ -931,7 +939,12 @@ async function mostrarFormularioNuevoTramite(tramiteAEditar = null) {
                   <label for="tipo-tramite" class="form-label">Tipo de Trámite</label>
                   <select class="form-select" id="tipo-tramite" required>
                     <option value="">Seleccione un tipo de trámite</option>
-                    ${(Array.isArray(tiposTramite) ? tiposTramite : []).map(tipo => `<option value="${tipo.id}">${tipo.nombre}</option>`).join('')}
+                    ${(Array.isArray(tiposTramite) ? tiposTramite : []).map(tipo => {
+                      const nombreUpper = String(tipo.nombre || '').toUpperCase();
+                      const costoVal = parseFloat(tipo.costo_numerico || tipo.costo) || 0;
+                      const precioTexto = (costoVal === 0) ? 'GRATUITO' : (typeof formatearMoneda === 'function' ? formatearMoneda(costoVal) : `CLP ${costoVal}`);
+                      return `<option value="${tipo.id}">${nombreUpper} — ${precioTexto}</option>`;
+                    }).join('')}
                   </select>
                 </div>
                 <div class="mb-3">

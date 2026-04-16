@@ -130,9 +130,73 @@ function formatearFecha(fecha) {
  * @returns {string} - Monto formateado como moneda
  */
 function formatearMoneda(monto) {
-    return new Intl.NumberFormat('es-CL', {
+    if (monto === null || monto === undefined) return 'CLP $ 0';
+    const num = Number(monto);
+    const formato = new Intl.NumberFormat('es-CL', {
         style: 'currency',
         currency: 'CLP',
-        minimumFractionDigits: 0
-    }).format(monto);
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(num);
+    return `CLP ${formato}`;
 }
+
+/**
+ * Función para obtener el nombre legible de un método de pago
+ * @param {string} metodo - Código del método de pago
+ * @returns {string} - Nombre legible del método
+ */
+function obtenerNombreMetodoPago(metodo) {
+    if (!metodo) return '—';
+    const m = String(metodo).toLowerCase();
+    const nombres = {
+        'efectivo': 'Efectivo',
+        'tarjeta_credito': 'Tarjeta de Crédito',
+        'tarjeta_debito': 'Tarjeta de Débito',
+        'transferencia': 'Transferencia Bancaria',
+        'transferencia_bancaria': 'Transferencia Bancaria',
+        'cheque': 'Cheque',
+        'pago_en_linea': 'Pago en Línea',
+        'mercado_pago': 'Mercado Pago',
+        'debito': 'Débito',
+        'credito': 'Crédito',
+        'otro': 'Otro'
+    };
+    return nombres[m] || m.charAt(0).toUpperCase() + m.slice(1).replace(/_/g, ' ');
+}
+
+/**
+ * Función genérica para formatear etiquetas técnicas (snake_case -> Title Case)
+ * @param {string} texto - Texto a formatear
+ * @returns {string} - Texto formateado
+ */
+function formatearEtiqueta(texto) {
+    if (!texto) return '—';
+    const t = String(texto).toLowerCase();
+    
+    // Casos especiales conocidos
+    const especiales = {
+        'superadministrador': 'Superadministrador',
+        'administrador': 'Administrador',
+        'funcionario': 'Funcionario',
+        'ciudadano': 'Ciudadano',
+        'activo': 'Activo',
+        'inactivo': 'Inactivo',
+        'pendiente': 'Pendiente',
+        'completado': 'Completado',
+        'rechazado': 'Rechazado',
+        'aprobado': 'Aprobado',
+        'en_revision': 'En Revisión',
+        'en_proceso': 'En Proceso'
+    };
+    
+    if (especiales[t]) return especiales[t];
+    
+    // Fallback: Capitalizar y reemplazar guiones bajos
+    return t.split('_')
+        .map(palabra => palabra.charAt(0).toUpperCase() + palabra.slice(1))
+        .join(' ');
+}
+
+
+
