@@ -2084,7 +2084,7 @@ async function obtenerTramitesUsuarioAPI(usuarioId) {
             }
         }
 
-        const combinada = Array.from(porCodigo.values()).filter(t => typeof t.id === 'number' && !!t.id);
+        const combinada = Array.from(porCodigo.values()).filter(t => !!t.id);
         combinada.sort((a, b) => new Date(b.fecha_solicitud) - new Date(a.fecha_solicitud));
         // Si aún no hay resultados, forzar cache-bust
         if (!combinada.length) {
@@ -2100,7 +2100,7 @@ async function obtenerTramitesUsuarioAPI(usuarioId) {
         const porCodigo = new Map();
         for (const lt of locales) { const cod = lt && lt.codigo ? String(lt.codigo) : null; if (cod && !porCodigo.has(cod)) porCodigo.set(cod, lt); }
         const lsorted = Array.from(porCodigo.values()).sort((a, b) => new Date(b.fecha_solicitud) - new Date(a.fecha_solicitud));
-        return lsorted.filter(t => typeof t.id === 'number');
+        return lsorted.filter(t => !!t.id);
     }
 }
 
@@ -2220,7 +2220,10 @@ async function cargarMisTramites(usuario) {
             if (tbody) {
                 tbody.innerHTML = slice.map(tramite => `
                     <tr>
-                        <td>${tramite.codigo}</td>
+                        <td>
+                            ${tramite.codigo}
+                            ${typeof tramite.id === 'string' ? '<i class="bi bi-cloud-slash text-warning ms-1" title="Pendiente de sincronizar con el servidor" data-bs-toggle="tooltip"></i>' : ''}
+                        </td>
                         <td class="text-uppercase">${obtenerNombreTipoTramite(tramite.tipo)}</td>
                         <td class="text-uppercase">${tramite.titulo}</td>
                         <td>${formatearFecha(tramite.fecha_solicitud)}</td>
@@ -2261,7 +2264,8 @@ async function cargarMisTramites(usuario) {
                 nuevosBotones.forEach(b => {
                     b.onclick = (e) => {
                         e.preventDefault();
-                        const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                        const idStr = e.currentTarget.getAttribute('data-id');
+                        const id = /^\d+$/.test(idStr) ? parseInt(idStr) : idStr;
                         mostrarDetalleTramiteModal(id);
                     };
                 });
@@ -2271,7 +2275,8 @@ async function cargarMisTramites(usuario) {
                 quitarBtns.forEach(b => {
                     b.onclick = (e) => {
                         e.preventDefault();
-                        const id = parseInt(e.currentTarget.getAttribute('data-id'));
+                        const idStr = e.currentTarget.getAttribute('data-id');
+                        const id = /^\d+$/.test(idStr) ? parseInt(idStr) : idStr;
                         const titulo = e.currentTarget.getAttribute('data-titulo') || 'Trámite';
                         const tipo = e.currentTarget.getAttribute('data-tipo') || '';
                         
@@ -2848,10 +2853,18 @@ async function enviarNuevoTramite(usuario) {
                 throw new Error('La API no devolvió el ID del trámite');
             }
         } catch (apiError) {
-            console.warn('Error al guardar en la API, intentando guardar solo en localStorage:', apiError);
+            console.error('Error al guardar el trámite en la API:', apiError);
             
+            // Si es un error de validación (400-499), mostrarlo al usuario y NO guardar localmente como éxito
+            if (apiError.status >= 400 && apiError.status < 500) {
+                mostrarCargando(false);
+                const msg = apiError.body?.message || apiError.message || 'Error de validación';
+                mostrarNotificacion(`No se pudo crear el trámite: ${msg}`, 'danger');
+                return; // Detener flujo
+            }
+
             try {
-                // Si falla la API, guardar solo en localStorage
+                // Si es un error de red o de servidor, intentar guardar en localStorage como respaldo
                 const tramites = obtenerTramites();
                 if (esEdicion) {
                     const idx = tramites.findIndex(t => t.id == tramiteIdAEditar || String(t.id) === tramiteIdAEditar);
@@ -2864,32 +2877,30 @@ async function enviarNuevoTramite(usuario) {
                     tramites.push(nuevoTramite);
                 }
                 localStorage.setItem('tramites', JSON.stringify(tramites));
+                
+                // Indicar que se guardó pero solo localmente
                 guardadoExitoso = true;
+                window.__esGuardadoLocal = true;
                 
                 // Programar un reintento en segundo plano
                 setTimeout(() => {
-                    try {
-                        fetchAPI('/tramites', {
-                            method: 'POST',
-                            body: nuevoTramite
-                        }).then(response => {
-                            console.log('Reintento exitoso de guardar en la API:', response);
-                        }).catch(error => {
-                            console.warn('Reintento fallido de guardar en la API:', error);
-                        });
-                    } catch (e) {
-                        console.warn('Error en reintento programado:', e);
-                    }
-                }, 5000); // Reintento después de 5 segundos
-            } catch (localError) {
-                console.error('Error al guardar en localStorage:', localError);
+                    fetchAPI('/tramites', { method: 'POST', body: nuevoTramite, suppressErrorLog: true })
+                        .then(r => console.log('Sincronización tardía exitosa:', r))
+                        .catch(e => console.warn('Sincronización tardía fallida:', e));
+                }, 5000);
+            } catch (localErr) {
+                console.error('Error al guardar en localStorage:', localErr);
                 throw new Error('No se pudo guardar el trámite en ningún almacenamiento');
             }
         }
         
         if (guardadoExitoso) {
-            // Mostrar mensaje de éxito
-            mostrarNotificacion(esEdicion ? 'Trámite actualizado correctamente' : 'Trámite enviado correctamente', 'success');
+            if (window.__esGuardadoLocal) {
+                mostrarNotificacion('Trámite guardado localmente (sin conexión). Se sincronizará pronto.', 'warning');
+                delete window.__esGuardadoLocal;
+            } else {
+                mostrarNotificacion(esEdicion ? 'Trámite actualizado correctamente' : 'Trámite enviado correctamente', 'success');
+            }
             
             // Ocultar indicador de carga
             mostrarCargando(false);
@@ -2915,7 +2926,7 @@ async function enviarNuevoTramite(usuario) {
 
 // Función para generar un código de trámite
 function generarCodigoTramite(tipo) {
-    const nombre = String(tipo || '').toLowerCase();
+    const nombre = String(tipo || '').trim().toLowerCase();
     const tiposCert = ['certificado de construcción de obras'];
     const tiposPerm = ['permiso de circulación.', 'permiso de circulación', 'regularización de viviendas'];
     const tiposLic = ['rectificación de datos o errores en licencias.', 'rectificación de datos o errores en licencias'];

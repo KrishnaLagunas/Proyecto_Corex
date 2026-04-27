@@ -1,4 +1,4 @@
-const { Tramite, Pago, Usuario, Municipalidad, Departamento } = require('../models');
+const { Tramite, Pago, Usuario, Municipalidad, Departamento, DepartamentoUsuario } = require('../models');
 const { Op } = require('sequelize');
 const logger = require('../utils/logger');
 
@@ -16,22 +16,72 @@ const dashboardController = {
     try {
       const rol = req.user?.rol_nombre;
       const muniId = req.user?.municipalidad_id || null;
+      const userId = req.user?.id;
 
       const isSuperAdmin = rol === 'superadministrador';
       const isAdmin = rol === 'administrador';
-      const isFuncionario = rol === 'funcionario' || rol === 'secretaria de educación' || rol === 'secretaria de obras' || rol === 'secretaria de transito' || rol === 'secretaria de seguridad' || rol === 'secretaria de salud';
+      const isFuncionario = rol === 'funcionario' || (rol && rol.toLowerCase().includes('secretaria')) || (rol && rol.toLowerCase().includes('dirección')) || (rol && rol.toLowerCase().includes('departamento'));
 
-      // Filtros por municipalidad
+      // Filtros por municipalidad y departamento
       const emptyFilter = { municipalidad_id: -1 };
       const filtraPorMuni = (isAdmin || isFuncionario);
       let tramiteWhere = {};
+      let deptoFilter = {};
+
       if (filtraPorMuni) {
         if (!muniId) {
           tramiteWhere = emptyFilter;
         } else {
-          tramiteWhere = isAdmin ? { [require('sequelize').Op.or]: [{ municipalidad_id: muniId }, { municipalidad_id: null }] } : { municipalidad_id: muniId };
+          if (isFuncionario) {
+            let departamentosAsignados = [];
+            // 1. Buscar asignación explícita
+            try {
+              const asignaciones = await DepartamentoUsuario.findAll({
+                where: { usuario_id: userId },
+                attributes: ['departamento_id']
+              });
+              if (asignaciones.length > 0) {
+                departamentosAsignados = asignaciones.map(a => a.departamento_id);
+              }
+            } catch (e) { console.error('Error buscando asignaciones:', e.message); }
+
+            // 2. Inferir por rol si no hay asignación
+            if (departamentosAsignados.length === 0) {
+              try {
+                const rolNombre = String(rol || '').toLowerCase();
+                if (rolNombre.includes('secretaria de') || rolNombre.includes('dirección de') || rolNombre.includes('departamento de')) {
+                  let termino = rolNombre
+                    .replace('secretaria de', '')
+                    .replace('dirección de', '')
+                    .replace('departamento de', '')
+                    .trim();
+                  
+                  if (termino.length > 2) {
+                    const depto = await Departamento.findOne({
+                      where: {
+                        nombre: { [Op.like]: `%${termino}%` },
+                        municipalidad_id: muniId
+                      }
+                    });
+                    if (depto) {
+                      departamentosAsignados.push(depto.id);
+                    }
+                  }
+                }
+              } catch (e) { console.error('Error infiriendo departamento:', e.message); }
+            }
+
+            if (departamentosAsignados.length > 0) {
+              deptoFilter = { departamento_id: { [Op.in]: departamentosAsignados } };
+            }
+          }
+
+          tramiteWhere = isAdmin 
+            ? { [Op.or]: [{ municipalidad_id: muniId }, { municipalidad_id: null }] } 
+            : { municipalidad_id: muniId, ...deptoFilter };
         }
       }
+
       // Proyectos deshabilitados
       const usuarioWhere = filtraPorMuni ? (muniId ? { municipalidad_id: muniId } : emptyFilter) : {};
 
@@ -42,8 +92,8 @@ const dashboardController = {
       let totalPagosMonto = 0;
       let totalPagosCount = 0;
       if (filtraPorMuni && muniId) {
-        totalPagosMonto = await safeEval(() => Pago.sum('monto', { include: [{ model: Tramite, required: true, where: { municipalidad_id: muniId } }] })) || 0;
-        totalPagosCount = await safeEval(() => Pago.count({ include: [{ model: Tramite, required: true, where: { municipalidad_id: muniId } }] })) || 0;
+        totalPagosMonto = await safeEval(() => Pago.sum('monto', { include: [{ model: Tramite, required: true, where: tramiteWhere }] })) || 0;
+        totalPagosCount = await safeEval(() => Pago.count({ include: [{ model: Tramite, required: true, where: tramiteWhere }] })) || 0;
       } else {
         totalPagosMonto = await safeEval(() => Pago.sum('monto')) || 0;
         totalPagosCount = await safeEval(() => Pago.count()) || 0;
@@ -80,7 +130,7 @@ const dashboardController = {
         };
         
         if (filtraPorMuni && muniId) {
-           pagosEstadoOptions.include = [{ model: Tramite, required: true, where: { municipalidad_id: muniId } }];
+           pagosEstadoOptions.include = [{ model: Tramite, required: true, where: tramiteWhere }];
         }
         
         pagosPorEstado = await Pago.findAll(pagosEstadoOptions);
@@ -107,7 +157,7 @@ const dashboardController = {
         order: [[require('sequelize').fn('DATE_FORMAT', require('sequelize').col('fecha_pago'), '%Y-%m'), 'ASC']]
       };
       if (filtraPorMuni && muniId) {
-        pagosPorMesOptions.include = [{ model: Tramite, required: true, where: { municipalidad_id: muniId } }];
+        pagosPorMesOptions.include = [{ model: Tramite, required: true, where: tramiteWhere }];
       }
       let pagosPorMes = [];
       try { pagosPorMes = await Pago.findAll(pagosPorMesOptions); } catch (_) { pagosPorMes = []; }
@@ -125,7 +175,7 @@ const dashboardController = {
           }
         };
         if (filtraPorMuni && muniId) {
-          recientesOptions.include = [{ model: Tramite, required: true, where: { municipalidad_id: muniId } }];
+          recientesOptions.include = [{ model: Tramite, required: true, where: tramiteWhere }];
         }
         pagosRecientes = await Pago.count(recientesOptions);
       } catch (e) { pagosRecientes = 0; }
@@ -250,7 +300,7 @@ const dashboardController = {
       const muniId = req.user?.municipalidad_id || null;
       const userId = req.user?.id;
       const isAdmin = rol === 'administrador';
-      const isFuncionario = rol === 'funcionario' || (rol && rol.toLowerCase().includes('secretaria')) || (rol && rol.toLowerCase().includes('dirección'));
+      const isFuncionario = rol === 'funcionario' || (rol && rol.toLowerCase().includes('secretaria')) || (rol && rol.toLowerCase().includes('dirección')) || (rol && rol.toLowerCase().includes('departamento'));
       
       const emptyFilter = { municipalidad_id: -1 };
       const filtra = (isAdmin || isFuncionario);

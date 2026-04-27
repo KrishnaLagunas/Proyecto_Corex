@@ -524,7 +524,7 @@ async function cargarMunicipalidades() {
                 <td class="cell-wrap">${d.direccion || ''}</td>
                 <td class="cell-wrap">${d.region || ''}</td>
                 <td class="cell-wrap">${d.comuna || ''}</td>
-                <td class="cell-wrap">${d.estado || 'activo'}</td>
+                <td class="cell-wrap"><span class="status-dot ${d.estado || 'activo'}"></span> ${((d.estado || 'activo') === 'activo') ? 'Activo' : 'Inactivo'}</td>
                 <td class="text-center col-actions">
                     <div class="btn-group btn-group-sm table-actions" role="group" aria-label="Acciones">
                         <button class="btn btn-view" onclick="verDetalleMunicipalidad(${d.id})" title="Ver detalles">
@@ -533,8 +533,10 @@ async function cargarMunicipalidades() {
                         <button class="btn btn-edit" onclick="editarMunicipalidad(${d.id})" title="Editar municipalidad">
                             <i class="bi bi-pencil"></i>
                         </button>
-                        <button class="btn btn-danger" onclick="confirmarEliminarMunicipalidad(${d.id}, '${(d.nombre || '').replace(/'/g, "\\'")}')" title="Eliminar municipalidad">
-                            <i class="bi bi-trash"></i>
+                        <button class="btn ${d.estado === 'activo' ? 'btn-toggle' : 'btn-toggle btn-activate'}" 
+                                onclick="cambiarEstadoMunicipalidad(${d.id}, '${d.estado === 'activo' ? 'inactivo' : 'activo'}')" 
+                                title="${d.estado === 'activo' ? 'Desactivar' : 'Activar'}">
+                            <i class="bi ${d.estado === 'activo' ? 'bi-person-x' : 'bi-person-check'}"></i>
                         </button>
                     </div>
                 </td>
@@ -960,6 +962,34 @@ async function eliminarMunicipalidadConfirmado() {
         cargarMunicipalidades();
     } catch (error) {
         mostrarNotificacion('Error al eliminar municipalidad: ' + (error.message || ''), 'danger');
+    } finally {
+        mostrarCargando(false);
+    }
+}
+
+/**
+ * Función para cambiar el estado de una municipalidad (activar/desactivar)
+ * @param {number} id - ID de la municipalidad
+ * @param {string} nuevoEstado - Nuevo estado ('activo' o 'inactivo')
+ */
+async function cambiarEstadoMunicipalidad(id, nuevoEstado) {
+    try {
+        mostrarCargando(true);
+        
+        await fetchAPI(`/municipalidades/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ estado: nuevoEstado })
+        });
+
+        mostrarNotificacion(`Municipalidad ${nuevoEstado === 'activo' ? 'activada' : 'desactivada'} exitosamente`, 'success');
+        await cargarMunicipalidades();
+        
+    } catch (error) {
+        console.error('Error al cambiar estado de la municipalidad:', error);
+        mostrarNotificacion('Error al cambiar estado: ' + error.message, 'danger');
     } finally {
         mostrarCargando(false);
     }

@@ -352,7 +352,7 @@ const tramitesController = {
           { nombre: 'Permiso de circulación', tipo: 'permiso' }
         ]
       };
-      const norm = s => String(s || '').toLowerCase();
+      const norm = s => String(s || '').trim().toLowerCase();
       const depNombre = depObj?.nombre || depObj?.nombre_departamento || '';
       const depNorm = norm(depNombre);
       let clave;
@@ -366,6 +366,7 @@ const tramitesController = {
         const lista = TRAMITES_POR_DEPTO[clave];
         const matchNombre = lista.find(t => norm(req.body.tipo) === norm(t.nombre));
         if (!matchNombre) {
+          logger.warn(`Trámite '${req.body.tipo}' no encontrado en lista para departamento '${clave}'`);
           throw new ApiError('Este trámite no pertenece al departamento seleccionado', 400);
         }
         // tipo debe ser el nombre exacto del trámite

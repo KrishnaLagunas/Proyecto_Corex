@@ -143,7 +143,7 @@ const Tramite = sequelize.define('Tramite', {
     const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
     
     // Obtener el prefijo según el tipo de trámite
-    const nombre = String(tipo || '').toLowerCase();
+    const nombre = String(tipo || '').trim().toLowerCase();
     const tiposCert = ['certificado de construcción de obras'];
     const tiposPerm = ['permiso de circulación.', 'permiso de circulación', 'regularización de viviendas'];
     const tiposLic = ['rectificación de datos o errores en licencias.', 'rectificación de datos o errores en licencias'];
